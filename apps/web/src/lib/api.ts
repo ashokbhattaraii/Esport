@@ -1,4 +1,11 @@
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
+function normalizeApiUrl(url: string): string {
+  const trimmed = url.trim().replace(/\/+$/, "");
+  return trimmed.endsWith("/api") ? trimmed : `${trimmed}/api`;
+}
+
+const API = normalizeApiUrl(
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api",
+);
 
 function token(): string | null {
   if (typeof window === "undefined") return null;
