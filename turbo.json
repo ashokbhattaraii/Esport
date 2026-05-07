@@ -3,6 +3,17 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
+      "env": [
+        "DATABASE_URL",
+        "JWT_SECRET",
+        "JWT_EXPIRES_IN",
+        "PORT",
+        "UPLOAD_DIR",
+        "ADMIN_EMAIL",
+        "ADMIN_PASSWORD",
+        "NEXT_PUBLIC_API_URL",
+        "NEXT_PUBLIC_GOOGLE_CLIENT_ID"
+      ],
       "outputs": [".next/**", "dist/**"]
     },
     "dev": {

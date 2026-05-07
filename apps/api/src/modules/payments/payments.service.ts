@@ -15,21 +15,19 @@ export class PaymentsService {
     userId: string,
     body: {
       tournamentId?: string;
-      challengeId?: string;
       method: string;
       reference?: string;
       amountNpr: number;
     },
     fileUrl: string,
   ) {
-    if (!body.tournamentId && !body.challengeId) {
-      throw new BadRequestException("tournamentId or challengeId required");
+    if (!body.tournamentId) {
+      throw new BadRequestException("tournamentId required");
     }
     return this.prisma.payment.create({
       data: {
         userId,
         tournamentId: body.tournamentId,
-        challengeId: body.challengeId,
         amountNpr: Number(body.amountNpr),
         method: body.method ?? "esewa",
         reference: body.reference,
@@ -119,19 +117,7 @@ export class PaymentsService {
           data: { filledSlots: { increment: 1 } },
         });
       }
-      if (p.challengeId) {
-        await tx.challengeParticipant.update({
-          where: {
-            challengeId_userId: {
-              challengeId: p.challengeId,
-              userId: p.userId,
-            },
-          },
-          data: { paid: true },
-        });
-      }
-
-      if (!p.tournamentId && !p.challengeId) {
+      if (!p.tournamentId) {
         const wallet = await tx.wallet.upsert({
           where: { userId: p.userId },
           update: { balanceNpr: { increment: p.amountNpr } },
@@ -153,11 +139,11 @@ export class PaymentsService {
           userId: p.userId,
           type: "PAYMENT",
           title:
-            p.tournamentId || p.challengeId
+            p.tournamentId
               ? "Payment approved"
               : "Deposit approved",
           body:
-            p.tournamentId || p.challengeId
+            p.tournamentId
               ? "Your payment has been approved. Room details are now visible."
               : `Your wallet deposit of NPR ${p.amountNpr} has been approved.`,
         },
