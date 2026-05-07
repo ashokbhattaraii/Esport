@@ -2,7 +2,11 @@
   "version": 2,
   "functions": {
     "api/index.js": {
-      "includeFiles": "dist/**"
+      "includeFiles": [
+        "dist/**",
+        "node_modules/@fireslot/db/dist/**",
+        "../../packages/db/dist/**"
+      ]
     }
   },
   "routes": [
