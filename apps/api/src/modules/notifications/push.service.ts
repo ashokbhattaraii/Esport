@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from "@nestjs/common";
 import { PrismaClient } from "@fireslot/db";
 import { PRISMA } from "../../prisma/prisma.module";
 import { getMessaging } from "../../config/firebase.config";
+import { RealtimeService } from "../../common/realtime/realtime.service";
 
 interface PushPayload {
   title: string;
@@ -13,9 +14,17 @@ interface PushPayload {
 export class PushService {
   private readonly logger = new Logger("PushService");
 
-  constructor(@Inject(PRISMA) private prisma: PrismaClient) {}
+  constructor(
+    @Inject(PRISMA) private prisma: PrismaClient,
+    private realtime: RealtimeService,
+  ) {}
 
   async sendToUser(userId: string, payload: PushPayload) {
+    this.realtime.emitToUser(userId, "notification_new", {
+      title: payload.title,
+      body: payload.body,
+      data: payload.data,
+    });
     try {
       const tokens = await this.prisma.userPushToken.findMany({ where: { userId } });
       if (!tokens.length) return;
@@ -26,6 +35,13 @@ export class PushService {
   }
 
   async sendToMultiple(userIds: string[], payload: PushPayload) {
+    for (const uid of userIds) {
+      this.realtime.emitToUser(uid, "notification_new", {
+        title: payload.title,
+        body: payload.body,
+        data: payload.data,
+      });
+    }
     try {
       const tokens = await this.prisma.userPushToken.findMany({
         where: { userId: { in: userIds } },

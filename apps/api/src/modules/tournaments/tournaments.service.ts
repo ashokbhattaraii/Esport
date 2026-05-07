@@ -22,6 +22,21 @@ import {
 import { PrizeService } from "./prize.service";
 import { SystemConfigService } from "../admin/system-config.service";
 import { FreeDailyWindowService } from "../admin/free-daily-window.service";
+import { MemoryCacheService } from "../../common/cache/memory-cache.service";
+import { RealtimeService } from "../../common/realtime/realtime.service";
+import { createHash } from "crypto";
+
+const ROOM_CACHE_TTL_SECONDS = 30;
+const roomCacheKey = (id: string) => `room:${id}`;
+
+export interface RoomDetails {
+  tournamentId: string;
+  roomId: string | null;
+  roomPassword: string | null;
+  status: TournamentStatus;
+  updatedAt: Date;
+  etag: string;
+}
 
 @Injectable()
 export class TournamentsService {
@@ -30,7 +45,63 @@ export class TournamentsService {
     private prizes: PrizeService,
     private config: SystemConfigService,
     private freeDailyWindows: FreeDailyWindowService,
+    private cache: MemoryCacheService,
+    private realtime: RealtimeService,
   ) {}
+
+  private buildEtag(t: { roomId: string | null; roomPassword: string | null; status: string; updatedAt: Date }) {
+    return createHash("sha1")
+      .update(`${t.roomId ?? ""}|${t.roomPassword ?? ""}|${t.status}|${t.updatedAt.getTime()}`)
+      .digest("hex")
+      .slice(0, 16);
+  }
+
+  /**
+   * Cache-aside read for room details. Designed for the spike when
+   * 200-500 players refresh the moment admin publishes the room.
+   * Caller is expected to pass in userId/role; this enforces eligibility.
+   */
+  async getRoomDetails(
+    tournamentId: string,
+    userId?: string,
+    role?: Role,
+  ): Promise<RoomDetails> {
+    let cached = this.cache.get<RoomDetails>(roomCacheKey(tournamentId));
+    if (!cached) {
+      const t = await this.prisma.tournament.findUnique({
+        where: { id: tournamentId },
+        select: { id: true, roomId: true, roomPassword: true, status: true, updatedAt: true },
+      });
+      if (!t) throw new NotFoundException("Tournament not found");
+      const fresh: RoomDetails = {
+        tournamentId: t.id,
+        roomId: t.roomId,
+        roomPassword: t.roomPassword,
+        status: t.status,
+        updatedAt: t.updatedAt,
+        etag: this.buildEtag(t),
+      };
+      this.cache.set(roomCacheKey(tournamentId), fresh, ROOM_CACHE_TTL_SECONDS);
+      cached = fresh;
+    }
+
+    let canSeeRoom = role === "ADMIN";
+    if (!canSeeRoom && userId) {
+      const p = await this.prisma.tournamentParticipant.findFirst({
+        where: { tournamentId, userId, paid: true },
+        select: { id: true },
+      });
+      canSeeRoom = !!p;
+    }
+    if (!canSeeRoom) {
+      return { ...cached, roomId: null, roomPassword: null };
+    }
+    return cached;
+  }
+
+  invalidateRoomCache(tournamentId: string) {
+    this.cache.del(roomCacheKey(tournamentId));
+  }
 
   list(filters: {
     mode?: GameMode;
@@ -208,14 +279,17 @@ export class TournamentsService {
   }
 
   async setStatus(id: string, dto: UpdateTournamentStatusDto) {
-    return this.prisma.tournament.update({
+    const updated = await this.prisma.tournament.update({
       where: { id },
       data: { status: dto.status },
     });
+    this.invalidateRoomCache(id);
+    this.realtime.emitToTournament(id, "tournament_status_changed", { status: dto.status });
+    return updated;
   }
 
   async publishRoom(id: string, dto: PublishRoomDto) {
-    return this.prisma.tournament.update({
+    const updated = await this.prisma.tournament.update({
       where: { id },
       data: {
         roomId: dto.roomId,
@@ -223,6 +297,10 @@ export class TournamentsService {
         status: TournamentStatus.LIVE,
       },
     });
+    this.invalidateRoomCache(id);
+    // Don't leak credentials over realtime — clients pull fresh via API after this nudge.
+    this.realtime.emitToTournament(id, "room_details_published", { tournamentId: id });
+    return updated;
   }
 
   async checkEligibility(userId: string, tournamentId: string) {
@@ -371,7 +449,14 @@ export class TournamentsService {
       kills: w.kills ?? 0,
       gotBooyah: w.gotBooyah ?? w.placement === 1,
     }));
-    return this.prizes.distributePrizes(tournamentId, results);
+    const out = await this.prizes.distributePrizes(tournamentId, results);
+    this.invalidateRoomCache(tournamentId);
+    this.realtime.emitToTournament(tournamentId, "tournament_status_changed", { status: "COMPLETED" });
+    for (const c of out.credits ?? []) {
+      this.realtime.emitToUser(c.userId, "prize_credited", { amount: c.amount, note: c.note });
+      this.realtime.emitToUser(c.userId, "wallet_updated", {});
+    }
+    return out;
   }
 
   private validateFeePlan(dto: CreateTournamentDto) {

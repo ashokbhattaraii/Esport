@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { fmtDate } from "@/lib/utils";
 import { useToast, handleJoinError } from "@/lib/toast";
+import { useTournamentRealtime } from "@/hooks/useTournamentRealtime";
 import {
   Trophy, AlertTriangle, Settings, BookOpen, ShieldCheck, X,
 } from "lucide-react";
@@ -44,6 +45,15 @@ export default function TournamentDetailClient() {
       api(`/tournaments/${id}/eligibility`).then(setEligibility).catch(() => {});
     }
   }, [id, user]);
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { roomJustPublished } = useTournamentRealtime(id, {
+    onRoomPublished: () => {
+      toast.success("Room details are live!");
+      load();
+    },
+    onStatusChanged: () => load(),
+  });
 
   async function join() {
     if (!user) return router.push("/login");

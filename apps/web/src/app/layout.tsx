@@ -17,8 +17,15 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+  const supaUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   return (
     <html lang="en" className="dark">
+      <head>
+        {apiUrl && <link rel="preconnect" href={new URL(apiUrl).origin} crossOrigin="" />}
+        {supaUrl && <link rel="preconnect" href={supaUrl} crossOrigin="" />}
+        {supaUrl && <link rel="dns-prefetch" href={supaUrl} />}
+      </head>
       <body>
         <Providers>
           <NativeBootstrap />

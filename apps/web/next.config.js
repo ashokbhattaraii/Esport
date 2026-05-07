@@ -25,6 +25,24 @@ const nextConfig = {
   env: {
     NEXT_PUBLIC_GOOGLE_CLIENT_ID: googleClientId,
   },
+  productionBrowserSourceMaps: false,
+  compress: true,
+  modularizeImports: {
+    'lucide-react': {
+      transform: 'lucide-react/dist/esm/icons/{{kebabCase member}}',
+    },
+  },
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      config.optimization = config.optimization || {};
+      config.optimization.splitChunks = {
+        chunks: 'all',
+        minSize: 20000,
+        maxSize: 244000,
+      };
+    }
+    return config;
+  },
   // Static export only when building for the Capacitor APK; the regular web
   // build keeps Next.js dynamic features.
   ...(isCapacitorBuild
@@ -35,7 +53,10 @@ const nextConfig = {
       }
     : {
         images: {
-          remotePatterns: [{ protocol: 'http', hostname: 'localhost' }],
+          remotePatterns: [
+            { protocol: 'http', hostname: 'localhost' },
+            { protocol: 'https', hostname: '*.supabase.co' },
+          ],
         },
       }),
 };

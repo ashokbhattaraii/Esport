@@ -6,6 +6,7 @@ import { Home, Trophy, Wallet, Bell, UserCircle } from "lucide-react";
 import { useIsNativeApp } from "@/hooks/useIsNativeApp";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
+import { useUserRealtime } from "@/hooks/useUserRealtime";
 
 const TABS = [
   { href: "/", label: "Home", icon: Home },
@@ -27,6 +28,10 @@ export function MobileBottomNav() {
       .then((items) => setUnread(items.filter((n: any) => !n.read).length))
       .catch(() => {});
   }, [isNative, user, pathname]);
+
+  useUserRealtime({
+    onNotification: () => setUnread((n) => n + 1),
+  });
 
   if (!isNative) return null;
 

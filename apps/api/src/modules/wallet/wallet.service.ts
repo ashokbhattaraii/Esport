@@ -7,6 +7,7 @@ import {
 import { IsInt, IsString, Min } from "class-validator";
 import { PrismaClient, WithdrawalStatus } from "@fireslot/db";
 import { PRISMA } from "../../prisma/prisma.module";
+import { RealtimeService } from "../../common/realtime/realtime.service";
 
 export class WithdrawDto {
   @IsInt() @Min(100) amountNpr!: number;
@@ -16,7 +17,10 @@ export class WithdrawDto {
 
 @Injectable()
 export class WalletService {
-  constructor(@Inject(PRISMA) private prisma: PrismaClient) {}
+  constructor(
+    @Inject(PRISMA) private prisma: PrismaClient,
+    private realtime: RealtimeService,
+  ) {}
 
   async getMine(userId: string) {
     const wallet = await this.prisma.wallet.upsert({
@@ -51,7 +55,7 @@ export class WalletService {
           note: `Withdrawal request via ${dto.method}`,
         },
       });
-      return tx.withdrawalRequest.create({
+      const req = await tx.withdrawalRequest.create({
         data: {
           userId,
           amountNpr: dto.amountNpr,
@@ -59,6 +63,8 @@ export class WalletService {
           account: dto.account,
         },
       });
+      this.realtime.emitToUser(userId, "wallet_updated", {});
+      return req;
     });
   }
 
@@ -124,6 +130,7 @@ export class WalletService {
           newValue: note ? { status, note } : { status },
         },
       });
+      this.realtime.emitToUser(w.userId, "wallet_updated", {});
       return updated;
     });
   }

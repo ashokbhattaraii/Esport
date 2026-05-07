@@ -13,6 +13,7 @@ import {
 } from "@fireslot/db";
 import { PRISMA } from "../../prisma/prisma.module";
 import { SystemConfigService } from "../admin/system-config.service";
+import { RealtimeService } from "../../common/realtime/realtime.service";
 
 const CS_TEAM_MODES = ["1v1", "2v2", "3v3", "4v4"];
 const CS_COINS = ["DEFAULT", "9980"];
@@ -64,6 +65,7 @@ export class ChallengesService {
   constructor(
     @Inject(PRISMA) private prisma: PrismaClient,
     private config: SystemConfigService,
+    private realtime: RealtimeService,
   ) {}
 
   getChallengeRulesText(c: any): string {
@@ -323,6 +325,11 @@ export class ChallengesService {
           body: "Share room details now.",
         },
       });
+      this.realtime.emitToUser(c.creatorId, "challenge_matched", {
+        challengeId: c.id,
+        challengeNumber: c.challengeNumber,
+      });
+      this.realtime.emitToUser(userId, "wallet_updated", {});
       return updated;
     });
   }

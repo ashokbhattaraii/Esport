@@ -2,12 +2,15 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   Param,
   Post,
   Put,
   Query,
+  Res,
   UseGuards,
 } from "@nestjs/common";
+import type { Response } from "express";
 import { TournamentsService } from "./tournaments.service";
 import { JwtAuthGuard } from "../../common/guards/jwt.guard";
 import { Roles, RolesGuard } from "../../common/guards/roles.guard";
@@ -55,6 +58,28 @@ export class TournamentsController {
   @Get(":id/full")
   async getFull(@Param("id") id: string, @CurrentUser() u: any) {
     return this.svc.getOne(id, u.sub, u.role);
+  }
+
+  /**
+   * Hot-path endpoint: clients poll/refresh this on tournament detail.
+   * Returns 304 when their ETag matches — zero body transfer under spike.
+   */
+  @UseGuards(JwtAuthGuard)
+  @Get(":id/room")
+  async room(
+    @Param("id") id: string,
+    @CurrentUser() u: any,
+    @Headers("if-none-match") ifNoneMatch: string | undefined,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const details = await this.svc.getRoomDetails(id, u.sub, u.role);
+    res.setHeader("Cache-Control", "private, max-age=10");
+    res.setHeader("ETag", `"${details.etag}"`);
+    if (ifNoneMatch && ifNoneMatch.replace(/"/g, "") === details.etag) {
+      res.status(304);
+      return;
+    }
+    return details;
   }
 
   @UseGuards(JwtAuthGuard)
@@ -105,7 +130,7 @@ export class TournamentsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
   @Put(":id/room")
-  room(@Param("id") id: string, @Body() dto: PublishRoomDto) {
+  publishRoom(@Param("id") id: string, @Body() dto: PublishRoomDto) {
     return this.svc.publishRoom(id, dto);
   }
 
