@@ -52,9 +52,16 @@ export class SystemConfigService implements OnModuleInit {
 
   private static FALLBACKS: Record<string, string> = {
     MAX_ENTRY_FEE: "50",
-    SYSTEM_FEE_PERCENT: "25",
+    MIN_ENTRY_FEE: "10",
+    SYSTEM_FEE_PERCENT: "20",
     MIN_SYSTEM_FEE: "5",
+    KILL_REWARD_PERCENT: "80",
+    BOOYAH_COINS_PER_PLAYER: "1",
+    MIN_PLAYERS_TO_START: "10",
     FREE_DAILY_PRIZE_POOL: "100",
+    PRIZE_POOL_NOTE: "Prize pool scales with actual players. Entry fee is your only risk.",
+    HEADSHOT_RATE_LIMIT: "70",
+    MIN_LEVEL_REQUIRED: "40",
     FREE_DAILY_COOLDOWN_HOURS: "24",
     FREE_DAILY_MAX_PER_DAY: "1",
     KILL_RACE_ENABLED: "true",
