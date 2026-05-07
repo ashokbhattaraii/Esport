@@ -1,12 +1,12 @@
 import 'reflect-metadata';
+import { INestApplication, RequestMethod, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { RequestMethod, ValidationPipe } from '@nestjs/common';
 import { join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import * as express from 'express';
 import { AppModule } from './app.module';
 
-async function bootstrap() {
+export async function createApp(opts: { createStaticDirs?: boolean } = {}): Promise<INestApplication> {
   const app = await NestFactory.create(AppModule, {
     logger: ['error', 'warn', 'log'],
   });
@@ -38,16 +38,21 @@ async function bootstrap() {
   );
 
   const uploadDir = process.env.UPLOAD_DIR ?? './uploads';
-  if (!existsSync(uploadDir)) mkdirSync(uploadDir, { recursive: true });
+  if (opts.createStaticDirs && !existsSync(uploadDir)) mkdirSync(uploadDir, { recursive: true });
   app.use('/uploads', express.static(join(process.cwd(), uploadDir)));
 
   const apkDir = process.env.APK_DIR ?? './public/downloads';
-  if (!existsSync(apkDir)) mkdirSync(apkDir, { recursive: true });
+  if (opts.createStaticDirs && !existsSync(apkDir)) mkdirSync(apkDir, { recursive: true });
   app.use('/downloads', express.static(join(process.cwd(), apkDir)));
 
-  const port = parseInt(process.env.PORT ?? '4000', 10);
-  await app.listen(port, '0.0.0.0');
-  console.log(`API ready on port ${port}`);
+  return app;
 }
 
-bootstrap();
+if (require.main === module) {
+  (async () => {
+    const app = await createApp({ createStaticDirs: true });
+    const port = parseInt(process.env.PORT ?? '4000', 10);
+    await app.listen(port, '0.0.0.0');
+    console.log(`API ready on port ${port}`);
+  })();
+}
