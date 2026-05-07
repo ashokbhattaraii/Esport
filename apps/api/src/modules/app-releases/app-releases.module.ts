@@ -1,4 +1,6 @@
 import { Module } from "@nestjs/common";
+import { MulterModule } from "@nestjs/platform-express";
+import { memoryStorage } from "multer";
 import {
   AppReleasesController,
   PublicAppReleasesController,
@@ -7,7 +9,10 @@ import { AppReleasesService } from "./app-releases.service";
 import { AdminModule } from "../admin/admin.module";
 
 @Module({
-  imports: [AdminModule],
+  imports: [
+    AdminModule,
+    MulterModule.register({ storage: memoryStorage() }),
+  ],
   controllers: [AppReleasesController, PublicAppReleasesController],
   providers: [AppReleasesService],
 })

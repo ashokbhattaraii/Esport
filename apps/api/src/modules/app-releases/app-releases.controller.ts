@@ -11,20 +11,11 @@ import {
   UseInterceptors,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
-import { diskStorage } from "multer";
-import { extname } from "path";
 import { JwtAuthGuard } from "../../common/guards/jwt.guard";
 import { PermissionsGuard, RequirePermission } from "../../common/guards/permissions.guard";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
+import { StorageService } from "../../common/storage/storage.service";
 import { AppReleasesService } from "./app-releases.service";
-
-const releaseStorage = diskStorage({
-  destination: process.env.APK_DIR ?? "./public/downloads",
-  filename: (_req, file, cb) => {
-    const safe = file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
-    cb(null, `${Date.now()}-${safe}${extname(file.originalname).toLowerCase().endsWith(".apk") ? "" : ".apk"}`);
-  },
-});
 
 @Controller("app")
 export class PublicAppReleasesController {
@@ -39,7 +30,10 @@ export class PublicAppReleasesController {
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller("admin/app-releases")
 export class AppReleasesController {
-  constructor(private svc: AppReleasesService) {}
+  constructor(
+    private svc: AppReleasesService,
+    private storage: StorageService,
+  ) {}
 
   @RequirePermission("config", "read")
   @Get()
@@ -51,21 +45,21 @@ export class AppReleasesController {
   @Post()
   @UseInterceptors(
     FileInterceptor("apk", {
-      storage: releaseStorage,
       limits: { fileSize: 100 * 1024 * 1024 },
     }),
   )
-  upload(
+  async upload(
     @UploadedFile() file: Express.Multer.File,
     @Body() body: { version: string; releaseNotes?: string; isLatest?: string },
     @CurrentUser() u: any,
     @Req() req: any,
   ) {
+    const url = file ? (await this.storage.upload(file, "releases", body.version)).url : "";
     return this.svc.create(
       {
         version: body.version,
         releaseNotes: body.releaseNotes,
-        filename: file?.filename ?? "",
+        filename: url,
         isLatest: body.isLatest !== "false",
       },
       u.sub,

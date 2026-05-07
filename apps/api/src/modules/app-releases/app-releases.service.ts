@@ -19,7 +19,7 @@ export class AppReleasesService {
     return {
       version: r.version,
       releaseNotes: r.releaseNotes,
-      downloadUrl: `/downloads/${r.filename}`,
+      downloadUrl: r.filename.startsWith("http") ? r.filename : `/downloads/${r.filename}`,
     };
   }
 

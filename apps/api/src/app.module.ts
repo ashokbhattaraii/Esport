@@ -16,6 +16,7 @@ import { BotModule } from './modules/bot/bot.module';
 import { SupportModule } from './modules/support/support.module';
 import { AppReleasesModule } from './modules/app-releases/app-releases.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { StorageModule } from './common/storage/storage.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -23,6 +24,7 @@ import { HealthController } from './health.controller';
     ConfigModule.forRoot({ isGlobal: true }),
     ScheduleModule.forRoot(),
     PrismaModule,
+    StorageModule,
     AuthModule,
     UsersModule,
     ProfileModule,
