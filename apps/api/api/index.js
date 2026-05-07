@@ -1,7 +1,3 @@
-const { NestFactory } = require('@nestjs/core');
-const { AppModule } = require('../dist/app.module');
-const { configureApp } = require('../dist/bootstrap');
-
 let server;
 
 function corsOrigin() {
@@ -37,6 +33,10 @@ function sendHealth(res) {
 
 async function getServer() {
   if (server) return server;
+
+  const { NestFactory } = require('@nestjs/core');
+  const { AppModule } = require('../dist/app.module');
+  const { configureApp } = require('../dist/bootstrap');
 
   const app = await NestFactory.create(AppModule, { logger: ['error', 'warn', 'log'] });
   configureApp(app);
