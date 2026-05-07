@@ -11,7 +11,7 @@ const defaultCorsOrigins = [
 
 function getCorsOrigins() {
   const configured = process.env.CORS_ORIGINS?.split(',')
-    .map((origin) => origin.trim())
+    .map((origin) => origin.trim().replace(/\/+$/, ''))
     .filter(Boolean);
 
   return configured?.length ? configured : defaultCorsOrigins;
