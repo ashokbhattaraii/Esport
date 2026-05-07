@@ -9,6 +9,7 @@
         "JWT_EXPIRES_IN",
         "PORT",
         "UPLOAD_DIR",
+        "CORS_ORIGINS",
         "ADMIN_EMAIL",
         "ADMIN_PASSWORD",
         "NEXT_PUBLIC_API_URL",

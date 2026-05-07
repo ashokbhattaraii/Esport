@@ -1,10 +1,11 @@
-import { BadRequestException, Inject, Injectable, OnModuleInit } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, Logger, OnModuleInit } from "@nestjs/common";
 import { ConfigCategory, ConfigType, PrismaClient, SystemConfig } from "@fireslot/db";
 import { PRISMA } from "../../prisma/prisma.module";
 import { AdminActionLogService } from "./admin-action-log.service";
 
 @Injectable()
 export class SystemConfigService implements OnModuleInit {
+  private readonly logger = new Logger(SystemConfigService.name);
   private cache = new Map<string, SystemConfig>();
 
   constructor(
@@ -24,14 +25,29 @@ export class SystemConfigService implements OnModuleInit {
     } catch (e: any) {
       // Tolerate boot before migrations are applied (P2021 = table missing).
       if (e?.code === "P2021") {
-        console.warn(
+        this.logger.warn(
           "[SystemConfig] Table missing — run `pnpm --filter @fireslot/db prisma migrate deploy` then `prisma db seed`.",
+        );
+        this.cache.clear();
+        return;
+      }
+      if (this.isDatabaseUnavailable(e)) {
+        this.logger.warn(
+          "[SystemConfig] Database unavailable during config refresh; using built-in fallback config values.",
         );
         this.cache.clear();
         return;
       }
       throw e;
     }
+  }
+
+  private isDatabaseUnavailable(e: any): boolean {
+    return (
+      e?.code === "P1001" ||
+      e?.name === "PrismaClientInitializationError" ||
+      String(e?.message ?? "").includes("Can't reach database server")
+    );
   }
 
   private static FALLBACKS: Record<string, string> = {
