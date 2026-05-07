@@ -17,15 +17,29 @@ function getCorsOrigins() {
   return configured?.length ? configured : defaultCorsOrigins;
 }
 
+function isAllowedOrigin(origin?: string) {
+  if (!origin) return true;
+  const normalized = origin.replace(/\/+$/, '');
+  const allowed = getCorsOrigins();
+  return allowed.includes('*') || allowed.includes(normalized);
+}
+
 export function configureApp(
   app: INestApplication,
   options: { createStaticDirs?: boolean } = {},
 ) {
   app.enableCors({
-    origin: getCorsOrigins(),
+    origin: (origin, callback) => {
+      if (isAllowedOrigin(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(null, false);
+    },
     credentials: true,
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
+    optionsSuccessStatus: 204,
   });
   app.setGlobalPrefix('api', {
     exclude: [{ path: 'health', method: RequestMethod.GET }],

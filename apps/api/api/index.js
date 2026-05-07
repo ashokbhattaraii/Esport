@@ -1,36 +1,5 @@
 let server;
 
-function corsOrigin() {
-  const configured = process.env.CORS_ORIGINS?.split(',')
-    .map((origin) => origin.trim().replace(/\/+$/, ''))
-    .filter(Boolean);
-
-  return configured?.length ? configured : ['https://esport-web-rho.vercel.app'];
-}
-
-function setCorsHeaders(req, res) {
-  const origin = req.headers.origin;
-  const allowed = corsOrigin();
-
-  if (origin && allowed.includes(origin.replace(/\/+$/, ''))) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Vary', 'Origin');
-  }
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
-}
-
-function sendHealth(res) {
-  res.statusCode = 200;
-  res.setHeader('Content-Type', 'application/json');
-  res.end(JSON.stringify({
-    ok: true,
-    service: 'fireslot-api',
-    timestamp: new Date().toISOString(),
-  }));
-}
-
 async function getServer() {
   if (server) return server;
 
@@ -47,19 +16,6 @@ async function getServer() {
 }
 
 module.exports = async function handler(req, res) {
-  setCorsHeaders(req, res);
-
-  if (req.method === 'OPTIONS') {
-    res.statusCode = 204;
-    res.end();
-    return;
-  }
-
-  if (req.method === 'GET' && (req.url === '/health' || req.url === '/api/health')) {
-    sendHealth(res);
-    return;
-  }
-
   try {
     const app = await getServer();
     return app(req, res);
