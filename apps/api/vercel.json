@@ -2,8 +2,11 @@
   "version": 2,
   "functions": {
     "api/index.js": {
-      "includeFiles": "{dist/**,../../packages/db/dist/**}"
+      "includeFiles": "{dist/**,public/downloads/**,../../packages/db/dist/**}"
     }
   },
-  "routes": [{ "src": "/(.*)", "dest": "/api/index.js" }]
+  "routes": [
+    { "handle": "filesystem" },
+    { "src": "/(.*)", "dest": "/api/index.js" }
+  ]
 }
