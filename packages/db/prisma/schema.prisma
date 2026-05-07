@@ -1,0 +1,736 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  PLAYER
+  ADMIN
+}
+
+enum GameMode {
+  BR_SOLO
+  BR_DUO
+  BR_SQUAD
+  CS_4V4
+  LW_1V1
+  LW_2V2
+  CRAFTLAND
+}
+
+enum TournamentStatus {
+  UPCOMING
+  LIVE
+  COMPLETED
+  CANCELLED
+  PENDING_RESULTS
+}
+
+enum TournamentType {
+  FREE_DAILY
+  SOLO_1ST
+  SOLO_TOP3
+  SQUAD_TOP10
+  KILL_RACE
+  COMBO
+}
+
+enum ChallengeStatus {
+  OPEN
+  MATCHED
+  ROOM_SHARED
+  ONGOING
+  PENDING_RESULTS
+  COMPLETED
+  CANCELLED
+  DISPUTED
+}
+
+enum ChallengGameMode {
+  BR
+  CS
+}
+
+enum DisputeReason {
+  SUSPECTED_HACKER
+  TEAMING
+  GLITCH_ABUSE
+  WRONG_RESULT
+  DISCONNECTION
+  OTHER
+}
+
+enum DisputeStatus {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED_CREATOR
+  RESOLVED_OPPONENT
+  REFUNDED
+}
+
+enum OpponentType {
+  PUBLIC
+  PRIVATE
+}
+
+enum PaymentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+enum WithdrawalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  PAID
+}
+
+enum TxType {
+  CREDIT
+  DEBIT
+}
+
+enum TxReason {
+  ENTRY_FEE
+  PRIZE
+  WITHDRAWAL
+  REFUND
+  ADJUSTMENT
+}
+
+enum NotificationType {
+  PAYMENT
+  TOURNAMENT
+  CHALLENGE
+  WALLET
+  SYSTEM
+}
+
+enum ConfigType {
+  STRING
+  NUMBER
+  BOOLEAN
+  JSON
+}
+
+enum ConfigCategory {
+  PRICING
+  SCHEDULE
+  TOURNAMENT
+  FEATURE_FLAG
+}
+
+enum PermissionEffect {
+  ALLOW
+  DENY
+}
+
+enum TicketCategory {
+  PAYMENT_ISSUE
+  TOURNAMENT_ISSUE
+  WITHDRAWAL_ISSUE
+  ACCOUNT_ISSUE
+  RESULT_DISPUTE
+  GENERAL
+}
+
+enum TicketStatus {
+  OPEN
+  ASSIGNED
+  IN_PROGRESS
+  AWAITING_PLAYER
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model BotJob {
+  id               String    @id @default(cuid())
+  name             String    @unique
+  description      String?
+  isEnabled        Boolean   @default(false)
+  intervalMins     Int       @default(30)
+  lastRunAt        DateTime?
+  lastRunStatus    String?
+  lastRunLog       String?
+  runCount         Int       @default(0)
+  errorCount       Int       @default(0)
+  nextRunAt        DateTime?
+  dryRunEnabled    Boolean   @default(true)
+  maxActionsPerRun Int       @default(50)
+  accuracyScore    Float     @default(0)
+  falsePositives   Int       @default(0)
+  truePositives    Int       @default(0)
+  lastDryRunAt     DateTime?
+  lastDryRunLog    String?
+  config           Json      @default("{}")
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+model BotFlag {
+  id          String       @id @default(cuid())
+  jobName     String
+  targetType  String
+  targetId    String
+  reason      String
+  severity    FlagSeverity
+  evidence    Json
+  status      FlagStatus   @default(PENDING)
+  reviewedBy  String?
+  reviewNote  String?
+  actionTaken String?
+  wasCorrect  Boolean?
+  createdAt   DateTime     @default(now())
+  resolvedAt  DateTime?
+
+  @@index([jobName, status])
+  @@index([targetType, targetId])
+}
+
+model BotRollback {
+  id           String    @id @default(cuid())
+  jobName      String
+  jobLogId     String
+  action       String
+  targetType   String
+  targetId     String
+  beforeState  Json
+  afterState   Json
+  rolledBack   Boolean   @default(false)
+  rolledBackBy String?
+  rolledBackAt DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([jobName, rolledBack])
+}
+
+enum FlagSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum FlagStatus {
+  PENDING
+  REVIEWED_CORRECT
+  REVIEWED_WRONG
+  IGNORED
+  AUTO_RESOLVED
+}
+
+model BotJobLog {
+  id         String   @id @default(cuid())
+  jobName    String
+  status     String
+  summary    String
+  details    Json?
+  durationMs Int
+  createdAt  DateTime @default(now())
+
+  @@index([jobName, createdAt])
+}
+
+model SupportTicket {
+  id                  String          @id @default(cuid())
+  ticketNumber        String          @unique
+  userId              String
+  user                User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignedTo          String?
+  category            TicketCategory
+  subject             String
+  status              TicketStatus    @default(OPEN)
+  priority            TicketPriority  @default(MEDIUM)
+  messages            TicketMessage[]
+  relatedTournamentId String?
+  relatedPaymentId    String?
+  resolvedAt          DateTime?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([status])
+}
+
+model TicketMessage {
+  id            String        @id @default(cuid())
+  ticketId      String
+  ticket        SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  senderId      String
+  senderRole    String
+  message       String
+  attachmentUrl String?
+  isInternal    Boolean       @default(false)
+  createdAt     DateTime      @default(now())
+
+  @@index([ticketId, createdAt])
+}
+
+model LeaderboardEntry {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  totalEarnings Int      @default(0)
+  rank          Int      @default(0)
+  updatedAt     DateTime @updatedAt
+}
+
+model GameCategory {
+  id          String         @id @default(cuid())
+  name        String
+  slug        String         @unique
+  description String?
+  coverUrl    String?
+  gameMode    String?
+  sortOrder   Int            @default(0)
+  isActive    Boolean        @default(true)
+  comingSoon  Boolean        @default(false)
+  parentId    String?
+  parent      GameCategory?  @relation("CategoryChildren", fields: [parentId], references: [id], onDelete: SetNull)
+  children    GameCategory[] @relation("CategoryChildren")
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  phone         String?  @unique
+  passwordHash  String?
+  googleId      String?  @unique
+  name          String?
+  avatarUrl     String?
+  role          Role     @default(PLAYER)
+  isBanned      Boolean  @default(false)
+  lastLoginAt   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  profile       PlayerProfile?
+  wallet        Wallet?
+  tournaments   TournamentParticipant[]
+  challengesCreated  Challenge[]       @relation("ChallengeCreator")
+  challengesOpponent Challenge[]       @relation("ChallengeOpponent")
+  challengeResults   ChallengeResult[]
+  payments      Payment[]
+  withdrawals   WithdrawalRequest[]
+  notifications Notification[]
+  results       MatchResult[] @relation("ResultSubmitter")
+  adminActions  AdminActionLog[]
+  teams         TeamMember[]
+  teamsOwned    Team[] @relation("TeamCaptain")
+  tournamentsCreated Tournament[] @relation("TournamentCreator")
+  freeDailySlots FreeDailySlot[]
+  roleId         String?
+  roleRef        UserRole? @relation(fields: [roleId], references: [id])
+  permissionOverrides UserPermission[]
+  supportTickets SupportTicket[]
+  pushTokens     UserPushToken[]
+}
+
+model UserPushToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  platform  String   @default("android")
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AppRelease {
+  id            String   @id @default(cuid())
+  version       String
+  releaseNotes  String?
+  filename      String
+  downloadCount Int      @default(0)
+  isLatest      Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  @@index([isLatest])
+}
+
+model UserPermission {
+  id        String           @id @default(cuid())
+  userId    String
+  resource  String
+  action    String
+  effect    PermissionEffect @default(ALLOW)
+  createdAt DateTime         @default(now())
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, resource, action])
+}
+
+model FreeDailySlot {
+  id           String   @id @default(cuid())
+  userId       String
+  tournamentId String
+  usedAt       DateTime @default(now())
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, usedAt])
+}
+
+model PlayerProfile {
+  id              String  @id @default(cuid())
+  userId          String  @unique
+  freeFireUid     String  @unique
+  ign             String
+  level           Int     @default(1)
+  region          String?
+  avatarUrl       String?
+  headshotRate    Float?
+  isEmulator      Boolean @default(false)
+  isBlacklisted   Boolean @default(false)
+  blacklistReason String?
+  user            User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model TournamentEligibilityCheck {
+  id           String   @id @default(cuid())
+  tournamentId String
+  userId       String
+  passed       Boolean
+  failReason   String?
+  checkedAt    DateTime @default(now())
+
+  @@unique([tournamentId, userId])
+}
+
+model Tournament {
+  id             String           @id @default(cuid())
+  title          String
+  description    String?
+  mode           GameMode
+  map            String?
+  entryFeeNpr    Int
+  registrationFeeNpr Int             @default(10)
+  prizePoolNpr   Int
+  perKillPrizeNpr Int                @default(0)
+  firstPrize     Int              @default(0)
+  secondPrize    Int              @default(0)
+  thirdPrize     Int              @default(0)
+  fourthToTenthPrize Int           @default(0)
+  maxSlots       Int
+  filledSlots    Int              @default(0)
+  dateTime       DateTime
+  roomId         String?
+  roomPassword   String?
+  status         TournamentStatus @default(UPCOMING)
+  type             TournamentType  @default(SOLO_1ST)
+  systemFeePercent Float           @default(25)
+  killPrize        Float           @default(0)
+  prizeStructure   Json?
+  perKillReward    Float?
+  booyahPrize      Float?
+  actualPlayers    Int             @default(0)
+  roomLocked       Boolean         @default(false)
+  roomLockedAt     DateTime?
+  minLevel         Int             @default(40)
+  maxHeadshotRate  Float           @default(70)
+  allowEmulator    Boolean         @default(false)
+  bannedGuns       String[]        @default([])
+  characterSkillOn Boolean         @default(true)
+  gunAttributesOn  Boolean         @default(false)
+  matchRules       Json?
+  booyahPrizeNote  String?
+  rules          String?
+  isAdminCreated Boolean          @default(true)
+  createdById    String?
+  createdBy      User?            @relation("TournamentCreator", fields: [createdById], references: [id])
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  participants TournamentParticipant[]
+  payments     Payment[]
+  results      MatchResult[]
+}
+
+model TournamentParticipant {
+  id           String     @id @default(cuid())
+  tournamentId String
+  userId       String
+  teamId       String?
+  paid         Boolean    @default(false)
+  joinedAt     DateTime   @default(now())
+  placement    Int?
+  prizeEarned  Int        @default(0)
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team       Team?      @relation(fields: [teamId], references: [id])
+
+  @@unique([tournamentId, userId])
+}
+
+model Team {
+  id         String       @id @default(cuid())
+  name       String
+  tag        String?
+  captainId  String
+  captain    User         @relation("TeamCaptain", fields: [captainId], references: [id])
+  members    TeamMember[]
+  participations TournamentParticipant[]
+  createdAt  DateTime     @default(now())
+}
+
+model TeamMember {
+  id     String @id @default(cuid())
+  teamId String
+  userId String
+  role   String @default("member")
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([teamId, userId])
+}
+
+model Challenge {
+  id              String           @id @default(cuid())
+  challengeNumber String           @unique
+  creatorId       String
+  creator         User             @relation("ChallengeCreator", fields: [creatorId], references: [id])
+  opponentId      String?
+  opponent        User?            @relation("ChallengeOpponent", fields: [opponentId], references: [id])
+
+  title           String
+  gameMode        ChallengGameMode
+  entryFee        Float
+  prizeToWinner   Float
+  platformFee     Float
+  status          ChallengeStatus  @default(OPEN)
+  isPrivate       Boolean          @default(false)
+  inviteCode      String?          @unique
+
+  // BR-specific
+  brMap           String?
+  brTeamMode      String?
+  brWinCondition  String?
+  brTargetKills   Int?
+  brBannedGuns    String[]         @default([])
+  brHeadshotOnly  Boolean          @default(false)
+
+  // CS-specific
+  csTeamMode      String?
+  csRounds        Int              @default(7)
+  csCoins         String           @default("DEFAULT")
+  csThrowable     Boolean          @default(true)
+  csLoadout       Boolean          @default(false)
+  csCompulsoryWeapon String?
+  csCompulsoryArmour String?
+
+  // Shared
+  characterSkill  Boolean          @default(true)
+  gunAttribute    Boolean          @default(false)
+  headshotOnly    Boolean          @default(false)
+  noEmulator      Boolean          @default(true)
+  minLevel        Int              @default(0)
+  maxHeadshotRate Float            @default(100)
+
+  // Anti-cheat
+  povRequired        Boolean       @default(true)
+  screenshotRequired Boolean       @default(true)
+  reportWindowMins   Int           @default(60)
+
+  // Room
+  roomId       String?
+  roomPassword String?
+  scheduledAt  DateTime?
+  startedAt    DateTime?
+  endedAt      DateTime?
+  winnerId     String?
+  disputeId    String?
+
+  results   ChallengeResult[]
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+}
+
+model ChallengeResult {
+  id               String    @id @default(cuid())
+  challengeId      String
+  userId           String
+  kills            Int       @default(0)
+  headshots        Int       @default(0)
+  damage           Int       @default(0)
+  survivalTimeSecs Int       @default(0)
+  gotBooyah        Boolean   @default(false)
+  screenshotUrl    String?
+  povUrl           String?
+  submittedAt      DateTime  @default(now())
+  verifiedBy       String?
+  verifiedAt       DateTime?
+  isDisputed       Boolean   @default(false)
+  challenge        Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([challengeId, userId])
+}
+
+model ChallengeDispute {
+  id           String        @id @default(cuid())
+  challengeId  String        @unique
+  raisedBy     String
+  reason       DisputeReason
+  description  String
+  evidenceUrls String[]      @default([])
+  status       DisputeStatus @default(OPEN)
+  resolvedBy   String?
+  resolution   String?
+  createdAt    DateTime      @default(now())
+  resolvedAt   DateTime?
+}
+
+model ChallengeInvite {
+  id            String    @id @default(cuid())
+  challengeId   String
+  invitedEmail  String?
+  invitedUserId String?
+  inviteCode    String    @unique
+  usedAt        DateTime?
+  createdAt     DateTime  @default(now())
+}
+
+model Payment {
+  id           String        @id @default(cuid())
+  userId       String
+  tournamentId String?
+  amountNpr    Int
+  method       String        @default("esewa")
+  reference    String?
+  proofUrl     String?
+  ipAddress    String?
+  status       PaymentStatus @default(PENDING)
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt    DateTime      @default(now())
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tournament Tournament? @relation(fields: [tournamentId], references: [id])
+}
+
+model Wallet {
+  id          String              @id @default(cuid())
+  userId      String              @unique
+  balanceNpr  Int                 @default(0)
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions WalletTransaction[]
+}
+
+model WalletTransaction {
+  id        String   @id @default(cuid())
+  walletId  String
+  type      TxType
+  reason    TxReason
+  amountNpr Int
+  note      String?
+  createdAt DateTime @default(now())
+  wallet    Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+}
+
+model WithdrawalRequest {
+  id        String           @id @default(cuid())
+  userId    String
+  amountNpr Int
+  method    String
+  account   String
+  status    WithdrawalStatus @default(PENDING)
+  note      String?
+  createdAt DateTime         @default(now())
+  reviewedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model MatchResult {
+  id            String     @id @default(cuid())
+  tournamentId  String
+  submittedById String
+  placement     Int?
+  kills         Int?
+  screenshotUrl String
+  verified      Boolean    @default(false)
+  note          String?
+  createdAt     DateTime   @default(now())
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  submitter  User       @relation("ResultSubmitter", fields: [submittedById], references: [id])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  body      String?
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AdminActionLog {
+  id         String   @id @default(cuid())
+  adminId    String
+  action     String
+  resource   String   @default("")
+  resourceId String?
+  oldValue   Json?
+  newValue   Json?
+  ip         String?
+  createdAt  DateTime @default(now())
+  admin      User     @relation(fields: [adminId], references: [id])
+}
+
+model SystemConfig {
+  id        String         @id @default(cuid())
+  key       String         @unique
+  value     String
+  type      ConfigType
+  category  ConfigCategory
+  label     String
+  updatedAt DateTime       @updatedAt
+  updatedBy String?
+}
+
+model FreeDailyWindow {
+  id          String   @id @default(cuid())
+  label       String
+  windowStart String
+  windowEnd   String
+  prizePool   Float    @default(100)
+  maxWinners  Int      @default(1)
+  daysOfWeek  Int[]
+  isActive    Boolean  @default(true)
+  createdBy   String
+  updatedAt   DateTime @updatedAt
+}
+
+model UserRole {
+  id          String       @id @default(cuid())
+  name        String       @unique
+  isSystem    Boolean      @default(false)
+  permissions Permission[]
+  users       User[]
+}
+
+model Permission {
+  id       String   @id @default(cuid())
+  resource String
+  action   String
+  roleId   String
+  role     UserRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, resource, action])
+}

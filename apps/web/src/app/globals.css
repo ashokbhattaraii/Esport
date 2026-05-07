@@ -1,0 +1,66 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  background-color: #070713;
+  color: #e6e6f5;
+  min-height: 100%;
+}
+
+body {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(135deg, rgba(0, 240, 255, 0.08), transparent 36%),
+    linear-gradient(180deg, #080812, #060611 48%, #05050c);
+  background-size:
+    40px 40px,
+    40px 40px,
+    100% 100%,
+    100% 100%;
+  background-attachment: fixed;
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition;
+  }
+  .btn-primary {
+    @apply btn bg-neon text-white hover:shadow-neon hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60;
+  }
+  .btn-outline {
+    @apply btn border border-border bg-surface/40 text-white hover:border-neon-cyan hover:text-neon-cyan disabled:cursor-not-allowed disabled:opacity-60;
+  }
+  .card {
+    @apply rounded-lg border border-border bg-card/85 p-5 shadow-[0_18px_60px_rgba(0,0,0,0.22)] backdrop-blur;
+  }
+  .neon-text {
+    text-shadow:
+      0 0 8px rgba(255, 45, 117, 0.6),
+      0 0 24px rgba(155, 92, 255, 0.4);
+  }
+  .label {
+    @apply text-xs uppercase tracking-wider text-white/60;
+  }
+  .input {
+    @apply w-full rounded-md bg-surface border border-border px-3 py-2 text-sm text-white outline-none focus:border-neon-cyan focus:shadow-glow;
+  }
+  .table-wrap {
+    @apply overflow-x-auto rounded-lg border border-border bg-card/80;
+  }
+  .data-table {
+    @apply w-full text-sm;
+  }
+  .data-table th {
+    @apply bg-surface/80 px-4 py-3 text-left text-xs uppercase tracking-wider text-white/50;
+  }
+  .data-table td {
+    @apply border-t border-border px-4 py-3 align-middle;
+  }
+}

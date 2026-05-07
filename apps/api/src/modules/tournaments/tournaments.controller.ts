@@ -1,0 +1,129 @@
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Put,
+  Query,
+  UseGuards,
+} from "@nestjs/common";
+import { TournamentsService } from "./tournaments.service";
+import { JwtAuthGuard } from "../../common/guards/jwt.guard";
+import { Roles, RolesGuard } from "../../common/guards/roles.guard";
+import { CurrentUser } from "../../common/decorators/current-user.decorator";
+import {
+  CreateTournamentDto,
+  PublishRoomDto,
+  UpdateTournamentStatusDto,
+} from "./dto";
+import { GameMode, Role, TournamentStatus, TournamentType } from "@fireslot/db";
+
+@Controller("tournaments")
+export class TournamentsController {
+  constructor(private readonly svc: TournamentsService) {}
+
+  @Get()
+  list(
+    @Query("mode") mode?: GameMode,
+    @Query("status") status?: TournamentStatus,
+    @Query("type") type?: TournamentType,
+    @Query("minFee") minFee?: string,
+    @Query("maxFee") maxFee?: string,
+  ) {
+    return this.svc.list({
+      mode,
+      status,
+      type,
+      minFee: minFee ? parseInt(minFee, 10) : undefined,
+      maxFee: maxFee ? parseInt(maxFee, 10) : undefined,
+    });
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get("free-daily/eligibility")
+  freeDailyEligibility(@CurrentUser() u: any) {
+    return this.svc.checkFreeDailyEligibility(u.sub);
+  }
+
+  @Get(":id")
+  async getPublic(@Param("id") id: string) {
+    return this.svc.getOne(id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get(":id/full")
+  async getFull(@Param("id") id: string, @CurrentUser() u: any) {
+    return this.svc.getOne(id, u.sub, u.role);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post(":id/join")
+  join(@Param("id") id: string, @CurrentUser() u: any) {
+    return this.svc.join(u.sub, id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get(":id/eligibility")
+  eligibility(@Param("id") id: string, @CurrentUser() u: any) {
+    return this.svc.checkEligibility(u.sub, id);
+  }
+
+  @Get("preview/pricing")
+  previewPricing(@Query("entryFee") entryFee: string, @Query("maxPlayers") maxPlayers: string) {
+    return this.svc.previewPricing(parseInt(entryFee, 10), parseInt(maxPlayers, 10));
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @Post(":id/lock-room")
+  lockRoom(@Param("id") id: string) {
+    return this.svc.lockRoom(id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get("me/joined")
+  mine(@CurrentUser() u: any) {
+    return this.svc.myTournaments(u.sub);
+  }
+
+  // ----- Admin -----
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @Post()
+  create(@CurrentUser() u: any, @Body() dto: CreateTournamentDto) {
+    return this.svc.create(u.sub, dto);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @Put(":id/status")
+  status(@Param("id") id: string, @Body() dto: UpdateTournamentStatusDto) {
+    return this.svc.setStatus(id, dto);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @Put(":id/room")
+  room(@Param("id") id: string, @Body() dto: PublishRoomDto) {
+    return this.svc.publishRoom(id, dto);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @Post(":id/winners")
+  winners(
+    @Param("id") id: string,
+    @Body()
+    body: {
+      winners: {
+        userId: string;
+        placement?: number;
+        kills?: number;
+        gotBooyah?: boolean;
+      }[];
+    },
+  ) {
+    return this.svc.declareWinners(id, body.winners);
+  }
+}

@@ -1,0 +1,233 @@
+import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { PrismaClient } from "@fireslot/db";
+import { PRISMA } from "../../prisma/prisma.module";
+import { SystemConfigService } from "../admin/system-config.service";
+
+export interface DistributeResult {
+  userId: string;
+  kills: number;
+  gotBooyah: boolean;
+}
+
+export interface PrizeStructureV2 {
+  entryFee: number;
+  maxPlayers: number;
+  actualPlayers: number;
+  grossPool: number;
+  platformCut: number;
+  netPool: number;
+  killPool: number;
+  perKillReward: number;
+  booyahPrize: number;
+  systemFeePercent: number;
+  killRewardPercent: number;
+  booyahNote: string;
+  platformNote: string;
+  scalingNote: string;
+  exampleEarning: string;
+}
+
+@Injectable()
+export class PrizeService {
+  constructor(
+    @Inject(PRISMA) private prisma: PrismaClient,
+    private config: SystemConfigService,
+  ) {}
+
+  // ---- Free daily eligibility (kept for FREE_DAILY type) ----
+  async checkFreeDailyEligibility(userId: string) {
+    const cooldownHours = this.config.getNumber("FREE_DAILY_COOLDOWN_HOURS");
+    const since = new Date(Date.now() - cooldownHours * 3_600_000);
+    const last = await this.prisma.freeDailySlot.findFirst({
+      where: { userId, usedAt: { gte: since } },
+      orderBy: { usedAt: "desc" },
+    });
+    if (!last) return { eligible: true, nextAvailableAt: null };
+    const next = new Date(last.usedAt.getTime() + cooldownHours * 3_600_000);
+    return { eligible: false, nextAvailableAt: next.toISOString() };
+  }
+
+  async recordFreeDailyUse(userId: string, tournamentId: string) {
+    return this.prisma.freeDailySlot.create({ data: { userId, tournamentId } });
+  }
+
+  // ---- Core math (Nepali Adda model) ----
+  calculateNetPool(entryFee: number, playerCount: number): { gross: number; cut: number; net: number } {
+    const sysFee = this.config.getNumber("SYSTEM_FEE_PERCENT");
+    const gross = Math.max(0, entryFee * playerCount);
+    const cut = Math.floor((gross * sysFee) / 100);
+    return { gross, cut, net: gross - cut };
+  }
+
+  calculatePerKillReward(entryFee: number, playerCount: number): number {
+    if (playerCount <= 0 || entryFee <= 0) return 0;
+    const killPct = this.config.getNumber("KILL_REWARD_PERCENT");
+    const { net } = this.calculateNetPool(entryFee, playerCount);
+    const killPool = Math.floor((net * killPct) / 100);
+    const avgExpectedKills = playerCount <= 12 ? 2.0 : 2.5;
+    const perKill = Math.floor(killPool / Math.max(1, playerCount * avgExpectedKills));
+    return Math.max(perKill, 1);
+  }
+
+  calculateBooyahPrize(actualPlayers: number): number {
+    if (actualPlayers <= 0) return 0;
+    const perPlayer = this.config.getNumber("BOOYAH_COINS_PER_PLAYER");
+    return actualPlayers * perPlayer;
+  }
+
+  calculatePrizeStructure(
+    tournament: { entryFeeNpr: number; maxSlots: number; type?: string },
+    actualPlayers: number,
+  ): PrizeStructureV2 {
+    const entryFee = tournament.entryFeeNpr;
+    const maxPlayers = tournament.maxSlots;
+    const players = Math.max(1, actualPlayers);
+    const sysFee = this.config.getNumber("SYSTEM_FEE_PERCENT");
+    const killPct = this.config.getNumber("KILL_REWARD_PERCENT");
+
+    const { gross, cut, net } = this.calculateNetPool(entryFee, players);
+    const killPool = Math.floor((net * killPct) / 100);
+    const perKillReward = this.calculatePerKillReward(entryFee, players);
+    const booyahPrize = this.calculateBooyahPrize(players);
+
+    return {
+      entryFee,
+      maxPlayers,
+      actualPlayers: players,
+      grossPool: gross,
+      platformCut: cut,
+      netPool: net,
+      killPool,
+      perKillReward,
+      booyahPrize,
+      systemFeePercent: sysFee,
+      killRewardPercent: killPct,
+      booyahNote: `Rs ${booyahPrize} for Booyah (${players} players × Rs ${this.config.getNumber(
+        "BOOYAH_COINS_PER_PLAYER",
+      )})`,
+      platformNote: `Rs ${cut} platform fee (${sysFee}%)`,
+      scalingNote:
+        actualPlayers < maxPlayers
+          ? `Pool scaled to ${actualPlayers}/${maxPlayers} players`
+          : "Full lobby — maximum prize pool",
+      exampleEarning: `3 kills + Booyah = Rs ${3 * perKillReward + booyahPrize}`,
+    };
+  }
+
+  // ---- Lock + finalize ----
+  async lockRoomAndFinalizePrizes(tournamentId: string) {
+    const t = await this.prisma.tournament.findUnique({
+      where: { id: tournamentId },
+      include: { participants: { where: { paid: true } } },
+    });
+    if (!t) throw new NotFoundException();
+    if (t.roomLocked) throw new BadRequestException("Room already locked");
+
+    const actualPlayers = t.participants.length;
+    const minPlayers = this.config.getNumber("MIN_PLAYERS_TO_START");
+    if (actualPlayers < minPlayers)
+      throw new BadRequestException(
+        `Need ${minPlayers} paid players to start (currently ${actualPlayers})`,
+      );
+
+    const structure = this.calculatePrizeStructure(
+      { entryFeeNpr: t.entryFeeNpr, maxSlots: t.maxSlots, type: t.type },
+      actualPlayers,
+    );
+
+    const updated = await this.prisma.tournament.update({
+      where: { id: tournamentId },
+      data: {
+        roomLocked: true,
+        roomLockedAt: new Date(),
+        actualPlayers,
+        perKillReward: structure.perKillReward,
+        booyahPrize: structure.booyahPrize,
+        booyahPrizeNote: structure.booyahNote,
+        prizeStructure: structure as any,
+        killPrize: structure.perKillReward,
+        perKillPrizeNpr: structure.perKillReward,
+      },
+    });
+
+    for (const p of t.participants) {
+      await this.prisma.notification.create({
+        data: {
+          userId: p.userId,
+          type: "TOURNAMENT",
+          title: `${t.title} — Room locked`,
+          body: `${actualPlayers} players confirmed. Per kill: Rs ${structure.perKillReward}, Booyah: Rs ${structure.booyahPrize}.`,
+        },
+      });
+    }
+    return updated;
+  }
+
+  // ---- Distribute prizes ----
+  async distributePrizes(tournamentId: string, results: DistributeResult[]) {
+    return this.prisma.$transaction(async (tx: any) => {
+      const t = await tx.tournament.findUnique({ where: { id: tournamentId } });
+      if (!t) throw new NotFoundException();
+
+      const perKill = t.perKillReward ?? 0;
+      const booyah = t.booyahPrize ?? 0;
+      const credits: { userId: string; amount: number; note: string }[] = [];
+
+      for (const r of results) {
+        const earning =
+          (r.kills ?? 0) * perKill + (r.gotBooyah ? booyah : 0);
+        if (earning <= 0) continue;
+        const note = `Match ${t.id} — ${r.kills} kills × Rs${perKill}${
+          r.gotBooyah ? ` + Booyah Rs${booyah}` : ""
+        }`;
+        credits.push({ userId: r.userId, amount: earning, note });
+
+        // Snapshot before crediting (rollback support)
+        await tx.botRollback.create({
+          data: {
+            jobName: "MANUAL_PRIZE",
+            jobLogId: t.id,
+            action: "REFUND",
+            targetType: "USER",
+            targetId: r.userId,
+            beforeState: { userId: r.userId, refundAmount: earning } as any,
+            afterState: { userId: r.userId, refundAmount: earning } as any,
+          },
+        });
+
+        const wallet = await tx.wallet.upsert({
+          where: { userId: r.userId },
+          create: { userId: r.userId, balanceNpr: earning },
+          update: { balanceNpr: { increment: earning } },
+        });
+        await tx.walletTransaction.create({
+          data: {
+            walletId: wallet.id,
+            type: "CREDIT",
+            reason: "PRIZE",
+            amountNpr: earning,
+            note,
+          },
+        });
+        await tx.tournamentParticipant.updateMany({
+          where: { tournamentId, userId: r.userId },
+          data: { prizeEarned: earning, placement: r.gotBooyah ? 1 : null },
+        });
+        await tx.notification.create({
+          data: {
+            userId: r.userId,
+            type: "WALLET",
+            title: `Prize: Rs ${earning}`,
+            body: note,
+          },
+        });
+      }
+
+      await tx.tournament.update({
+        where: { id: tournamentId },
+        data: { status: "COMPLETED" },
+      });
+      return { ok: true, credits };
+    });
+  }
+}

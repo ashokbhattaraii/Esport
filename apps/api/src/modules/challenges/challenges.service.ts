@@ -1,0 +1,714 @@
+import {
+  BadRequestException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
+import {
+  ChallengGameMode,
+  ChallengeStatus,
+  DisputeReason,
+  PrismaClient,
+} from "@fireslot/db";
+import { PRISMA } from "../../prisma/prisma.module";
+import { SystemConfigService } from "../admin/system-config.service";
+
+const CS_TEAM_MODES = ["1v1", "2v2", "3v3", "4v4"];
+const CS_COINS = ["DEFAULT", "9980"];
+const CS_WEAPONS = [
+  "NONE", "MP40", "UMP", "MP5", "BIZON", "VECTOR", "M1014", "M1887",
+  "MAG7", "M590", "AWM", "XM8", "D-EAGLE", "WOODPECKER",
+];
+const CS_ARMOURS = [
+  "NONE", "VEST_LV2", "VEST_LV3", "VEST_LV4", "HELMET_LV2", "HELMET_LV3",
+];
+const BR_MAPS = ["BERMUDA", "KALAHARI", "PURGATORY", "NEXTERRA"];
+const BR_TEAM_MODES = ["SOLO", "DUO", "SQUAD"];
+const BR_WIN_CONDITIONS = [
+  "KILLS", "BOOYAH", "HEADSHOTS_ONLY", "MOST_DAMAGE", "SURVIVAL_TIME", "FIRST_TO_N_KILLS",
+];
+
+export interface CreateChallengeDto {
+  title: string;
+  gameMode: ChallengGameMode;
+  entryFee: number;
+  isPrivate?: boolean;
+  scheduledAt?: string;
+  brMap?: string;
+  brTeamMode?: string;
+  brWinCondition?: string;
+  brTargetKills?: number;
+  brBannedGuns?: string[];
+  brHeadshotOnly?: boolean;
+  csTeamMode?: string;
+  csRounds?: number;
+  csCoins?: string;
+  csThrowable?: boolean;
+  csLoadout?: boolean;
+  csCompulsoryWeapon?: string;
+  csCompulsoryArmour?: string;
+  characterSkill?: boolean;
+  gunAttribute?: boolean;
+  headshotOnly?: boolean;
+  noEmulator?: boolean;
+  minLevel?: number;
+  maxHeadshotRate?: number;
+  povRequired?: boolean;
+  screenshotRequired?: boolean;
+  reportWindowMins?: number;
+}
+
+@Injectable()
+export class ChallengesService {
+  constructor(
+    @Inject(PRISMA) private prisma: PrismaClient,
+    private config: SystemConfigService,
+  ) {}
+
+  getChallengeRulesText(c: any): string {
+    const lines: string[] = [];
+    if (c.gameMode === "CS") {
+      lines.push(`Team Mode: ${c.csTeamMode ?? "—"} | Rounds: ${c.csRounds} | Coins: ${c.csCoins}`);
+      lines.push(
+        `Throwable: ${c.csThrowable ? "Yes" : "No"} | Character Skill: ${c.characterSkill ? "Yes" : "No"} | Gun Attribute: ${c.gunAttribute ? "Yes" : "No"}`,
+      );
+      lines.push(
+        `Headshot Only: ${c.headshotOnly ? "Yes" : "No"} | Loadout: ${c.csLoadout ? "Yes" : "No"}`,
+      );
+      if (c.csCompulsoryWeapon && c.csCompulsoryWeapon !== "NONE")
+        lines.push(`Compulsory Weapon: ${c.csCompulsoryWeapon}`);
+      if (c.csCompulsoryArmour && c.csCompulsoryArmour !== "NONE")
+        lines.push(`Compulsory Armour: ${c.csCompulsoryArmour}`);
+    } else {
+      lines.push(
+        `Map: ${c.brMap ?? "—"} | Mode: ${c.brTeamMode ?? "—"} | Win: ${c.brWinCondition ?? "—"}`,
+      );
+      if (c.brWinCondition === "FIRST_TO_N_KILLS" && c.brTargetKills)
+        lines.push(`Target: First to ${c.brTargetKills} kills`);
+      if (c.brBannedGuns?.length) lines.push(`Banned Guns: ${c.brBannedGuns.join(", ")}`);
+      if (c.brHeadshotOnly) lines.push("HEADSHOT ONLY MODE");
+    }
+
+    lines.push("—");
+    if (c.noEmulator) lines.push("No emulator allowed");
+    if (c.povRequired) lines.push("POV recording mandatory");
+    if (c.screenshotRequired) lines.push("Screenshot required for result submission");
+    lines.push(`Disputes must be raised within ${c.reportWindowMins} minutes`);
+    lines.push("Hacker proof + recording = auto disqualification of hacker");
+    if (c.minLevel > 0) lines.push(`Minimum Level: ${c.minLevel}`);
+    if (c.maxHeadshotRate < 100) lines.push(`Max Headshot Rate: ${c.maxHeadshotRate}%`);
+
+    return lines.join("\n");
+  }
+
+  async createChallenge(creatorId: string, dto: CreateChallengeDto) {
+    const max = this.config.getNumber("MAX_ENTRY_FEE");
+    const min = this.config.getNumber("MIN_ENTRY_FEE");
+    if (dto.entryFee < min || dto.entryFee > max)
+      throw new BadRequestException(`Entry fee must be Rs ${min}–${max}`);
+
+    if (dto.gameMode === "CS") {
+      if (!dto.csTeamMode || !CS_TEAM_MODES.includes(dto.csTeamMode))
+        throw new BadRequestException("csTeamMode required: 1v1/2v2/3v3/4v4");
+      if (![7, 13].includes(dto.csRounds ?? 7))
+        throw new BadRequestException("csRounds must be 7 or 13");
+      if (!CS_COINS.includes(dto.csCoins ?? "DEFAULT"))
+        throw new BadRequestException("csCoins must be DEFAULT or 9980");
+      if (dto.csCompulsoryWeapon && !CS_WEAPONS.includes(dto.csCompulsoryWeapon))
+        throw new BadRequestException("Invalid csCompulsoryWeapon");
+      if (dto.csCompulsoryArmour && !CS_ARMOURS.includes(dto.csCompulsoryArmour))
+        throw new BadRequestException("Invalid csCompulsoryArmour");
+    } else {
+      if (!dto.brMap || !BR_MAPS.includes(dto.brMap))
+        throw new BadRequestException("brMap required");
+      if (!dto.brTeamMode || !BR_TEAM_MODES.includes(dto.brTeamMode))
+        throw new BadRequestException("brTeamMode required");
+      if (!dto.brWinCondition || !BR_WIN_CONDITIONS.includes(dto.brWinCondition))
+        throw new BadRequestException("brWinCondition required");
+      if (dto.brWinCondition === "FIRST_TO_N_KILLS" && !dto.brTargetKills)
+        throw new BadRequestException("Target kills required for FIRST_TO_N_KILLS");
+    }
+
+    const wallet = await this.prisma.wallet.findUnique({ where: { userId: creatorId } });
+    if (!wallet || wallet.balanceNpr < dto.entryFee)
+      throw new BadRequestException("Insufficient wallet balance");
+
+    const totalPool = dto.entryFee * 2;
+    const platformFee = Math.floor(totalPool * 0.2);
+    const prizeToWinner = totalPool - platformFee;
+
+    const count = await this.prisma.challenge.count();
+    const challengeNumber = `CH-${String(count + 1).padStart(4, "0")}`;
+    const inviteCode = dto.isPrivate ? this.randomCode(8) : null;
+
+    return this.prisma.$transaction(async (tx: any) => {
+      await tx.botRollback.create({
+        data: {
+          jobName: "MANUAL_CHALLENGE",
+          jobLogId: challengeNumber,
+          action: "REFUND",
+          targetType: "USER",
+          targetId: creatorId,
+          beforeState: { userId: creatorId, refundAmount: dto.entryFee, balance: wallet.balanceNpr },
+          afterState: { userId: creatorId, refundAmount: dto.entryFee, balance: wallet.balanceNpr - dto.entryFee },
+        },
+      });
+      await tx.wallet.update({
+        where: { id: wallet.id },
+        data: { balanceNpr: { decrement: dto.entryFee } },
+      });
+      await tx.walletTransaction.create({
+        data: {
+          walletId: wallet.id,
+          type: "DEBIT",
+          reason: "ENTRY_FEE",
+          amountNpr: dto.entryFee,
+          note: `Challenge ${challengeNumber} entry`,
+        },
+      });
+
+      return tx.challenge.create({
+        data: {
+          challengeNumber,
+          creatorId,
+          title: dto.title,
+          gameMode: dto.gameMode,
+          entryFee: dto.entryFee,
+          prizeToWinner,
+          platformFee,
+          isPrivate: !!dto.isPrivate,
+          inviteCode,
+          scheduledAt: dto.scheduledAt ? new Date(dto.scheduledAt) : null,
+          brMap: dto.brMap,
+          brTeamMode: dto.brTeamMode,
+          brWinCondition: dto.brWinCondition,
+          brTargetKills: dto.brTargetKills,
+          brBannedGuns: dto.brBannedGuns ?? [],
+          brHeadshotOnly: !!dto.brHeadshotOnly,
+          csTeamMode: dto.csTeamMode,
+          csRounds: dto.csRounds ?? 7,
+          csCoins: dto.csCoins ?? "DEFAULT",
+          csThrowable: dto.csThrowable ?? true,
+          csLoadout: dto.csLoadout ?? false,
+          csCompulsoryWeapon: dto.csCompulsoryWeapon,
+          csCompulsoryArmour: dto.csCompulsoryArmour,
+          characterSkill: dto.characterSkill ?? true,
+          gunAttribute: dto.gunAttribute ?? false,
+          headshotOnly: dto.headshotOnly ?? false,
+          noEmulator: dto.noEmulator ?? true,
+          minLevel: dto.minLevel ?? 0,
+          maxHeadshotRate: dto.maxHeadshotRate ?? 100,
+          povRequired: dto.povRequired ?? true,
+          screenshotRequired: dto.screenshotRequired ?? true,
+          reportWindowMins: dto.reportWindowMins ?? 60,
+        },
+      });
+    });
+  }
+
+  async list(filters: { gameMode?: ChallengGameMode; status?: ChallengeStatus }) {
+    const where: any = { isPrivate: false };
+    if (filters.gameMode) where.gameMode = filters.gameMode;
+    if (filters.status) where.status = filters.status;
+    else where.status = "OPEN";
+    const items = await this.prisma.challenge.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      include: {
+        creator: { select: { id: true, name: true, email: true, profile: true } },
+      },
+    });
+    return items.map((c) => ({ ...c, rulesText: this.getChallengeRulesText(c) }));
+  }
+
+  async myChallenges(userId: string) {
+    return this.prisma.challenge.findMany({
+      where: { OR: [{ creatorId: userId }, { opponentId: userId }] },
+      orderBy: { createdAt: "desc" },
+      include: {
+        creator: { select: { id: true, name: true, profile: true } },
+        opponent: { select: { id: true, name: true, profile: true } },
+      },
+    });
+  }
+
+  async getById(id: string) {
+    const c = await this.prisma.challenge.findUnique({
+      where: { id },
+      include: {
+        creator: { select: { id: true, name: true, email: true, profile: true } },
+        opponent: { select: { id: true, name: true, email: true, profile: true } },
+        results: true,
+      },
+    });
+    if (!c) throw new NotFoundException();
+    return { ...c, rulesText: this.getChallengeRulesText(c) };
+  }
+
+  async getByInviteCode(code: string) {
+    const c = await this.prisma.challenge.findUnique({ where: { inviteCode: code } });
+    if (!c) throw new NotFoundException();
+    return { ...c, rulesText: this.getChallengeRulesText(c) };
+  }
+
+  async joinChallenge(userId: string, challengeId: string, inviteCode?: string) {
+    const c = await this.prisma.challenge.findUnique({ where: { id: challengeId } });
+    if (!c) throw new NotFoundException();
+    if (c.creatorId === userId)
+      throw new BadRequestException("You cannot join your own challenge");
+    if (c.opponentId)
+      throw new BadRequestException("Challenge already taken");
+    if (c.status !== "OPEN")
+      throw new BadRequestException("Challenge is not open");
+    if (c.isPrivate && c.inviteCode !== inviteCode)
+      throw new ForbiddenException("Invalid invite code");
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { profile: true },
+    });
+    if (!user) throw new NotFoundException("User not found");
+    if (user.isBanned) throw new ForbiddenException("Account banned");
+    if (user.profile?.isBlacklisted)
+      throw new ForbiddenException(user.profile.blacklistReason ?? "Blacklisted");
+    if (c.minLevel > 0 && (user.profile?.level ?? 0) < c.minLevel)
+      throw new ForbiddenException(`Need Level ${c.minLevel}+`);
+    if (
+      user.profile?.headshotRate != null &&
+      user.profile.headshotRate > c.maxHeadshotRate
+    )
+      throw new ForbiddenException(`Headshot rate too high (max ${c.maxHeadshotRate}%)`);
+    if (c.noEmulator && user.profile?.isEmulator)
+      throw new ForbiddenException("Emulator players not allowed");
+
+    const wallet = await this.prisma.wallet.findUnique({ where: { userId } });
+    if (!wallet || wallet.balanceNpr < c.entryFee)
+      throw new BadRequestException("Insufficient wallet balance");
+
+    return this.prisma.$transaction(async (tx: any) => {
+      await tx.botRollback.create({
+        data: {
+          jobName: "MANUAL_CHALLENGE",
+          jobLogId: c.challengeNumber,
+          action: "REFUND",
+          targetType: "USER",
+          targetId: userId,
+          beforeState: { userId, refundAmount: c.entryFee, balance: wallet.balanceNpr },
+          afterState: { userId, refundAmount: c.entryFee, balance: wallet.balanceNpr - c.entryFee },
+        },
+      });
+      await tx.wallet.update({
+        where: { id: wallet.id },
+        data: { balanceNpr: { decrement: c.entryFee } },
+      });
+      await tx.walletTransaction.create({
+        data: {
+          walletId: wallet.id,
+          type: "DEBIT",
+          reason: "ENTRY_FEE",
+          amountNpr: c.entryFee,
+          note: `Challenge ${c.challengeNumber} join`,
+        },
+      });
+      const updated = await tx.challenge.update({
+        where: { id: challengeId },
+        data: { opponentId: userId, status: "MATCHED" },
+      });
+      await tx.notification.create({
+        data: {
+          userId: c.creatorId,
+          type: "CHALLENGE",
+          title: `Opponent found for ${c.challengeNumber}`,
+          body: "Share room details now.",
+        },
+      });
+      return updated;
+    });
+  }
+
+  async shareRoom(
+    challengeId: string,
+    userId: string,
+    role: string | undefined,
+    roomId: string,
+    password: string,
+  ) {
+    const c = await this.prisma.challenge.findUnique({ where: { id: challengeId } });
+    if (!c) throw new NotFoundException();
+    if (c.creatorId !== userId && role !== "ADMIN")
+      throw new ForbiddenException("Only creator or admin can share room");
+    if (!c.opponentId) throw new BadRequestException("No opponent yet");
+
+    const updated = await this.prisma.challenge.update({
+      where: { id: challengeId },
+      data: { roomId, roomPassword: password, status: "ROOM_SHARED" },
+    });
+    for (const uid of [c.creatorId, c.opponentId]) {
+      await this.prisma.notification.create({
+        data: {
+          userId: uid,
+          type: "CHALLENGE",
+          title: `${c.challengeNumber} room ready`,
+          body: `Room ID: ${roomId} • Password: ${password}`,
+        },
+      });
+    }
+    return updated;
+  }
+
+  async submitResult(
+    challengeId: string,
+    userId: string,
+    dto: {
+      kills?: number;
+      headshots?: number;
+      damage?: number;
+      survivalTimeSecs?: number;
+      gotBooyah?: boolean;
+      screenshotUrl?: string;
+      povUrl?: string;
+    },
+  ) {
+    const c = await this.prisma.challenge.findUnique({
+      where: { id: challengeId },
+      include: { results: true },
+    });
+    if (!c) throw new NotFoundException();
+    if (c.creatorId !== userId && c.opponentId !== userId)
+      throw new ForbiddenException("Not part of this challenge");
+    if (c.screenshotRequired && !dto.screenshotUrl)
+      throw new BadRequestException("Screenshot is required");
+    if (c.povRequired && !dto.povUrl)
+      throw new BadRequestException("POV recording link is required");
+
+    await this.prisma.challengeResult.upsert({
+      where: { challengeId_userId: { challengeId, userId } },
+      create: {
+        challengeId,
+        userId,
+        kills: dto.kills ?? 0,
+        headshots: dto.headshots ?? 0,
+        damage: dto.damage ?? 0,
+        survivalTimeSecs: dto.survivalTimeSecs ?? 0,
+        gotBooyah: !!dto.gotBooyah,
+        screenshotUrl: dto.screenshotUrl,
+        povUrl: dto.povUrl,
+      },
+      update: {
+        kills: dto.kills ?? 0,
+        headshots: dto.headshots ?? 0,
+        damage: dto.damage ?? 0,
+        survivalTimeSecs: dto.survivalTimeSecs ?? 0,
+        gotBooyah: !!dto.gotBooyah,
+        screenshotUrl: dto.screenshotUrl,
+        povUrl: dto.povUrl,
+        submittedAt: new Date(),
+      },
+    });
+
+    const fresh = await this.prisma.challenge.findUnique({
+      where: { id: challengeId },
+      include: { results: true },
+    });
+    if (fresh && fresh.results.length === 2) {
+      const winnerId = this.determineWinner(fresh);
+      if (winnerId) {
+        return this.distributeChallengeWinnings(challengeId, winnerId);
+      }
+      await this.prisma.challenge.update({
+        where: { id: challengeId },
+        data: { status: "DISPUTED" },
+      });
+      const dispute = await this.prisma.challengeDispute.create({
+        data: {
+          challengeId,
+          raisedBy: "system",
+          reason: "WRONG_RESULT" as DisputeReason,
+          description: "Auto-created: results tied and could not be auto-resolved",
+        },
+      });
+      await this.prisma.challenge.update({
+        where: { id: challengeId },
+        data: { disputeId: dispute.id },
+      });
+    }
+    return { ok: true };
+  }
+
+  private determineWinner(c: any): string | null {
+    const [a, b] = c.results;
+    if (!a || !b) return null;
+    const cond = c.gameMode === "CS"
+      ? c.headshotOnly ? "HEADSHOTS_ONLY" : "KILLS"
+      : c.brWinCondition;
+
+    switch (cond) {
+      case "KILLS": {
+        if (a.kills !== b.kills) return a.kills > b.kills ? a.userId : b.userId;
+        if (a.headshots !== b.headshots) return a.headshots > b.headshots ? a.userId : b.userId;
+        return null;
+      }
+      case "BOOYAH": {
+        if (a.gotBooyah !== b.gotBooyah) return a.gotBooyah ? a.userId : b.userId;
+        if (a.kills !== b.kills) return a.kills > b.kills ? a.userId : b.userId;
+        return null;
+      }
+      case "HEADSHOTS_ONLY":
+        if (a.headshots !== b.headshots) return a.headshots > b.headshots ? a.userId : b.userId;
+        return null;
+      case "MOST_DAMAGE":
+        if (a.damage !== b.damage) return a.damage > b.damage ? a.userId : b.userId;
+        return null;
+      case "SURVIVAL_TIME":
+        if (a.survivalTimeSecs !== b.survivalTimeSecs)
+          return a.survivalTimeSecs > b.survivalTimeSecs ? a.userId : b.userId;
+        return null;
+      case "FIRST_TO_N_KILLS": {
+        const target = c.brTargetKills ?? 0;
+        const aHit = a.kills >= target;
+        const bHit = b.kills >= target;
+        if (aHit && !bHit) return a.userId;
+        if (bHit && !aHit) return b.userId;
+        if (aHit && bHit) return a.submittedAt < b.submittedAt ? a.userId : b.userId;
+        return null;
+      }
+      default:
+        return null;
+    }
+  }
+
+  async distributeChallengeWinnings(challengeId: string, winnerId: string) {
+    return this.prisma.$transaction(async (tx: any) => {
+      const c = await tx.challenge.findUnique({ where: { id: challengeId } });
+      if (!c) throw new NotFoundException();
+
+      await tx.botRollback.create({
+        data: {
+          jobName: "MANUAL_CHALLENGE",
+          jobLogId: c.challengeNumber,
+          action: "REFUND",
+          targetType: "USER",
+          targetId: winnerId,
+          beforeState: { userId: winnerId, refundAmount: c.prizeToWinner },
+          afterState: { userId: winnerId, refundAmount: c.prizeToWinner },
+        },
+      });
+
+      const wallet = await tx.wallet.upsert({
+        where: { userId: winnerId },
+        create: { userId: winnerId, balanceNpr: c.prizeToWinner },
+        update: { balanceNpr: { increment: c.prizeToWinner } },
+      });
+      await tx.walletTransaction.create({
+        data: {
+          walletId: wallet.id,
+          type: "CREDIT",
+          reason: "PRIZE",
+          amountNpr: c.prizeToWinner,
+          note: `Challenge ${c.challengeNumber} prize`,
+        },
+      });
+      const updated = await tx.challenge.update({
+        where: { id: challengeId },
+        data: { winnerId, status: "COMPLETED", endedAt: new Date() },
+      });
+      const loserId = c.creatorId === winnerId ? c.opponentId : c.creatorId;
+      await tx.notification.create({
+        data: {
+          userId: winnerId,
+          type: "CHALLENGE",
+          title: `You won ${c.challengeNumber}!`,
+          body: `Rs ${c.prizeToWinner} credited to your wallet.`,
+        },
+      });
+      if (loserId) {
+        await tx.notification.create({
+          data: {
+            userId: loserId,
+            type: "CHALLENGE",
+            title: `Match result: ${c.challengeNumber}`,
+            body: "You lost. Better luck next time.",
+          },
+        });
+      }
+      return updated;
+    });
+  }
+
+  async raiseDispute(
+    challengeId: string,
+    userId: string,
+    reason: DisputeReason,
+    description: string,
+    evidenceUrls: string[],
+  ) {
+    const c = await this.prisma.challenge.findUnique({ where: { id: challengeId } });
+    if (!c) throw new NotFoundException();
+    if (c.creatorId !== userId && c.opponentId !== userId)
+      throw new ForbiddenException("Not part of this challenge");
+    if (c.endedAt) {
+      const cutoff = c.endedAt.getTime() + c.reportWindowMins * 60_000;
+      if (Date.now() > cutoff) throw new BadRequestException("Report window expired");
+    }
+    const dispute = await this.prisma.challengeDispute.create({
+      data: { challengeId, raisedBy: userId, reason, description, evidenceUrls },
+    });
+    await this.prisma.challenge.update({
+      where: { id: challengeId },
+      data: { disputeId: dispute.id, status: "DISPUTED" },
+    });
+    const supportAdmins = await this.prisma.user.findMany({
+      where: { roleRef: { name: { in: ["SUPER_ADMIN", "ADMIN", "SUPPORT"] } } },
+      select: { id: true },
+    });
+    for (const a of supportAdmins) {
+      await this.prisma.notification.create({
+        data: {
+          userId: a.id,
+          type: "CHALLENGE",
+          title: `Dispute on ${c.challengeNumber}`,
+          body: description.slice(0, 120),
+        },
+      });
+    }
+    return dispute;
+  }
+
+  async cancelChallenge(challengeId: string, userId: string) {
+    const c = await this.prisma.challenge.findUnique({ where: { id: challengeId } });
+    if (!c) throw new NotFoundException();
+    if (c.creatorId !== userId) throw new ForbiddenException("Only creator can cancel");
+    if (c.status !== "OPEN") throw new BadRequestException("Cannot cancel after match");
+
+    return this.prisma.$transaction(async (tx: any) => {
+      const wallet = await tx.wallet.upsert({
+        where: { userId },
+        create: { userId, balanceNpr: c.entryFee },
+        update: { balanceNpr: { increment: c.entryFee } },
+      });
+      await tx.walletTransaction.create({
+        data: {
+          walletId: wallet.id,
+          type: "CREDIT",
+          reason: "REFUND",
+          amountNpr: c.entryFee,
+          note: `Challenge ${c.challengeNumber} cancelled — refund`,
+        },
+      });
+      return tx.challenge.update({
+        where: { id: challengeId },
+        data: { status: "CANCELLED" },
+      });
+    });
+  }
+
+  async resolveDispute(
+    disputeId: string,
+    adminId: string,
+    resolution: "CREATOR" | "OPPONENT" | "REFUND",
+    note?: string,
+  ) {
+    const d = await this.prisma.challengeDispute.findUnique({ where: { id: disputeId } });
+    if (!d) throw new NotFoundException();
+    const c = await this.prisma.challenge.findUnique({ where: { id: d.challengeId } });
+    if (!c) throw new NotFoundException();
+
+    if (resolution === "REFUND") {
+      for (const uid of [c.creatorId, c.opponentId].filter(Boolean) as string[]) {
+        await this.prisma.$transaction(async (tx: any) => {
+          const w = await tx.wallet.upsert({
+            where: { userId: uid },
+            create: { userId: uid, balanceNpr: c.entryFee },
+            update: { balanceNpr: { increment: c.entryFee } },
+          });
+          await tx.walletTransaction.create({
+            data: {
+              walletId: w.id,
+              type: "CREDIT",
+              reason: "REFUND",
+              amountNpr: c.entryFee,
+              note: `Dispute refund — ${c.challengeNumber}`,
+            },
+          });
+        });
+      }
+      await this.prisma.challenge.update({
+        where: { id: c.id },
+        data: { status: "CANCELLED" },
+      });
+    } else {
+      const winnerId = resolution === "CREATOR" ? c.creatorId : c.opponentId!;
+      await this.distributeChallengeWinnings(c.id, winnerId);
+    }
+
+    return this.prisma.challengeDispute.update({
+      where: { id: disputeId },
+      data: {
+        status:
+          resolution === "REFUND"
+            ? "REFUNDED"
+            : resolution === "CREATOR"
+              ? "RESOLVED_CREATOR"
+              : "RESOLVED_OPPONENT",
+        resolvedBy: adminId,
+        resolvedAt: new Date(),
+        resolution: note,
+      },
+    });
+  }
+
+  async getStats() {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const [total, active, disputed, completedToday, revenue] = await Promise.all([
+      this.prisma.challenge.count(),
+      this.prisma.challenge.count({
+        where: { status: { in: ["OPEN", "MATCHED", "ROOM_SHARED", "ONGOING"] } },
+      }),
+      this.prisma.challengeDispute.count({ where: { status: "OPEN" } }),
+      this.prisma.challenge.count({
+        where: { status: "COMPLETED", endedAt: { gte: todayStart } },
+      }),
+      this.prisma.challenge.aggregate({
+        where: { status: "COMPLETED", endedAt: { gte: todayStart } },
+        _sum: { platformFee: true },
+      }),
+    ]);
+    return {
+      total,
+      active,
+      disputed,
+      completedToday,
+      revenueToday: revenue._sum.platformFee ?? 0,
+    };
+  }
+
+  async listAdmin(filters: { status?: ChallengeStatus; gameMode?: ChallengGameMode }) {
+    const where: any = {};
+    if (filters.status) where.status = filters.status;
+    if (filters.gameMode) where.gameMode = filters.gameMode;
+    return this.prisma.challenge.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      include: {
+        creator: { select: { id: true, name: true, email: true } },
+        opponent: { select: { id: true, name: true, email: true } },
+      },
+    });
+  }
+
+  async listDisputes() {
+    return this.prisma.challengeDispute.findMany({
+      where: { status: { in: ["OPEN", "UNDER_REVIEW"] } },
+      orderBy: { createdAt: "desc" },
+    });
+  }
+
+  private randomCode(len: number) {
+    const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let s = "";
+    for (let i = 0; i < len; i++) s += alphabet[Math.floor(Math.random() * alphabet.length)];
+    return s;
+  }
+}

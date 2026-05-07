@@ -1,0 +1,77 @@
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
+} from "@nestjs/common";
+import { FileInterceptor } from "@nestjs/platform-express";
+import { PaymentsService } from "./payments.service";
+import { JwtAuthGuard } from "../../common/guards/jwt.guard";
+import { Roles, RolesGuard } from "../../common/guards/roles.guard";
+import { CurrentUser } from "../../common/decorators/current-user.decorator";
+import { PaymentStatus, Role } from "@fireslot/db";
+
+@Controller("payments")
+export class PaymentsController {
+  constructor(private readonly svc: PaymentsService) {}
+
+  @UseGuards(JwtAuthGuard)
+  @Post()
+  @UseInterceptors(FileInterceptor("proof"))
+  submit(
+    @CurrentUser() u: any,
+    @UploadedFile() file: Express.Multer.File,
+    @Body() body: any,
+  ) {
+    const url = file ? `/uploads/${file.filename}` : "";
+    return this.svc.submit(u.sub, body, url);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post("deposit")
+  @UseInterceptors(FileInterceptor("proof"))
+  deposit(
+    @CurrentUser() u: any,
+    @UploadedFile() file: Express.Multer.File,
+    @Body() body: any,
+  ) {
+    const url = file ? `/uploads/${file.filename}` : "";
+    return this.svc.deposit(u.sub, body, url);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get("me")
+  mine(@CurrentUser() u: any) {
+    return this.svc.myPayments(u.sub);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @Get()
+  list(@Query("status") status?: PaymentStatus) {
+    return this.svc.list(status);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @Post(":id/approve")
+  approve(@CurrentUser() u: any, @Param("id") id: string) {
+    return this.svc.approve(u.sub, id);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @Post(":id/reject")
+  reject(
+    @CurrentUser() u: any,
+    @Param("id") id: string,
+    @Body() body: { note?: string },
+  ) {
+    return this.svc.reject(u.sub, id, body?.note);
+  }
+}

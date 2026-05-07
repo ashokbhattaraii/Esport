@@ -1,0 +1,143 @@
+"use client";
+import { useEffect, useState } from "react";
+import { api } from "@/lib/api";
+
+interface Win {
+  id: string;
+  label: string;
+  windowStart: string;
+  windowEnd: string;
+  prizePool: number;
+  maxWinners: number;
+  daysOfWeek: number[];
+  isActive: boolean;
+}
+
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+export default function SchedulePage() {
+  const [items, setItems] = useState<Win[]>([]);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [draft, setDraft] = useState({
+    label: "Morning Free",
+    windowStart: "06:00",
+    windowEnd: "08:00",
+    prizePool: 100,
+    maxWinners: 1,
+    daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
+    isActive: true,
+  });
+
+  async function load() {
+    setItems(await api<Win[]>("/admin/schedule"));
+  }
+  useEffect(() => { load().catch((e) => setMsg(e.message)); }, []);
+
+  async function create() {
+    try {
+      await api("/admin/schedule", { method: "POST", body: JSON.stringify(draft) });
+      setMsg("Created");
+      load();
+    } catch (e: any) { setMsg(e.message); }
+  }
+
+  async function patch(id: string, dto: Partial<Win>) {
+    try {
+      await api(`/admin/schedule/${id}`, { method: "PUT", body: JSON.stringify(dto) });
+      load();
+    } catch (e: any) { setMsg(e.message); }
+  }
+
+  async function remove(id: string) {
+    if (!confirm("Delete window?")) return;
+    await api(`/admin/schedule/${id}`, { method: "DELETE" });
+    load();
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <h1 className="font-display text-2xl">Free Daily Windows</h1>
+        {msg && <span className="text-xs text-white/70">{msg}</span>}
+      </div>
+
+      <div className="card">
+        <h2 className="font-display text-lg">New Window</h2>
+        <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Field label="Label">
+            <input className="input" value={draft.label} onChange={(e) => setDraft({ ...draft, label: e.target.value })} />
+          </Field>
+          <Field label="Start (HH:MM)">
+            <input className="input" value={draft.windowStart} onChange={(e) => setDraft({ ...draft, windowStart: e.target.value })} />
+          </Field>
+          <Field label="End (HH:MM)">
+            <input className="input" value={draft.windowEnd} onChange={(e) => setDraft({ ...draft, windowEnd: e.target.value })} />
+          </Field>
+          <Field label="Prize Pool">
+            <input type="number" className="input" value={draft.prizePool} onChange={(e) => setDraft({ ...draft, prizePool: +e.target.value })} />
+          </Field>
+          <Field label="Max Winners">
+            <input type="number" className="input" value={draft.maxWinners} onChange={(e) => setDraft({ ...draft, maxWinners: +e.target.value })} />
+          </Field>
+          <Field label="Days">
+            <div className="flex flex-wrap gap-1">
+              {DAYS.map((d, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() =>
+                    setDraft({
+                      ...draft,
+                      daysOfWeek: draft.daysOfWeek.includes(i)
+                        ? draft.daysOfWeek.filter((x) => x !== i)
+                        : [...draft.daysOfWeek, i],
+                    })
+                  }
+                  className={`px-2 py-1 rounded text-xs ${
+                    draft.daysOfWeek.includes(i) ? "bg-neon text-black" : "bg-surface text-white/70"
+                  }`}
+                >
+                  {d}
+                </button>
+              ))}
+            </div>
+          </Field>
+        </div>
+        <button className="btn-primary mt-4" onClick={create}>Create Window</button>
+      </div>
+
+      <div className="card">
+        <h2 className="font-display text-lg">Existing Windows</h2>
+        <div className="mt-3 space-y-2">
+          {items.map((w) => (
+            <div key={w.id} className="rounded-md border border-border p-3 flex flex-wrap gap-3 items-center">
+              <div className="flex-1 min-w-[160px]">
+                <div className="text-sm text-white">{w.label}</div>
+                <div className="text-xs text-white/50">
+                  {w.windowStart} – {w.windowEnd} • Pool {w.prizePool} • {w.daysOfWeek.map((d) => DAYS[d]).join(",")}
+                </div>
+              </div>
+              <button
+                className={w.isActive ? "btn-outline" : "btn-primary"}
+                onClick={() => patch(w.id, { isActive: !w.isActive })}
+              >
+                {w.isActive ? "Disable" : "Enable"}
+              </button>
+              <button className="btn-outline text-red-400" onClick={() => remove(w.id)}>Delete</button>
+            </div>
+          ))}
+          {!items.length && <p className="text-sm text-white/50">No windows yet.</p>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, children }: any) {
+  return (
+    <div>
+      <label className="label">{label}</label>
+      {children}
+    </div>
+  );
+}
