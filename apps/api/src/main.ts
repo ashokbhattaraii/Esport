@@ -37,13 +37,15 @@ export async function createApp(opts: { createStaticDirs?: boolean } = {}): Prom
     new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: false }),
   );
 
-  const uploadDir = process.env.UPLOAD_DIR ?? './uploads';
-  if (opts.createStaticDirs && !existsSync(uploadDir)) mkdirSync(uploadDir, { recursive: true });
-  app.use('/uploads', express.static(join(process.cwd(), uploadDir)));
+  if (opts.createStaticDirs) {
+    const uploadDir = process.env.UPLOAD_DIR ?? './uploads';
+    if (!existsSync(uploadDir)) mkdirSync(uploadDir, { recursive: true });
+    app.use('/uploads', express.static(join(process.cwd(), uploadDir)));
 
-  const apkDir = process.env.APK_DIR ?? './public/downloads';
-  if (opts.createStaticDirs && !existsSync(apkDir)) mkdirSync(apkDir, { recursive: true });
-  app.use('/downloads', express.static(join(process.cwd(), apkDir)));
+    const apkDir = process.env.APK_DIR ?? './public/downloads';
+    if (!existsSync(apkDir)) mkdirSync(apkDir, { recursive: true });
+    app.use('/downloads', express.static(join(process.cwd(), apkDir)));
+  }
 
   return app;
 }
