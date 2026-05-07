@@ -1,46 +1,11 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
-import { join } from 'path';
-import { existsSync, mkdirSync } from 'fs';
-import * as express from 'express';
-
-const defaultCorsOrigins = [
-  'http://localhost:3000',
-  'http://localhost:3001',
-  'https://esport-web-rho.vercel.app',
-];
-
-function getCorsOrigins() {
-  const configured = process.env.CORS_ORIGINS?.split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean);
-
-  return configured?.length ? configured : defaultCorsOrigins;
-}
+import { configureApp } from './bootstrap';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  app.enableCors({
-    origin: getCorsOrigins(),
-    credentials: true,
-    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-  });
-  app.setGlobalPrefix('api');
-  app.useGlobalPipes(
-    new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: false }),
-  );
-
-  const uploadDir = process.env.UPLOAD_DIR ?? './uploads';
-  if (!existsSync(uploadDir)) mkdirSync(uploadDir, { recursive: true });
-  app.use('/uploads', express.static(join(process.cwd(), uploadDir)));
-
-  const apkDir = process.env.APK_DIR ?? './public/downloads';
-  if (!existsSync(apkDir)) mkdirSync(apkDir, { recursive: true });
-  app.use('/downloads', express.static(join(process.cwd(), apkDir)));
-
+  configureApp(app, { createStaticDirs: true });
   const port = parseInt(process.env.PORT ?? '4000', 10);
   await app.listen(port);
   console.log(`API ready on http://localhost:${port}/api`);
