@@ -1,4 +1,18 @@
+const Module = require('module');
+const path = require('path');
+
 let server;
+
+const dbPackagePath = path.join(__dirname, '../../../packages/db/dist/index.js');
+const originalLoad = Module._load;
+
+Module._load = function patchedLoad(request, parent, isMain) {
+  if (request === '@fireslot/db') {
+    return originalLoad(dbPackagePath, parent, isMain);
+  }
+
+  return originalLoad(request, parent, isMain);
+};
 
 async function getServer() {
   if (server) return server;
