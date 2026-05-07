@@ -16,6 +16,7 @@ import { BotModule } from './modules/bot/bot.module';
 import { SupportModule } from './modules/support/support.module';
 import { AppReleasesModule } from './modules/app-releases/app-releases.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { HealthController } from './health.controller';
 
 @Module({
   imports: [
@@ -37,5 +38,6 @@ import { PrismaModule } from './prisma/prisma.module';
     SupportModule,
     AppReleasesModule,
   ],
+  controllers: [HealthController],
 })
 export class AppModule {}

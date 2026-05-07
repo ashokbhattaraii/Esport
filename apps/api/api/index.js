@@ -25,6 +25,16 @@ function setCorsHeaders(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
 }
 
+function sendHealth(res) {
+  res.statusCode = 200;
+  res.setHeader('Content-Type', 'application/json');
+  res.end(JSON.stringify({
+    ok: true,
+    service: 'fireslot-api',
+    timestamp: new Date().toISOString(),
+  }));
+}
+
 async function getServer() {
   if (server) return server;
 
@@ -42,6 +52,11 @@ module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') {
     res.statusCode = 204;
     res.end();
+    return;
+  }
+
+  if (req.method === 'GET' && (req.url === '/health' || req.url === '/api/health')) {
+    sendHealth(res);
     return;
   }
 
