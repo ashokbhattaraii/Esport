@@ -23,17 +23,35 @@ export class WalletService {
   ) {}
 
   async getMine(userId: string) {
-    const wallet = await this.prisma.wallet.upsert({
-      where: { userId },
-      update: {},
-      create: { userId },
-      include: { transactions: { orderBy: { createdAt: "desc" }, take: 50 } },
-    });
-    const withdrawals = await this.prisma.withdrawalRequest.findMany({
-      where: { userId },
-      orderBy: { createdAt: "desc" },
-    });
+    const [foundWallet, withdrawals] = await Promise.all([
+      this.prisma.wallet.findUnique({
+        where: { userId },
+        include: { transactions: { orderBy: { createdAt: "desc" }, take: 25 } },
+      }),
+      this.prisma.withdrawalRequest.findMany({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
+        take: 25,
+      }),
+    ]);
+    const wallet = foundWallet ?? (await this.createMissingWallet(userId));
     return { wallet, withdrawals };
+  }
+
+  private async createMissingWallet(userId: string) {
+    try {
+      return await this.prisma.wallet.create({
+        data: { userId },
+        include: { transactions: { orderBy: { createdAt: "desc" }, take: 25 } },
+      });
+    } catch {
+      const wallet = await this.prisma.wallet.findUnique({
+        where: { userId },
+        include: { transactions: { orderBy: { createdAt: "desc" }, take: 25 } },
+      });
+      if (!wallet) throw new NotFoundException("Wallet not found");
+      return wallet;
+    }
   }
 
   async withdraw(userId: string, dto: WithdrawDto) {

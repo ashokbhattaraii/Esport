@@ -339,6 +339,10 @@ model User {
   permissionOverrides UserPermission[]
   supportTickets SupportTicket[]
   pushTokens     UserPushToken[]
+
+  @@index([role])
+  @@index([roleId])
+  @@index([createdAt])
 }
 
 model UserPushToken {
@@ -348,6 +352,8 @@ model UserPushToken {
   platform  String   @default("android")
   updatedAt DateTime @updatedAt
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model AppRelease {
@@ -458,6 +464,11 @@ model Tournament {
   participants TournamentParticipant[]
   payments     Payment[]
   results      MatchResult[]
+
+  @@index([status, dateTime])
+  @@index([mode, status])
+  @@index([type, status])
+  @@index([createdById, createdAt])
 }
 
 model TournamentParticipant {
@@ -475,6 +486,8 @@ model TournamentParticipant {
   team       Team?      @relation(fields: [teamId], references: [id])
 
   @@unique([tournamentId, userId])
+  @@index([userId, joinedAt])
+  @@index([tournamentId, paid])
 }
 
 model Team {
@@ -620,6 +633,10 @@ model Payment {
 
   user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   tournament Tournament? @relation(fields: [tournamentId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@index([tournamentId, status])
 }
 
 model Wallet {
@@ -639,6 +656,8 @@ model WalletTransaction {
   note      String?
   createdAt DateTime @default(now())
   wallet    Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@index([walletId, createdAt])
 }
 
 model WithdrawalRequest {
@@ -653,6 +672,9 @@ model WithdrawalRequest {
   reviewedAt DateTime?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
 }
 
 model MatchResult {
@@ -668,6 +690,10 @@ model MatchResult {
 
   tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   submitter  User       @relation("ResultSubmitter", fields: [submittedById], references: [id])
+
+  @@index([verified, createdAt])
+  @@index([tournamentId, verified])
+  @@index([submittedById, createdAt])
 }
 
 model Notification {
@@ -679,6 +705,8 @@ model Notification {
   read      Boolean          @default(false)
   createdAt DateTime         @default(now())
   user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read, createdAt])
 }
 
 model AdminActionLog {
@@ -692,6 +720,9 @@ model AdminActionLog {
   ip         String?
   createdAt  DateTime @default(now())
   admin      User     @relation(fields: [adminId], references: [id])
+
+  @@index([adminId, createdAt])
+  @@index([resource, createdAt])
 }
 
 model SystemConfig {

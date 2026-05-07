@@ -65,12 +65,22 @@ function serveDownload(req, res) {
   return true;
 }
 
+async function warmPrisma(app) {
+  try {
+    const prisma = app.get('PRISMA_CLIENT', { strict: false });
+    await prisma?.$connect?.();
+  } catch (err) {
+    console.warn('Prisma preconnect skipped:', err?.message ?? err);
+  }
+}
+
 async function getServer() {
   if (serverPromise) return serverPromise;
   serverPromise = (async () => {
     const { createApp } = require('../dist/main');
     const app = await createApp();
     await app.init();
+    await warmPrisma(app);
     return app.getHttpAdapter().getInstance();
   })();
   return serverPromise;

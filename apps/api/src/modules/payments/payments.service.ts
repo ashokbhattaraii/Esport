@@ -75,6 +75,7 @@ export class PaymentsService {
         tournament: true,
       },
       orderBy: { createdAt: "desc" },
+      take: 100,
     });
   }
 
@@ -83,6 +84,7 @@ export class PaymentsService {
       where: { userId },
       include: { tournament: true },
       orderBy: { createdAt: "desc" },
+      take: 50,
     });
   }
 

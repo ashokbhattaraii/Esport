@@ -32,8 +32,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     try {
-      const me = await api("/auth/me");
-      setUser(me);
+      const me = await api<(NonNullable<User> & { token?: string }) | null>("/auth/me");
+      if (me?.token) auth.setToken(me.token);
+      if (me) {
+        const { token: _token, ...userData } = me;
+        setUser(userData);
+      } else {
+        setUser(null);
+      }
     } catch {
       auth.clear();
       setUser(null);

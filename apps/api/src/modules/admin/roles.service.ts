@@ -125,8 +125,18 @@ export class RolesService {
     if (matchOverride("DENY")) return false;
     if (matchOverride("ALLOW")) return true;
 
-    if (!user.roleRef) return false;
-    const perms = user.roleRef.permissions;
+    let perms = user.roleRef?.permissions;
+    const legacyAdminRoleRef =
+      user.role === "ADMIN" && (!user.roleRef || user.roleRef.name === "PLAYER");
+    if (legacyAdminRoleRef) {
+      const adminRole = await this.prisma.userRole.findUnique({
+        where: { name: "ADMIN" },
+        include: { permissions: true },
+      });
+      perms = adminRole?.permissions;
+      if (!perms) return true;
+    }
+    if (!perms) return false;
     return perms.some(
       (p) =>
         (p.resource === resource || p.resource === "*") &&

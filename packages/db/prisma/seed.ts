@@ -392,6 +392,14 @@ async function seedRolesAndSuperAdmin() {
 
   const superAdminEmail = "bhattaraiashok101@gmail.com";
   const superRoleId = created.SUPER_ADMIN;
+  const adminEmail = process.env.ADMIN_EMAIL ?? "admin@fireslot.np";
+  if (adminEmail.toLowerCase() !== superAdminEmail) {
+    await prisma.user.updateMany({
+      where: { email: adminEmail },
+      data: { roleId: created.ADMIN, role: Role.ADMIN, isBanned: false },
+    });
+  }
+
   await prisma.user.upsert({
     where: { email: superAdminEmail },
     update: { roleId: superRoleId, isBanned: false, role: Role.ADMIN },

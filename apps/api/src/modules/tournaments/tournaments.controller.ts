@@ -14,6 +14,10 @@ import type { Response } from "express";
 import { TournamentsService } from "./tournaments.service";
 import { JwtAuthGuard } from "../../common/guards/jwt.guard";
 import { Roles, RolesGuard } from "../../common/guards/roles.guard";
+import {
+  PermissionsGuard,
+  RequirePermission,
+} from "../../common/guards/permissions.guard";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import {
   CreateTournamentDto,
@@ -99,8 +103,9 @@ export class TournamentsController {
     return this.svc.previewPricing(parseInt(entryFee, 10), parseInt(maxPlayers, 10));
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(Role.ADMIN)
+  @RequirePermission("tournaments", "write")
   @Post(":id/lock-room")
   lockRoom(@Param("id") id: string) {
     return this.svc.lockRoom(id);
@@ -113,29 +118,33 @@ export class TournamentsController {
   }
 
   // ----- Admin -----
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(Role.ADMIN)
+  @RequirePermission("tournaments", "write")
   @Post()
   create(@CurrentUser() u: any, @Body() dto: CreateTournamentDto) {
     return this.svc.create(u.sub, dto);
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(Role.ADMIN)
+  @RequirePermission("tournaments", "write")
   @Put(":id/status")
   status(@Param("id") id: string, @Body() dto: UpdateTournamentStatusDto) {
     return this.svc.setStatus(id, dto);
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(Role.ADMIN)
+  @RequirePermission("tournaments", "write")
   @Put(":id/room")
   publishRoom(@Param("id") id: string, @Body() dto: PublishRoomDto) {
     return this.svc.publishRoom(id, dto);
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(Role.ADMIN)
+  @RequirePermission("tournaments", "approve")
   @Post(":id/winners")
   winners(
     @Param("id") id: string,

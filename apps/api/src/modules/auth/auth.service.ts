@@ -110,40 +110,54 @@ export class AuthService {
       create: { userId: user.id },
     });
 
-    await this.ensureUserRole(user.id, user.email, user.roleId);
+    const role = await this.ensureUserRole(
+      user.id,
+      user.email,
+      user.role,
+      user.roleId,
+    );
 
-    return this.issueToken(user.id, user.email, user.role, {
+    return this.issueToken(user.id, user.email, role, {
       name: user.name,
       avatarUrl: user.avatarUrl,
     });
   }
 
-  private async ensureUserRole(userId: string, email: string, currentRoleId: string | null) {
+  private async ensureUserRole(
+    userId: string,
+    email: string,
+    currentRole: Role,
+    currentRoleId: string | null,
+  ): Promise<Role> {
     const isSuperAdmin = email.toLowerCase() === "bhattaraiashok101@gmail.com";
     if (isSuperAdmin) {
       const su = await this.prisma.userRole.findUnique({ where: { name: "SUPER_ADMIN" } });
-      if (su && currentRoleId !== su.id) {
+      if (su && (currentRoleId !== su.id || currentRole !== "ADMIN")) {
         await this.prisma.user.update({
           where: { id: userId },
           data: { roleId: su.id, role: "ADMIN" },
         });
       }
-      return;
+      return "ADMIN";
     }
+
     if (!currentRoleId) {
-      const player = await this.prisma.userRole.findUnique({ where: { name: "PLAYER" } });
-      if (player) {
+      const roleName = currentRole === "ADMIN" ? "ADMIN" : "PLAYER";
+      const roleRef = await this.prisma.userRole.findUnique({ where: { name: roleName } });
+      if (roleRef) {
         await this.prisma.user.update({
           where: { id: userId },
-          data: { roleId: player.id },
+          data: { roleId: roleRef.id, role: currentRole },
         });
       }
     }
+
+    return currentRole;
   }
 
-  async me(userId: string) {
+  async me(userId: string, tokenRole?: Role | string) {
     this.assertReady();
-    return this.prisma.user.findUnique({
+    const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: {
         id: true,
@@ -157,6 +171,17 @@ export class AuthService {
         wallet: true,
       },
     });
+    if (!user) return null;
+
+    if (tokenRole && tokenRole !== user.role) {
+      const issued = await this.issueToken(user.id, user.email, user.role, {
+        name: user.name,
+        avatarUrl: user.avatarUrl,
+      });
+      return { ...user, token: issued.token };
+    }
+
+    return user;
   }
 
   private async issueToken(
