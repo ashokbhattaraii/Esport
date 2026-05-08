@@ -5,6 +5,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  OnModuleInit,
 } from "@nestjs/common";
 import {
   PrismaClient,
@@ -25,9 +26,76 @@ import { FreeDailyWindowService } from "../admin/free-daily-window.service";
 import { MemoryCacheService } from "../../common/cache/memory-cache.service";
 import { RealtimeService } from "../../common/realtime/realtime.service";
 import { createHash } from "crypto";
+import {
+  TOURNAMENT_LIST_CACHE_PREFIX,
+  invalidateTournamentCaches,
+  tournamentDetailCacheKey,
+} from "./tournament-cache.keys";
 
 const ROOM_CACHE_TTL_SECONDS = 30;
+const TOURNAMENT_LIST_SOFT_TTL_SECONDS = 15;
+const TOURNAMENT_LIST_HARD_TTL_SECONDS = 180;
+const TOURNAMENT_DETAIL_SOFT_TTL_SECONDS = 10;
+const TOURNAMENT_DETAIL_HARD_TTL_SECONDS = 120;
 const roomCacheKey = (id: string) => `room:${id}`;
+
+const TOURNAMENT_LIST_SELECT = {
+  id: true,
+  title: true,
+  description: true,
+  mode: true,
+  map: true,
+  type: true,
+  entryFeeNpr: true,
+  registrationFeeNpr: true,
+  prizePoolNpr: true,
+  perKillPrizeNpr: true,
+  firstPrize: true,
+  secondPrize: true,
+  thirdPrize: true,
+  fourthToTenthPrize: true,
+  maxSlots: true,
+  filledSlots: true,
+  dateTime: true,
+  status: true,
+  killPrize: true,
+  prizeStructure: true,
+  perKillReward: true,
+  booyahPrize: true,
+  actualPlayers: true,
+  roomLocked: true,
+  roomLockedAt: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
+
+const TOURNAMENT_DETAIL_SELECT = {
+  ...TOURNAMENT_LIST_SELECT,
+  roomId: true,
+  roomPassword: true,
+  systemFeePercent: true,
+  minLevel: true,
+  maxHeadshotRate: true,
+  allowEmulator: true,
+  bannedGuns: true,
+  characterSkillOn: true,
+  gunAttributesOn: true,
+  matchRules: true,
+  booyahPrizeNote: true,
+  rules: true,
+  isAdminCreated: true,
+  createdById: true,
+  participants: {
+    select: {
+      id: true,
+      userId: true,
+      paid: true,
+      joinedAt: true,
+      placement: true,
+      prizeEarned: true,
+    },
+  },
+} as const;
 
 export interface RoomDetails {
   tournamentId: string;
@@ -39,7 +107,7 @@ export interface RoomDetails {
 }
 
 @Injectable()
-export class TournamentsService {
+export class TournamentsService implements OnModuleInit {
   constructor(
     @Inject(PRISMA) private prisma: PrismaClient,
     private prizes: PrizeService,
@@ -48,6 +116,10 @@ export class TournamentsService {
     private cache: MemoryCacheService,
     private realtime: RealtimeService,
   ) {}
+
+  onModuleInit() {
+    void this.warmReadCaches();
+  }
 
   private buildEtag(t: { roomId: string | null; roomPassword: string | null; status: string; updatedAt: Date }) {
     return createHash("sha1")
@@ -103,7 +175,28 @@ export class TournamentsService {
     this.cache.del(roomCacheKey(tournamentId));
   }
 
+  invalidateReadCaches(tournamentId?: string | null) {
+    invalidateTournamentCaches(this.cache, tournamentId);
+    if (tournamentId) this.invalidateRoomCache(tournamentId);
+  }
+
   list(filters: {
+    mode?: GameMode;
+    status?: TournamentStatus;
+    type?: TournamentType;
+    minFee?: number;
+    maxFee?: number;
+  }) {
+    const key = this.listCacheKey(filters);
+    return this.cache.getStaleWhileRevalidate(
+      key,
+      TOURNAMENT_LIST_SOFT_TTL_SECONDS,
+      TOURNAMENT_LIST_HARD_TTL_SECONDS,
+      () => this.loadTournamentList(filters),
+    );
+  }
+
+  private loadTournamentList(filters: {
     mode?: GameMode;
     status?: TournamentStatus;
     type?: TournamentType;
@@ -121,17 +214,18 @@ export class TournamentsService {
     }
     return this.prisma.tournament.findMany({
       where,
+      select: TOURNAMENT_LIST_SELECT,
       orderBy: { dateTime: "asc" },
     });
   }
 
   async getOne(id: string, userId?: string, role?: Role) {
-    const t = await this.prisma.tournament.findUnique({
-      where: { id },
-      include: {
-        participants: { include: { user: { include: { profile: true } } } },
-      },
-    });
+    const t = await this.cache.getStaleWhileRevalidate(
+      tournamentDetailCacheKey(id),
+      TOURNAMENT_DETAIL_SOFT_TTL_SECONDS,
+      TOURNAMENT_DETAIL_HARD_TTL_SECONDS,
+      () => this.loadTournamentDetail(id),
+    );
     if (!t) throw new NotFoundException();
 
     let canSeeRoom = role === "ADMIN";
@@ -143,6 +237,13 @@ export class TournamentsService {
       return { ...t, roomId: null, roomPassword: null };
     }
     return t;
+  }
+
+  private loadTournamentDetail(id: string) {
+    return this.prisma.tournament.findUnique({
+      where: { id },
+      select: TOURNAMENT_DETAIL_SELECT,
+    });
   }
 
   async create(adminId: string, dto: CreateTournamentDto) {
@@ -177,7 +278,7 @@ export class TournamentsService {
       bannedGuns,
     });
 
-    return this.prisma.tournament.create({
+    const created = await this.prisma.tournament.create({
       data: {
         title: dto.title,
         description: dto.description,
@@ -213,6 +314,8 @@ export class TournamentsService {
         createdById: adminId,
       },
     });
+    this.invalidateReadCaches(created.id);
+    return created;
   }
 
   previewPricing(entryFee: number, maxPlayers: number) {
@@ -223,7 +326,9 @@ export class TournamentsService {
   }
 
   async lockRoom(tournamentId: string) {
-    return this.prizes.lockRoomAndFinalizePrizes(tournamentId);
+    const updated = await this.prizes.lockRoomAndFinalizePrizes(tournamentId);
+    this.invalidateReadCaches(tournamentId);
+    return updated;
   }
 
   private buildMatchRules(input: {
@@ -283,7 +388,7 @@ export class TournamentsService {
       where: { id },
       data: { status: dto.status },
     });
-    this.invalidateRoomCache(id);
+    this.invalidateReadCaches(id);
     this.realtime.emitToTournament(id, "tournament_status_changed", { status: dto.status });
     return updated;
   }
@@ -297,7 +402,7 @@ export class TournamentsService {
         status: TournamentStatus.LIVE,
       },
     });
-    this.invalidateRoomCache(id);
+    this.invalidateReadCaches(id);
     // Don't leak credentials over realtime — clients pull fresh via API after this nudge.
     this.realtime.emitToTournament(id, "room_details_published", { tournamentId: id });
     return updated;
@@ -420,6 +525,7 @@ export class TournamentsService {
     if (t.type === "FREE_DAILY") {
       await this.prizes.recordFreeDailyUse(userId, tournamentId);
     }
+    this.invalidateReadCaches(tournamentId);
     return participant;
   }
 
@@ -450,7 +556,7 @@ export class TournamentsService {
       gotBooyah: w.gotBooyah ?? w.placement === 1,
     }));
     const out = await this.prizes.distributePrizes(tournamentId, results);
-    this.invalidateRoomCache(tournamentId);
+    this.invalidateReadCaches(tournamentId);
     this.realtime.emitToTournament(tournamentId, "tournament_status_changed", { status: "COMPLETED" });
     for (const c of out.credits ?? []) {
       this.realtime.emitToUser(c.userId, "prize_credited", { amount: c.amount, note: c.note });
@@ -495,5 +601,29 @@ export class TournamentsService {
         `Prize structure percentages must sum to 100 (got ${sum})`,
       );
     }
+  }
+
+  private listCacheKey(filters: {
+    mode?: GameMode;
+    status?: TournamentStatus;
+    type?: TournamentType;
+    minFee?: number;
+    maxFee?: number;
+  }) {
+    return `${TOURNAMENT_LIST_CACHE_PREFIX}${JSON.stringify({
+      mode: filters.mode ?? null,
+      status: filters.status ?? null,
+      type: filters.type ?? null,
+      minFee: filters.minFee ?? null,
+      maxFee: filters.maxFee ?? null,
+    })}`;
+  }
+
+  private async warmReadCaches() {
+    await Promise.allSettled([
+      this.list({}),
+      this.list({ status: TournamentStatus.UPCOMING }),
+      this.list({ status: TournamentStatus.LIVE }),
+    ]);
   }
 }

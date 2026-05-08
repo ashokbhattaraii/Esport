@@ -14,7 +14,14 @@ import {
 import { PRISMA } from "../../prisma/prisma.module";
 import { SystemConfigService } from "../admin/system-config.service";
 import { RealtimeService } from "../../common/realtime/realtime.service";
+import { MemoryCacheService } from "../../common/cache/memory-cache.service";
 
+const CHALLENGE_LIST_CACHE_PREFIX = "challenges:list:";
+const CHALLENGE_DETAIL_CACHE_PREFIX = "challenges:detail:";
+const CHALLENGE_LIST_SOFT_TTL_SECONDS = 15;
+const CHALLENGE_LIST_HARD_TTL_SECONDS = 120;
+const CHALLENGE_DETAIL_SOFT_TTL_SECONDS = 10;
+const CHALLENGE_DETAIL_HARD_TTL_SECONDS = 90;
 const CS_TEAM_MODES = ["1v1", "2v2", "3v3", "4v4"];
 const CS_COINS = ["DEFAULT", "9980"];
 const CS_WEAPONS = [
@@ -29,6 +36,70 @@ const BR_TEAM_MODES = ["SOLO", "DUO", "SQUAD"];
 const BR_WIN_CONDITIONS = [
   "KILLS", "BOOYAH", "HEADSHOTS_ONLY", "MOST_DAMAGE", "SURVIVAL_TIME", "FIRST_TO_N_KILLS",
 ];
+
+const PLAYER_SELECT = {
+  id: true,
+  name: true,
+  email: true,
+  profile: {
+    select: {
+      ign: true,
+      level: true,
+      avatarUrl: true,
+    },
+  },
+} as const;
+
+const CHALLENGE_LIST_SELECT = {
+  id: true,
+  challengeNumber: true,
+  creatorId: true,
+  opponentId: true,
+  title: true,
+  gameMode: true,
+  entryFee: true,
+  prizeToWinner: true,
+  platformFee: true,
+  status: true,
+  brMap: true,
+  brTeamMode: true,
+  brWinCondition: true,
+  brTargetKills: true,
+  brBannedGuns: true,
+  brHeadshotOnly: true,
+  csTeamMode: true,
+  csRounds: true,
+  csCoins: true,
+  csThrowable: true,
+  csLoadout: true,
+  csCompulsoryWeapon: true,
+  csCompulsoryArmour: true,
+  characterSkill: true,
+  gunAttribute: true,
+  headshotOnly: true,
+  noEmulator: true,
+  minLevel: true,
+  maxHeadshotRate: true,
+  povRequired: true,
+  screenshotRequired: true,
+  reportWindowMins: true,
+  scheduledAt: true,
+  startedAt: true,
+  endedAt: true,
+  winnerId: true,
+  createdAt: true,
+  updatedAt: true,
+  creator: { select: PLAYER_SELECT },
+} as const;
+
+const CHALLENGE_DETAIL_SELECT = {
+  ...CHALLENGE_LIST_SELECT,
+  roomId: true,
+  roomPassword: true,
+  disputeId: true,
+  opponent: { select: PLAYER_SELECT },
+  results: true,
+} as const;
 
 export interface CreateChallengeDto {
   title: string;
@@ -66,6 +137,7 @@ export class ChallengesService {
     @Inject(PRISMA) private prisma: PrismaClient,
     private config: SystemConfigService,
     private realtime: RealtimeService,
+    private cache: MemoryCacheService,
   ) {}
 
   getChallengeRulesText(c: any): string {
@@ -144,7 +216,7 @@ export class ChallengesService {
     const challengeNumber = `CH-${String(count + 1).padStart(4, "0")}`;
     const inviteCode = dto.isPrivate ? this.randomCode(8) : null;
 
-    return this.prisma.$transaction(async (tx: any) => {
+    const created = await this.prisma.$transaction(async (tx: any) => {
       await tx.botRollback.create({
         data: {
           jobName: "MANUAL_CHALLENGE",
@@ -207,9 +279,20 @@ export class ChallengesService {
         },
       });
     });
+    this.invalidateChallengeCaches(created.id);
+    return created;
   }
 
   async list(filters: { gameMode?: ChallengGameMode; status?: ChallengeStatus }) {
+    return this.cache.getStaleWhileRevalidate(
+      this.listCacheKey(filters),
+      CHALLENGE_LIST_SOFT_TTL_SECONDS,
+      CHALLENGE_LIST_HARD_TTL_SECONDS,
+      () => this.loadChallengeList(filters),
+    );
+  }
+
+  private async loadChallengeList(filters: { gameMode?: ChallengGameMode; status?: ChallengeStatus }) {
     const where: any = { isPrivate: false };
     if (filters.gameMode) where.gameMode = filters.gameMode;
     if (filters.status) where.status = filters.status;
@@ -217,9 +300,7 @@ export class ChallengesService {
     const items = await this.prisma.challenge.findMany({
       where,
       orderBy: { createdAt: "desc" },
-      include: {
-        creator: { select: { id: true, name: true, email: true, profile: true } },
-      },
+      select: CHALLENGE_LIST_SELECT,
     });
     return items.map((c) => ({ ...c, rulesText: this.getChallengeRulesText(c) }));
   }
@@ -236,16 +317,21 @@ export class ChallengesService {
   }
 
   async getById(id: string) {
-    const c = await this.prisma.challenge.findUnique({
-      where: { id },
-      include: {
-        creator: { select: { id: true, name: true, email: true, profile: true } },
-        opponent: { select: { id: true, name: true, email: true, profile: true } },
-        results: true,
-      },
-    });
+    const c = await this.cache.getStaleWhileRevalidate(
+      this.detailCacheKey(id),
+      CHALLENGE_DETAIL_SOFT_TTL_SECONDS,
+      CHALLENGE_DETAIL_HARD_TTL_SECONDS,
+      () => this.loadChallengeDetail(id),
+    );
     if (!c) throw new NotFoundException();
     return { ...c, rulesText: this.getChallengeRulesText(c) };
+  }
+
+  private loadChallengeDetail(id: string) {
+    return this.prisma.challenge.findUnique({
+      where: { id },
+      select: CHALLENGE_DETAIL_SELECT,
+    });
   }
 
   async getByInviteCode(code: string) {
@@ -288,7 +374,7 @@ export class ChallengesService {
     if (!wallet || wallet.balanceNpr < c.entryFee)
       throw new BadRequestException("Insufficient wallet balance");
 
-    return this.prisma.$transaction(async (tx: any) => {
+    const updated = await this.prisma.$transaction(async (tx: any) => {
       await tx.botRollback.create({
         data: {
           jobName: "MANUAL_CHALLENGE",
@@ -332,6 +418,8 @@ export class ChallengesService {
       this.realtime.emitToUser(userId, "wallet_updated", {});
       return updated;
     });
+    this.invalidateChallengeCaches(challengeId);
+    return updated;
   }
 
   async shareRoom(
@@ -361,6 +449,7 @@ export class ChallengesService {
         },
       });
     }
+    this.invalidateChallengeCaches(challengeId);
     return updated;
   }
 
@@ -440,6 +529,7 @@ export class ChallengesService {
         data: { disputeId: dispute.id },
       });
     }
+    this.invalidateChallengeCaches(challengeId);
     return { ok: true };
   }
 
@@ -486,7 +576,7 @@ export class ChallengesService {
   }
 
   async distributeChallengeWinnings(challengeId: string, winnerId: string) {
-    return this.prisma.$transaction(async (tx: any) => {
+    const updated = await this.prisma.$transaction(async (tx: any) => {
       const c = await tx.challenge.findUnique({ where: { id: challengeId } });
       if (!c) throw new NotFoundException();
 
@@ -541,6 +631,8 @@ export class ChallengesService {
       }
       return updated;
     });
+    this.invalidateChallengeCaches(challengeId);
+    return updated;
   }
 
   async raiseDispute(
@@ -579,6 +671,7 @@ export class ChallengesService {
         },
       });
     }
+    this.invalidateChallengeCaches(challengeId);
     return dispute;
   }
 
@@ -588,7 +681,7 @@ export class ChallengesService {
     if (c.creatorId !== userId) throw new ForbiddenException("Only creator can cancel");
     if (c.status !== "OPEN") throw new BadRequestException("Cannot cancel after match");
 
-    return this.prisma.$transaction(async (tx: any) => {
+    const updated = await this.prisma.$transaction(async (tx: any) => {
       const wallet = await tx.wallet.upsert({
         where: { userId },
         create: { userId, balanceNpr: c.entryFee },
@@ -608,6 +701,8 @@ export class ChallengesService {
         data: { status: "CANCELLED" },
       });
     });
+    this.invalidateChallengeCaches(challengeId);
+    return updated;
   }
 
   async resolveDispute(
@@ -649,7 +744,7 @@ export class ChallengesService {
       await this.distributeChallengeWinnings(c.id, winnerId);
     }
 
-    return this.prisma.challengeDispute.update({
+    const updated = await this.prisma.challengeDispute.update({
       where: { id: disputeId },
       data: {
         status:
@@ -663,6 +758,8 @@ export class ChallengesService {
         resolution: note,
       },
     });
+    this.invalidateChallengeCaches(c.id);
+    return updated;
   }
 
   async getStats() {
@@ -717,5 +814,22 @@ export class ChallengesService {
     let s = "";
     for (let i = 0; i < len; i++) s += alphabet[Math.floor(Math.random() * alphabet.length)];
     return s;
+  }
+
+  private listCacheKey(filters: { gameMode?: ChallengGameMode; status?: ChallengeStatus }) {
+    return `${CHALLENGE_LIST_CACHE_PREFIX}${JSON.stringify({
+      gameMode: filters.gameMode ?? null,
+      status: filters.status ?? "OPEN",
+    })}`;
+  }
+
+  private detailCacheKey(challengeId: string) {
+    return `${CHALLENGE_DETAIL_CACHE_PREFIX}${challengeId}`;
+  }
+
+  private invalidateChallengeCaches(challengeId?: string | null) {
+    this.cache.delPrefix(CHALLENGE_LIST_CACHE_PREFIX);
+    if (challengeId) this.cache.del(this.detailCacheKey(challengeId));
+    else this.cache.delPrefix(CHALLENGE_DETAIL_CACHE_PREFIX);
   }
 }

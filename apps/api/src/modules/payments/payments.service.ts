@@ -6,10 +6,15 @@ import {
 } from "@nestjs/common";
 import { PaymentStatus, PrismaClient } from "@fireslot/db";
 import { PRISMA } from "../../prisma/prisma.module";
+import { MemoryCacheService } from "../../common/cache/memory-cache.service";
+import { invalidateTournamentCaches } from "../tournaments/tournament-cache.keys";
 
 @Injectable()
 export class PaymentsService {
-  constructor(@Inject(PRISMA) private prisma: PrismaClient) {}
+  constructor(
+    @Inject(PRISMA) private prisma: PrismaClient,
+    private cache: MemoryCacheService,
+  ) {}
 
   async submit(
     userId: string,
@@ -89,11 +94,13 @@ export class PaymentsService {
   }
 
   async approve(adminId: string, paymentId: string) {
-    return this.prisma.$transaction(async (tx: any) => {
+    let tournamentId: string | null = null;
+    const result = await this.prisma.$transaction(async (tx: any) => {
       const p = await tx.payment.findUnique({ where: { id: paymentId } });
       if (!p) throw new NotFoundException();
       if (p.status !== "PENDING")
         throw new BadRequestException("Already reviewed");
+      tournamentId = p.tournamentId;
 
       await tx.payment.update({
         where: { id: paymentId },
@@ -160,6 +167,8 @@ export class PaymentsService {
       });
       return { ok: true };
     });
+    if (tournamentId) invalidateTournamentCaches(this.cache, tournamentId);
+    return result;
   }
 
   async reject(adminId: string, paymentId: string, note?: string) {
