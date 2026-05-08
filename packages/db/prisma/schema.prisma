@@ -363,9 +363,21 @@ model AppRelease {
   filename      String
   downloadCount Int      @default(0)
   isLatest      Boolean  @default(false)
+  buildStatus   String   @default("UPLOADED")
+  testStatus    String   @default("NOT_TESTED")
+  testReport    Json?
+  fileSizeBytes Int?
+  sha256        String?
+  buildLog      String?
+  builtAt       DateTime?
+  testedAt      DateTime?
+  publishedAt   DateTime?
+  generatedById String?
   createdAt     DateTime @default(now())
 
   @@index([isLatest])
+  @@index([buildStatus])
+  @@index([testStatus])
 }
 
 model UserPermission {

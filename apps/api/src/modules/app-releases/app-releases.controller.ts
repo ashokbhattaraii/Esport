@@ -11,6 +11,7 @@ import {
   UseInterceptors,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
+import { createHash } from "crypto";
 import { JwtAuthGuard } from "../../common/guards/jwt.guard";
 import { PermissionsGuard, RequirePermission } from "../../common/guards/permissions.guard";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
@@ -36,9 +37,33 @@ export class AppReleasesController {
   ) {}
 
   @RequirePermission("config", "read")
+  @Get("build-info")
+  buildInfo() {
+    return this.svc.getBuildInfo();
+  }
+
+  @RequirePermission("config", "read")
   @Get()
   list() {
     return this.svc.list();
+  }
+
+  @RequirePermission("config", "write")
+  @Post("generate")
+  generate(
+    @Body() body: { version: string; releaseNotes?: string; runTests?: boolean },
+    @CurrentUser() u: any,
+    @Req() req: any,
+  ) {
+    return this.svc.buildFromSource(
+      {
+        version: body.version,
+        releaseNotes: body.releaseNotes,
+        runTests: body.runTests !== false,
+      },
+      u.sub,
+      req.ip,
+    );
   }
 
   @RequirePermission("config", "write")
@@ -55,16 +80,33 @@ export class AppReleasesController {
     @Req() req: any,
   ) {
     const url = file ? (await this.storage.upload(file, "releases", body.version)).url : "";
+    const sha256 = file?.buffer
+      ? createHash("sha256").update(file.buffer).digest("hex")
+      : undefined;
     return this.svc.create(
       {
         version: body.version,
         releaseNotes: body.releaseNotes,
         filename: url,
-        isLatest: body.isLatest !== "false",
+        isLatest: false,
+        buildStatus: "UPLOADED",
+        testStatus: "NOT_TESTED",
+        fileSizeBytes: file?.size,
+        sha256,
       },
       u.sub,
       req.ip,
     );
+  }
+
+  @RequirePermission("config", "write")
+  @Post(":id/test")
+  test(
+    @Param("id") id: string,
+    @CurrentUser() u: any,
+    @Req() req: any,
+  ) {
+    return this.svc.runSystemTests(id, u.sub, req.ip);
   }
 
   @RequirePermission("config", "write")
