@@ -5,6 +5,7 @@ import { Gamepad2, Coins, ChevronDown, ChevronUp } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { useToast, handleJoinError } from "@/lib/toast";
+import { ButtonLoading } from "@/components/ui";
 
 type GameMode = "BR" | "CS";
 
@@ -397,7 +398,9 @@ export default function CreateChallengePage() {
         disabled={submitting}
         className="fixed bottom-0 left-0 right-0 z-40 mx-auto block w-full max-w-md rounded-t-lg bg-[#E53935] py-4 font-display text-base font-bold text-white shadow-2xl disabled:opacity-50"
       >
-        {submitting ? "CREATING..." : "CREATE CONTEST"}
+        <ButtonLoading loading={submitting} loadingText="Creating contest...">
+          CREATE CONTEST
+        </ButtonLoading>
       </button>
     </div>
   );

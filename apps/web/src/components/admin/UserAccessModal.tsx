@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { X, ShieldCheck, ShieldX, Minus } from "lucide-react";
+import { ButtonLoading, LoadingState } from "@/components/ui";
 
 const RESOURCES = ["tournaments", "payments", "users", "withdrawals", "results", "config", "*"];
 const ACTIONS = ["read", "write", "approve", "delete", "ban", "*"];
@@ -98,7 +99,7 @@ export function UserAccessModal({
           <X size={18} />
         </button>
         {!data ? (
-          <p className="text-white/60 p-4">Loading…</p>
+          <LoadingState label="Loading access settings..." />
         ) : (
           <>
             <h2 className="font-display text-xl text-white">Manage Access</h2>
@@ -178,7 +179,9 @@ export function UserAccessModal({
             <div className="mt-4 flex justify-end gap-2">
               <button className="btn-outline" onClick={onClose}>Cancel</button>
               <button className="btn-primary" onClick={save} disabled={saving}>
-                {saving ? "Saving…" : "Save Access"}
+                <ButtonLoading loading={saving} loadingText="Saving access...">
+                  Save Access
+                </ButtonLoading>
               </button>
             </div>
           </>

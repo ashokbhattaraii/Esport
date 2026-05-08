@@ -4,10 +4,10 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { profileSchema } from "@fireslot/shared";
 import { GoogleAuthPanel } from "@/components/GoogleAuthPanel";
-import { PageHeader } from "@/components/ui";
+import { ButtonLoading, PageHeader, PageLoading } from "@/components/ui";
 
 export default function ProfilePage() {
-  const { user, refresh } = useAuth();
+  const { user, loading, refresh } = useAuth();
   const [form, setForm] = useState({
     freeFireUid: "",
     ign: "",
@@ -17,6 +17,7 @@ export default function ProfilePage() {
     isEmulator: false,
   });
   const [msg, setMsg] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (user?.profile)
@@ -42,6 +43,7 @@ export default function ProfilePage() {
       setMsg(parsed.error.issues[0]?.message ?? "Invalid");
       return;
     }
+    setSaving(true);
     try {
       await api("/profile", {
         method: "PUT",
@@ -55,9 +57,12 @@ export default function ProfilePage() {
       setMsg("Saved.");
     } catch (e: any) {
       setMsg(e.message);
+    } finally {
+      setSaving(false);
     }
   }
 
+  if (loading) return <PageLoading label="Loading profile..." />;
   if (!user)
     return (
       <div className="mx-auto max-w-md">
@@ -149,7 +154,11 @@ export default function ProfilePage() {
             </span>
           </label>
         </div>
-        <button className="btn-primary w-full">Save</button>
+        <button className="btn-primary w-full" disabled={saving}>
+          <ButtonLoading loading={saving} loadingText="Saving profile...">
+            Save
+          </ButtonLoading>
+        </button>
         {msg && <p className="text-sm text-white/70">{msg}</p>}
       </form>
     </div>

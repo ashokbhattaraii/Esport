@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { ButtonLoading, CardSkeleton } from "@/components/ui";
 
 interface Win {
   id: string;
@@ -18,6 +19,9 @@ const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 export default function SchedulePage() {
   const [items, setItems] = useState<Win[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [actingKey, setActingKey] = useState<string | null>(null);
   const [draft, setDraft] = useState({
     label: "Morning Free",
     windowStart: "06:00",
@@ -28,30 +32,44 @@ export default function SchedulePage() {
     isActive: true,
   });
 
-  async function load() {
-    setItems(await api<Win[]>("/admin/schedule"));
+  async function load(showLoading = true) {
+    if (showLoading) setLoading(true);
+    try {
+      setItems(await api<Win[]>("/admin/schedule"));
+    } finally {
+      if (showLoading) setLoading(false);
+    }
   }
   useEffect(() => { load().catch((e) => setMsg(e.message)); }, []);
 
   async function create() {
+    setCreating(true);
     try {
       await api("/admin/schedule", { method: "POST", body: JSON.stringify(draft) });
       setMsg("Created");
-      load();
+      await load(false);
     } catch (e: any) { setMsg(e.message); }
+    finally { setCreating(false); }
   }
 
   async function patch(id: string, dto: Partial<Win>) {
+    setActingKey(`${id}:patch`);
     try {
       await api(`/admin/schedule/${id}`, { method: "PUT", body: JSON.stringify(dto) });
-      load();
+      await load(false);
     } catch (e: any) { setMsg(e.message); }
+    finally { setActingKey(null); }
   }
 
   async function remove(id: string) {
     if (!confirm("Delete window?")) return;
-    await api(`/admin/schedule/${id}`, { method: "DELETE" });
-    load();
+    setActingKey(`${id}:delete`);
+    try {
+      await api(`/admin/schedule/${id}`, { method: "DELETE" });
+      await load(false);
+    } finally {
+      setActingKey(null);
+    }
   }
 
   return (
@@ -103,13 +121,22 @@ export default function SchedulePage() {
             </div>
           </Field>
         </div>
-        <button className="btn-primary mt-4" onClick={create}>Create Window</button>
+        <button className="btn-primary mt-4" onClick={create} disabled={creating}>
+          <ButtonLoading loading={creating} loadingText="Creating...">
+            Create Window
+          </ButtonLoading>
+        </button>
       </div>
 
       <div className="card">
         <h2 className="font-display text-lg">Existing Windows</h2>
         <div className="mt-3 space-y-2">
-          {items.map((w) => (
+          {loading ? (
+            <>
+              <CardSkeleton lines={2} />
+              <CardSkeleton lines={2} />
+            </>
+          ) : items.map((w) => (
             <div key={w.id} className="rounded-md border border-border p-3 flex flex-wrap gap-3 items-center">
               <div className="flex-1 min-w-[160px]">
                 <div className="text-sm text-white">{w.label}</div>
@@ -120,13 +147,24 @@ export default function SchedulePage() {
               <button
                 className={w.isActive ? "btn-outline" : "btn-primary"}
                 onClick={() => patch(w.id, { isActive: !w.isActive })}
+                disabled={actingKey?.startsWith(`${w.id}:`)}
               >
-                {w.isActive ? "Disable" : "Enable"}
+                <ButtonLoading loading={actingKey === `${w.id}:patch`} loadingText="Saving...">
+                  {w.isActive ? "Disable" : "Enable"}
+                </ButtonLoading>
               </button>
-              <button className="btn-outline text-red-400" onClick={() => remove(w.id)}>Delete</button>
+              <button
+                className="btn-outline text-red-400"
+                onClick={() => remove(w.id)}
+                disabled={actingKey?.startsWith(`${w.id}:`)}
+              >
+                <ButtonLoading loading={actingKey === `${w.id}:delete`} loadingText="Deleting...">
+                  Delete
+                </ButtonLoading>
+              </button>
             </div>
           ))}
-          {!items.length && <p className="text-sm text-white/50">No windows yet.</p>}
+          {!loading && !items.length && <p className="text-sm text-white/50">No windows yet.</p>}
         </div>
       </div>
     </div>

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import { GameModeLabels, GameModes } from "@fireslot/shared";
 import { fmtDate, npr } from "@/lib/utils";
-import { EmptyState, PageHeader, StatusBadge } from "@/components/ui";
+import { ButtonLoading, CardSkeleton, EmptyState, PageHeader, StatusBadge } from "@/components/ui";
 
 const BANNED_GUNS = ["Double Vector", "M79", "Grenade Launcher", "Rocket Launcher"];
 
@@ -33,9 +33,17 @@ export default function AdminTournaments() {
   const [form, setForm] = useState<any>(initialForm);
   const [msg, setMsg] = useState<string | null>(null);
   const [preview, setPreview] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [actionKey, setActionKey] = useState<string | null>(null);
 
-  async function load() {
-    setItems(await api("/tournaments"));
+  async function load(showLoading = true) {
+    if (showLoading) setLoading(true);
+    try {
+      setItems(await api("/tournaments"));
+    } finally {
+      if (showLoading) setLoading(false);
+    }
   }
   useEffect(() => { load().catch(() => {}); }, []);
 
@@ -54,6 +62,7 @@ export default function AdminTournaments() {
   async function create(e: React.FormEvent) {
     e.preventDefault();
     setMsg(null);
+    setCreating(true);
     try {
       await api("/tournaments", {
         method: "POST",
@@ -69,18 +78,25 @@ export default function AdminTournaments() {
       });
       setForm(initialForm);
       setOpen(false);
-      load();
+      await load(false);
     } catch (e: any) {
       setMsg(e.message);
+    } finally {
+      setCreating(false);
     }
   }
 
   async function setStatus(id: string, status: string) {
-    await api(`/tournaments/${id}/status`, {
-      method: "PUT",
-      body: JSON.stringify({ status }),
-    });
-    load();
+    setActionKey(`${id}:status`);
+    try {
+      await api(`/tournaments/${id}/status`, {
+        method: "PUT",
+        body: JSON.stringify({ status }),
+      });
+      await load(false);
+    } finally {
+      setActionKey(null);
+    }
   }
 
   async function publishRoom(id: string) {
@@ -88,20 +104,28 @@ export default function AdminTournaments() {
     if (!roomId) return;
     const roomPassword = prompt("Room password?");
     if (!roomPassword) return;
-    await api(`/tournaments/${id}/room`, {
-      method: "PUT",
-      body: JSON.stringify({ roomId, roomPassword }),
-    });
-    load();
+    setActionKey(`${id}:room`);
+    try {
+      await api(`/tournaments/${id}/room`, {
+        method: "PUT",
+        body: JSON.stringify({ roomId, roomPassword }),
+      });
+      await load(false);
+    } finally {
+      setActionKey(null);
+    }
   }
 
   async function lockRoom(id: string) {
     if (!confirm("Lock room and finalize prizes? This sets actualPlayers and recomputes Per Kill / Booyah.")) return;
+    setActionKey(`${id}:lock`);
     try {
       await api(`/tournaments/${id}/lock-room`, { method: "POST" });
-      load();
+      await load(false);
     } catch (e: any) {
       alert(e.message);
+    } finally {
+      setActionKey(null);
     }
   }
 
@@ -264,12 +288,22 @@ export default function AdminTournaments() {
             onChange={(e) => setForm({ ...form, rules: e.target.value })}
           />
 
-          <button className="btn-primary w-full">Create Tournament</button>
+          <button className="btn-primary w-full" disabled={creating}>
+            <ButtonLoading loading={creating} loadingText="Creating tournament...">
+              Create Tournament
+            </ButtonLoading>
+          </button>
           {msg && <p className="text-sm text-red-400">{msg}</p>}
         </form>
       )}
 
-      {items.length === 0 ? (
+      {loading ? (
+        <div className="space-y-3">
+          <CardSkeleton lines={4} />
+          <CardSkeleton lines={4} />
+          <CardSkeleton lines={4} />
+        </div>
+      ) : items.length === 0 ? (
         <EmptyState title="No tournaments yet" />
       ) : (
         <div className="space-y-3">
@@ -290,18 +324,29 @@ export default function AdminTournaments() {
                 <Mini label="Slots" value={`${t.filledSlots}/${t.maxSlots}`} />
               </div>
               <div className="mt-3 flex gap-2 flex-wrap">
-                <button className="btn-outline text-xs" onClick={() => publishRoom(t.id)}>Room</button>
+                <button
+                  className="btn-outline text-xs"
+                  onClick={() => publishRoom(t.id)}
+                  disabled={actionKey?.startsWith(`${t.id}:`)}
+                >
+                  <ButtonLoading loading={actionKey === `${t.id}:room`} loadingText="Saving room...">
+                    Room
+                  </ButtonLoading>
+                </button>
                 <button
                   className="btn-outline text-xs"
                   onClick={() => lockRoom(t.id)}
-                  disabled={t.roomLocked}
+                  disabled={t.roomLocked || actionKey?.startsWith(`${t.id}:`)}
                 >
-                  {t.roomLocked ? `Locked (${t.actualPlayers})` : "Lock Room"}
+                  <ButtonLoading loading={actionKey === `${t.id}:lock`} loadingText="Locking...">
+                    {t.roomLocked ? `Locked (${t.actualPlayers})` : "Lock Room"}
+                  </ButtonLoading>
                 </button>
                 <select
                   onChange={(e) => setStatus(t.id, e.target.value)}
                   className="input text-xs flex-1 min-w-[120px]"
                   defaultValue=""
+                  disabled={actionKey?.startsWith(`${t.id}:`)}
                 >
                   <option value="" disabled>Status</option>
                   <option value="UPCOMING">UPCOMING</option>

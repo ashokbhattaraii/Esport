@@ -1,8 +1,8 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Send, X, ShieldAlert } from "lucide-react";
-import { useAuth } from "@/lib/auth-context";
+import { ButtonLoading, CardSkeleton, TableLoading } from "@/components/ui";
 
 const STATUS_TABS = ["All", "OPEN", "ASSIGNED", "IN_PROGRESS", "AWAITING_PLAYER", "RESOLVED"];
 const PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"];
@@ -24,7 +24,6 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 export default function AdminSupport() {
-  const { user } = useAuth();
   const [stats, setStats] = useState<any>({});
   const [tickets, setTickets] = useState<any[]>([]);
   const [filter, setFilter] = useState("All");
@@ -33,45 +32,70 @@ export default function AdminSupport() {
   const [reply, setReply] = useState("");
   const [internal, setInternal] = useState(false);
   const [admins, setAdmins] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [patching, setPatching] = useState(false);
 
-  async function load() {
+  async function load(showLoading = true) {
+    if (showLoading) setLoading(true);
     const params = filter === "All" ? "" : `?status=${filter}`;
-    const [s, t, u] = await Promise.all([
-      api("/admin/support/stats"),
-      api(`/admin/support/tickets${params}`),
-      api("/admin/users"),
-    ]);
-    setStats(s);
-    setTickets((t as any).items);
-    setAdmins((u as any[]).filter((x) => x.roleRef && ["SUPER_ADMIN", "ADMIN", "SUPPORT", "MODERATOR"].includes(x.roleRef.name)));
+    try {
+      const [s, t, u] = await Promise.all([
+        api("/admin/support/stats"),
+        api(`/admin/support/tickets${params}`),
+        api("/admin/users"),
+      ]);
+      setStats(s);
+      setTickets((t as any).items);
+      setAdmins((u as any[]).filter((x) => x.roleRef && ["SUPER_ADMIN", "ADMIN", "SUPPORT", "MODERATOR"].includes(x.roleRef.name)));
+    } finally {
+      if (showLoading) setLoading(false);
+    }
   }
   useEffect(() => { load().catch(() => {}); }, [filter]);
 
   async function open(id: string) {
     setOpenId(id);
-    setDetail(await api(`/admin/support/tickets/${id}`));
+    setDetail(null);
+    setDetailLoading(true);
+    try {
+      setDetail(await api(`/admin/support/tickets/${id}`));
+    } finally {
+      setDetailLoading(false);
+    }
   }
   async function send() {
     if (!reply.trim() || !openId) return;
-    await api(`/admin/support/tickets/${openId}/reply`, {
-      method: "POST",
-      body: JSON.stringify({ message: reply, isInternal: internal }),
-    });
-    setReply("");
-    setInternal(false);
-    open(openId);
-    load();
+    setSending(true);
+    try {
+      await api(`/admin/support/tickets/${openId}/reply`, {
+        method: "POST",
+        body: JSON.stringify({ message: reply, isInternal: internal }),
+      });
+      setReply("");
+      setInternal(false);
+      await open(openId);
+      await load(false);
+    } finally {
+      setSending(false);
+    }
   }
   async function patch(field: "status" | "priority" | "assign", value: string) {
     if (!openId) return;
     const path = field === "assign" ? "assign" : field;
     const body = field === "assign" ? { assignedTo: value } : { [field]: value };
-    await api(`/admin/support/tickets/${openId}/${path}`, {
-      method: "PUT",
-      body: JSON.stringify(body),
-    });
-    open(openId);
-    load();
+    setPatching(true);
+    try {
+      await api(`/admin/support/tickets/${openId}/${path}`, {
+        method: "PUT",
+        body: JSON.stringify(body),
+      });
+      await open(openId);
+      await load(false);
+    } finally {
+      setPatching(false);
+    }
   }
 
   const ageHours = (created: string) =>
@@ -84,13 +108,21 @@ export default function AdminSupport() {
         <h1 className="font-display text-2xl">Support Tickets</h1>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <Stat label="Open" value={stats.open ?? 0} />
-        <Stat label="Assigned" value={stats.assigned ?? 0} />
-        <Stat label="In Progress" value={stats.inProgress ?? 0} />
-        <Stat label="Resolved Today" value={stats.resolvedToday ?? 0} />
-        <Stat label="Avg Resolve (hrs)" value={stats.avgResolutionHours ?? 0} />
-      </div>
+      {loading ? (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <CardSkeleton key={i} lines={2} />
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <Stat label="Open" value={stats.open ?? 0} />
+          <Stat label="Assigned" value={stats.assigned ?? 0} />
+          <Stat label="In Progress" value={stats.inProgress ?? 0} />
+          <Stat label="Resolved Today" value={stats.resolvedToday ?? 0} />
+          <Stat label="Avg Resolve (hrs)" value={stats.avgResolutionHours ?? 0} />
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-1">
         {STATUS_TABS.map((s) => (
@@ -107,6 +139,9 @@ export default function AdminSupport() {
       </div>
 
       <div className="table-wrap">
+        {loading ? (
+          <TableLoading columns={8} rows={8} />
+        ) : (
         <table className="data-table">
           <thead>
             <tr>
@@ -140,7 +175,21 @@ export default function AdminSupport() {
             )}
           </tbody>
         </table>
+        )}
       </div>
+
+      {openId && detailLoading && !detail && (
+        <div className="fixed inset-y-0 right-0 z-50 w-full md:w-[640px] bg-bg border-l border-border shadow-xl overflow-y-auto p-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-display text-lg">Opening Ticket</h3>
+            <button onClick={() => { setOpenId(null); setDetail(null); }}><X size={18} /></button>
+          </div>
+          <div className="mt-4 space-y-3">
+            <CardSkeleton lines={4} />
+            <CardSkeleton lines={4} />
+          </div>
+        </div>
+      )}
 
       {openId && detail && (
         <div className="fixed inset-y-0 right-0 z-50 w-full md:w-[640px] bg-bg border-l border-border shadow-xl overflow-y-auto">
@@ -161,14 +210,14 @@ export default function AdminSupport() {
           </div>
 
           <div className="p-4 grid grid-cols-3 gap-2 border-b border-border text-xs">
-            <select className="input col-span-1" value={detail.assignedTo ?? ""} onChange={(e) => patch("assign", e.target.value)}>
+            <select className="input col-span-1" value={detail.assignedTo ?? ""} onChange={(e) => patch("assign", e.target.value)} disabled={patching}>
               <option value="">— Unassigned —</option>
               {admins.map((a) => <option key={a.id} value={a.id}>{a.name ?? a.email}</option>)}
             </select>
-            <select className="input col-span-1" value={detail.status} onChange={(e) => patch("status", e.target.value)}>
+            <select className="input col-span-1" value={detail.status} onChange={(e) => patch("status", e.target.value)} disabled={patching}>
               {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
-            <select className="input col-span-1" value={detail.priority} onChange={(e) => patch("priority", e.target.value)}>
+            <select className="input col-span-1" value={detail.priority} onChange={(e) => patch("priority", e.target.value)} disabled={patching}>
               {PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
             </select>
           </div>
@@ -217,8 +266,10 @@ export default function AdminSupport() {
                 <input type="checkbox" checked={internal} onChange={(e) => setInternal(e.target.checked)} />
                 Internal note
               </label>
-              <button className="btn-primary" type="submit">
-                <Send size={14} /> Send
+              <button className="btn-primary" type="submit" disabled={sending}>
+                <ButtonLoading loading={sending} loadingText="Sending...">
+                  <Send size={14} /> Send
+                </ButtonLoading>
               </button>
             </div>
           </form>

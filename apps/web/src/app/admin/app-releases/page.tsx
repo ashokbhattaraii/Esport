@@ -12,6 +12,7 @@ import {
   Upload,
   XCircle,
 } from "lucide-react";
+import { ButtonLoading, CardGridSkeleton, TableLoading } from "@/components/ui";
 
 type CheckStatus = "PASS" | "FAIL" | "WARN" | "INFO";
 
@@ -66,6 +67,7 @@ export default function AdminAppReleases() {
   const [file, setFile] = useState<File | null>(null);
   const [building, setBuilding] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [testingId, setTestingId] = useState<string | null>(null);
   const [publishingId, setPublishingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -73,13 +75,18 @@ export default function AdminAppReleases() {
 
   const latest = useMemo(() => items.find((item) => item.isLatest), [items]);
 
-  async function load() {
-    const info = await api<BuildInfo>("/admin/app-releases/build-info");
-    setBuildInfo(info);
-    const releases = await api<AppRelease[]>("/admin/app-releases");
-    setItems(releases);
-    if (releases.length && version === "1.0.0") {
-      setVersion(nextPatch(releases[0].version));
+  async function load(showLoading = true) {
+    if (showLoading) setLoading(true);
+    try {
+      const info = await api<BuildInfo>("/admin/app-releases/build-info");
+      setBuildInfo(info);
+      const releases = await api<AppRelease[]>("/admin/app-releases");
+      setItems(releases);
+      if (releases.length && version === "1.0.0") {
+        setVersion(nextPatch(releases[0].version));
+      }
+    } finally {
+      if (showLoading) setLoading(false);
     }
   }
 
@@ -103,7 +110,7 @@ export default function AdminAppReleases() {
       );
       setNotes("");
       setExpandedId(release.id);
-      await load();
+      await load(false);
     } catch (e: any) {
       setMsg(e.message || "Build failed.");
     } finally {
@@ -125,7 +132,7 @@ export default function AdminAppReleases() {
       setMsg("APK uploaded as draft. Run tests before pushing it live.");
       setFile(null);
       setNotes("");
-      await load();
+      await load(false);
     } catch (e: any) {
       setMsg(e.message);
     } finally {
@@ -146,7 +153,7 @@ export default function AdminAppReleases() {
           : "System checks failed. Review the report before publishing.",
       );
       setExpandedId(id);
-      await load();
+      await load(false);
     } catch (e: any) {
       setMsg(e.message);
     } finally {
@@ -163,7 +170,7 @@ export default function AdminAppReleases() {
         body: JSON.stringify({ isLatest: true }),
       });
       setMsg("Release pushed to public download.");
-      await load();
+      await load(false);
     } catch (e: any) {
       setMsg(e.message);
     } finally {
@@ -187,6 +194,9 @@ export default function AdminAppReleases() {
         )}
       </div>
 
+      {loading ? (
+        <CardGridSkeleton count={4} />
+      ) : (
       <div className="grid gap-3 md:grid-cols-4">
         <SystemTile
           label="Build machine"
@@ -210,6 +220,7 @@ export default function AdminAppReleases() {
           value={buildInfo?.currentBuildRunning ? "Running" : "Idle"}
         />
       </div>
+      )}
 
       <form onSubmit={generate} className="card space-y-3">
         <div className="flex items-center justify-between gap-3">
@@ -228,7 +239,9 @@ export default function AdminAppReleases() {
         />
         <div className="flex flex-wrap items-center gap-3">
           <button className="btn-primary" disabled={building || !buildInfo?.canBuild} type="submit">
-            <Rocket size={14} /> {building ? "Compiling..." : "Compile, Test & Save Draft"}
+            <ButtonLoading loading={building} loadingText="Compiling...">
+              <Rocket size={14} /> Compile, Test & Save Draft
+            </ButtonLoading>
           </button>
           {msg && <span className="text-xs text-white/70">{msg}</span>}
         </div>
@@ -254,11 +267,16 @@ export default function AdminAppReleases() {
           />
         </div>
         <button className="btn-outline" disabled={uploading} type="submit">
-          <Upload size={14} /> {uploading ? "Uploading..." : "Upload Draft"}
+          <ButtonLoading loading={uploading} loadingText="Uploading...">
+            <Upload size={14} /> Upload Draft
+          </ButtonLoading>
         </button>
       </form>
 
       <div className="table-wrap">
+        {loading ? (
+          <TableLoading columns={7} rows={6} />
+        ) : (
         <table className="data-table">
           <thead>
             <tr>
@@ -305,7 +323,9 @@ export default function AdminAppReleases() {
                         disabled={testingId === r.id}
                         className="btn-outline text-xs"
                       >
-                        <FlaskConical size={12} /> {testingId === r.id ? "Testing" : "Test"}
+                        <ButtonLoading loading={testingId === r.id} loadingText="Testing...">
+                          <FlaskConical size={12} /> Test
+                        </ButtonLoading>
                       </button>
                       <button
                         type="button"
@@ -314,7 +334,9 @@ export default function AdminAppReleases() {
                         className="btn-primary text-xs disabled:opacity-40"
                         title={r.testStatus !== "PASSED" ? "Run and pass tests first" : "Push for download"}
                       >
-                        <Rocket size={12} /> {publishingId === r.id ? "Pushing" : "Push"}
+                        <ButtonLoading loading={publishingId === r.id} loadingText="Pushing...">
+                          <Rocket size={12} /> Push
+                        </ButtonLoading>
                       </button>
                       <button
                         type="button"
@@ -344,6 +366,7 @@ export default function AdminAppReleases() {
             )}
           </tbody>
         </table>
+        )}
       </div>
     </div>
   );

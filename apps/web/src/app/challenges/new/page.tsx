@@ -7,7 +7,7 @@ import {
   GameModes,
   challengeCreateSchema,
 } from "@fireslot/shared";
-import { PageHeader } from "@/components/ui";
+import { ButtonLoading, PageHeader } from "@/components/ui";
 
 export default function NewChallenge() {
   const r = useRouter();
@@ -20,6 +20,7 @@ export default function NewChallenge() {
     opponentType: "PUBLIC" as const,
   });
   const [msg, setMsg] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -33,6 +34,7 @@ export default function NewChallenge() {
       setMsg(parsed.error.issues[0]?.message ?? "Invalid");
       return;
     }
+    setSubmitting(true);
     try {
       await api("/challenges", {
         method: "POST",
@@ -41,6 +43,8 @@ export default function NewChallenge() {
       r.push("/challenges");
     } catch (e: any) {
       setMsg(e.message);
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -128,7 +132,11 @@ export default function NewChallenge() {
             <option value="PRIVATE">Private</option>
           </select>
         </div>
-        <button className="btn-primary w-full">Create</button>
+        <button className="btn-primary w-full" disabled={submitting}>
+          <ButtonLoading loading={submitting} loadingText="Creating...">
+            Create
+          </ButtonLoading>
+        </button>
         {msg && <p className="text-sm text-red-400">{msg}</p>}
       </form>
     </div>

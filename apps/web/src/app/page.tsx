@@ -7,7 +7,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { npr } from "@/lib/utils";
 import { TournamentCard } from "@/components/TournamentCard";
-import { EmptyState, LoadingState } from "@/components/ui";
+import { CardSkeleton, EmptyState, LoadingState } from "@/components/ui";
 import { DownloadBanner } from "@/components/home/DownloadBanner";
 import { ChevronDown, Gamepad2 } from "lucide-react";
 
@@ -142,7 +142,13 @@ export default function HomePage() {
           </div>
         </div>
         <div className="grid grid-cols-3 gap-3">
-          {categories.map((c) => {
+          {loading ? (
+            <>
+              <CardSkeleton lines={2} />
+              <CardSkeleton lines={2} />
+              <CardSkeleton lines={2} />
+            </>
+          ) : categories.map((c) => {
             const total = c.children.reduce(
               (s, child) => s + (liveCounts[child.slug] ?? 0),
               0,

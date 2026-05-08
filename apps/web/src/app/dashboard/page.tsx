@@ -14,6 +14,7 @@ import { GoogleAuthPanel } from "@/components/GoogleAuthPanel";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
 import { fmtDate, npr } from "@/lib/utils";
+import { PageLoading } from "@/components/ui";
 
 export default function Dashboard() {
   const { user, loading } = useAuth();
@@ -21,9 +22,11 @@ export default function Dashboard() {
   const [joined, setJoined] = useState<any[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
+  const [dashboardLoading, setDashboardLoading] = useState(false);
 
   useEffect(() => {
     if (!user) return;
+    setDashboardLoading(true);
     Promise.all([
       api("/wallet")
         .then(setWallet)
@@ -37,7 +40,7 @@ export default function Dashboard() {
       api("/payments/me")
         .then(setPayments)
         .catch(() => []),
-    ]);
+    ]).finally(() => setDashboardLoading(false));
   }, [user]);
 
   const nextMatch = useMemo(
@@ -52,7 +55,7 @@ export default function Dashboard() {
     [joined],
   );
 
-  if (loading) return <p className="text-white/60">Loading...</p>;
+  if (loading) return <PageLoading label="Loading dashboard..." />;
   if (!user) {
     return (
       <div className="pt-6">
@@ -60,6 +63,8 @@ export default function Dashboard() {
       </div>
     );
   }
+
+  if (dashboardLoading && !wallet) return <PageLoading label="Loading dashboard..." />;
 
   const balance = wallet?.wallet?.balanceNpr ?? user.wallet?.balanceNpr ?? 0;
   const unread = notifications.filter((n) => !n.read).length;

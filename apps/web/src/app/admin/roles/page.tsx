@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { ButtonLoading, CardSkeleton } from "@/components/ui";
 
 interface Permission { id?: string; resource: string; action: string }
 interface Role {
@@ -21,9 +22,18 @@ export default function RolesPage() {
   const [editing, setEditing] = useState<string | null>(null);
   const [editPerms, setEditPerms] = useState<Permission[]>([]);
   const [newRoleName, setNewRoleName] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  async function load() {
-    setRoles(await api<Role[]>("/admin/roles"));
+  async function load(showLoading = true) {
+    if (showLoading) setLoading(true);
+    try {
+      setRoles(await api<Role[]>("/admin/roles"));
+    } finally {
+      if (showLoading) setLoading(false);
+    }
   }
   useEffect(() => { load().catch((e) => setMsg(e.message)); }, []);
 
@@ -39,29 +49,35 @@ export default function RolesPage() {
     );
   }
   async function savePerms(id: string) {
+    setSavingId(id);
     try {
       await api(`/admin/roles/${id}/permissions`, {
         method: "PUT",
         body: JSON.stringify({ permissions: editPerms }),
       });
       setEditing(null);
-      load();
+      await load(false);
     } catch (e: any) { setMsg(e.message); }
+    finally { setSavingId(null); }
   }
   async function createRole() {
     if (!newRoleName.trim()) return;
+    setCreating(true);
     try {
       await api("/admin/roles", { method: "POST", body: JSON.stringify({ name: newRoleName, permissions: [] }) });
       setNewRoleName("");
-      load();
+      await load(false);
     } catch (e: any) { setMsg(e.message); }
+    finally { setCreating(false); }
   }
   async function deleteRole(id: string) {
     if (!confirm("Delete role?")) return;
+    setDeletingId(id);
     try {
       await api(`/admin/roles/${id}`, { method: "DELETE" });
-      load();
+      await load(false);
     } catch (e: any) { setMsg(e.message); }
+    finally { setDeletingId(null); }
   }
 
   return (
@@ -76,10 +92,20 @@ export default function RolesPage() {
           <label className="label">New Role Name</label>
           <input className="input" value={newRoleName} onChange={(e) => setNewRoleName(e.target.value)} />
         </div>
-        <button className="btn-primary" onClick={createRole}>Create</button>
+        <button className="btn-primary" onClick={createRole} disabled={creating}>
+          <ButtonLoading loading={creating} loadingText="Creating...">
+            Create
+          </ButtonLoading>
+        </button>
       </div>
 
-      {roles.map((r) => (
+      {loading ? (
+        <>
+          <CardSkeleton lines={4} />
+          <CardSkeleton lines={4} />
+          <CardSkeleton lines={4} />
+        </>
+      ) : roles.map((r) => (
         <div key={r.id} className="card">
           <div className="flex items-center justify-between">
             <div>
@@ -92,13 +118,27 @@ export default function RolesPage() {
             <div className="flex gap-2">
               {editing === r.id ? (
                 <>
-                  <button className="btn-primary" onClick={() => savePerms(r.id)}>Save</button>
+                  <button className="btn-primary" onClick={() => savePerms(r.id)} disabled={savingId === r.id}>
+                    <ButtonLoading loading={savingId === r.id} loadingText="Saving...">
+                      Save
+                    </ButtonLoading>
+                  </button>
                   <button className="btn-outline" onClick={() => setEditing(null)}>Cancel</button>
                 </>
               ) : (
                 <button className="btn-outline" onClick={() => startEdit(r)}>Edit Permissions</button>
               )}
-              {!r.isSystem && <button className="btn-outline text-red-400" onClick={() => deleteRole(r.id)}>Delete</button>}
+              {!r.isSystem && (
+                <button
+                  className="btn-outline text-red-400"
+                  onClick={() => deleteRole(r.id)}
+                  disabled={deletingId === r.id}
+                >
+                  <ButtonLoading loading={deletingId === r.id} loadingText="Deleting...">
+                    Delete
+                  </ButtonLoading>
+                </button>
+              )}
             </div>
           </div>
 

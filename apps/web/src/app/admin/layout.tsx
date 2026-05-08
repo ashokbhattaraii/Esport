@@ -3,6 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { ViewportToggle } from "@/components/ViewportToggle";
+import { PageLoading } from "@/components/ui";
 
 const NAV = [
   { href: "/admin", label: "Overview" },
@@ -27,7 +28,7 @@ export default function AdminLayout({
 }) {
   const { user, loading } = useAuth();
   const pathname = usePathname();
-  if (loading) return <p className="text-white/60">Loading...</p>;
+  if (loading) return <PageLoading label="Checking admin access..." />;
   if (!user || user.role !== "ADMIN")
     return <p className="text-red-400">Admin access required.</p>;
 

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api, auth } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { InlineLoading } from "@/components/ui";
 
 export function GoogleAuthPanel({
   title = "Continue with Google",
@@ -51,7 +52,7 @@ export function GoogleAuthPanel({
         </p>
       </div>
       {process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ? (
-        <div className="overflow-hidden rounded-md bg-white">
+        <div className="relative overflow-hidden rounded-md bg-white">
           <GoogleLogin
             width="100%"
             theme="filled_black"
@@ -59,6 +60,11 @@ export function GoogleAuthPanel({
             onSuccess={(res) => signIn(res.credential)}
             onError={() => setErr("Google sign-in failed")}
           />
+          {loading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/70">
+              <InlineLoading label="Signing you in..." />
+            </div>
+          )}
         </div>
       ) : (
         <p className="rounded-md border border-neon-orange/40 bg-neon-orange/10 px-3 py-2 text-sm text-neon-orange">
@@ -66,7 +72,7 @@ export function GoogleAuthPanel({
           sign-in.
         </p>
       )}
-      {loading && <p className="text-sm text-white/60">Signing you in...</p>}
+      {loading && <InlineLoading label="Finishing sign-in..." />}
       {err && <p className="text-sm text-red-400">{err}</p>}
     </div>
   );

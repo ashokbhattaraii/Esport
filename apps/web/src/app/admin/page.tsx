@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Banknote, Bell, ShieldCheck, Trophy, Users } from "lucide-react";
 import { api } from "@/lib/api";
 import { fmtDate, npr } from "@/lib/utils";
+import { PageLoading } from "@/components/ui";
 
 export default function AdminOverview() {
   const [stats, setStats] = useState<any>(null);
@@ -16,7 +17,7 @@ export default function AdminOverview() {
   }, []);
 
   if (err) return <p className="text-red-400">{err}</p>;
-  if (!stats) return <p className="text-white/60">Loading...</p>;
+  if (!stats) return <PageLoading label="Loading admin overview..." />;
 
   const queue = [
     {

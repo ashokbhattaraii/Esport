@@ -4,17 +4,19 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { api } from "@/lib/api";
 import { npr } from "@/lib/utils";
 import { Trophy } from "lucide-react";
-import { EmptyState, PageHeader } from "@/components/ui";
+import { EmptyState, PageHeader, TableLoading } from "@/components/ui";
 
 const ROW_HEIGHT = 60;
 const VIRTUALIZE_THRESHOLD = 50;
 
 export default function Leaderboard() {
   const [rows, setRows] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   useEffect(() => {
     api("/leaderboard")
       .then(setRows)
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
   return (
@@ -25,7 +27,9 @@ export default function Leaderboard() {
         description="Rankings are calculated from verified tournament winnings."
         action={<Trophy className="text-neon" />}
       />
-      {rows.length === 0 ? (
+      {loading ? (
+        <TableLoading columns={3} rows={8} />
+      ) : rows.length === 0 ? (
         <EmptyState
           title="No winners yet"
           description="Verified results will appear here after tournaments complete."

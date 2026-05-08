@@ -14,6 +14,7 @@ import {
   ChevronUp,
   Undo2,
 } from "lucide-react";
+import { ButtonLoading, CardGridSkeleton, TableLoading } from "@/components/ui";
 
 interface BotJob {
   id: string;
@@ -95,99 +96,173 @@ export default function AdminBot() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [logPage, setLogPage] = useState(1);
   const [logFilter, setLogFilter] = useState("");
+  const [jobsLoading, setJobsLoading] = useState(true);
+  const [flagsLoading, setFlagsLoading] = useState(true);
+  const [rollbacksLoading, setRollbacksLoading] = useState(true);
+  const [logsLoading, setLogsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [actionKey, setActionKey] = useState<string | null>(null);
 
-  async function loadJobs() {
-    const j = await api<BotJob[]>("/admin/bot/jobs");
-    setJobs(j);
-    const idr: Record<string, number> = {};
-    const mar: Record<string, number> = {};
-    const cdr: Record<string, string> = {};
-    j.forEach((x) => {
-      idr[x.name] = x.intervalMins;
-      mar[x.name] = x.maxActionsPerRun;
-      cdr[x.name] = JSON.stringify(x.config ?? {}, null, 2);
-    });
-    setIntervalDrafts(idr);
-    setMaxActDrafts(mar);
-    setConfigDrafts(cdr);
+  async function loadJobs(showLoading = true) {
+    if (showLoading) setJobsLoading(true);
+    try {
+      const j = await api<BotJob[]>("/admin/bot/jobs");
+      setJobs(j);
+      const idr: Record<string, number> = {};
+      const mar: Record<string, number> = {};
+      const cdr: Record<string, string> = {};
+      j.forEach((x) => {
+        idr[x.name] = x.intervalMins;
+        mar[x.name] = x.maxActionsPerRun;
+        cdr[x.name] = JSON.stringify(x.config ?? {}, null, 2);
+      });
+      setIntervalDrafts(idr);
+      setMaxActDrafts(mar);
+      setConfigDrafts(cdr);
+    } finally {
+      if (showLoading) setJobsLoading(false);
+    }
   }
-  async function loadFlags() {
+  async function loadFlags(showLoading = true) {
+    if (showLoading) setFlagsLoading(true);
     const params = new URLSearchParams();
     if (flagTab === "PENDING") params.set("status", "PENDING");
     if (flagTab === "REVIEWED") params.set("status", "REVIEWED_CORRECT");
-    setFlags(await api(`/admin/bot/flags?${params}`));
+    try {
+      setFlags(await api(`/admin/bot/flags?${params}`));
+    } finally {
+      if (showLoading) setFlagsLoading(false);
+    }
   }
-  async function loadRollbacks() {
-    setRollbacks(await api("/admin/bot/rollbacks"));
+  async function loadRollbacks(showLoading = true) {
+    if (showLoading) setRollbacksLoading(true);
+    try {
+      setRollbacks(await api("/admin/bot/rollbacks"));
+    } finally {
+      if (showLoading) setRollbacksLoading(false);
+    }
   }
-  async function loadLogs() {
-    setLogs(
-      await api(
-        `/admin/bot/logs?page=${logPage}&limit=20${logFilter ? `&jobName=${logFilter}` : ""}`,
-      ),
-    );
+  async function loadLogs(showLoading = true) {
+    if (showLoading) setLogsLoading(true);
+    try {
+      setLogs(
+        await api(
+          `/admin/bot/logs?page=${logPage}&limit=20${logFilter ? `&jobName=${logFilter}` : ""}`,
+        ),
+      );
+    } finally {
+      if (showLoading) setLogsLoading(false);
+    }
   }
   async function loadAll() {
-    await Promise.all([loadJobs(), loadFlags(), loadRollbacks(), loadLogs()]);
+    setRefreshing(true);
+    try {
+      await Promise.all([loadJobs(), loadFlags(), loadRollbacks(), loadLogs()]);
+    } finally {
+      setRefreshing(false);
+    }
   }
   useEffect(() => { loadAll().catch(() => {}); }, []);
   useEffect(() => { loadFlags().catch(() => {}); }, [flagTab]);
   useEffect(() => { loadLogs().catch(() => {}); }, [logPage, logFilter]);
 
   async function toggle(name: string, enabled: boolean) {
+    setActionKey(`${name}:toggle`);
     try {
       await api(`/admin/bot/jobs/${name}/toggle`, { method: "PUT", body: JSON.stringify({ enabled }) });
-      loadJobs();
+      await loadJobs(false);
     } catch (e: any) {
       alert(e.message);
+    } finally {
+      setActionKey(null);
     }
   }
   async function toggleDryRun(name: string, dryRun: boolean) {
-    await api(`/admin/bot/jobs/${name}/dry-run`, { method: "PUT", body: JSON.stringify({ dryRun }) });
-    loadJobs();
+    setActionKey(`${name}:dry-run`);
+    try {
+      await api(`/admin/bot/jobs/${name}/dry-run`, { method: "PUT", body: JSON.stringify({ dryRun }) });
+      await loadJobs(false);
+    } finally {
+      setActionKey(null);
+    }
   }
   async function saveInterval(name: string) {
-    await api(`/admin/bot/jobs/${name}/interval`, {
-      method: "PUT",
-      body: JSON.stringify({ intervalMins: intervalDrafts[name] }),
-    });
-    loadJobs();
+    setActionKey(`${name}:interval`);
+    try {
+      await api(`/admin/bot/jobs/${name}/interval`, {
+        method: "PUT",
+        body: JSON.stringify({ intervalMins: intervalDrafts[name] }),
+      });
+      await loadJobs(false);
+    } finally {
+      setActionKey(null);
+    }
   }
   async function saveMaxActions(name: string) {
-    await api(`/admin/bot/jobs/${name}/max-actions`, {
-      method: "PUT",
-      body: JSON.stringify({ maxActionsPerRun: maxActDrafts[name] }),
-    });
-    loadJobs();
+    setActionKey(`${name}:max-actions`);
+    try {
+      await api(`/admin/bot/jobs/${name}/max-actions`, {
+        method: "PUT",
+        body: JSON.stringify({ maxActionsPerRun: maxActDrafts[name] }),
+      });
+      await loadJobs(false);
+    } finally {
+      setActionKey(null);
+    }
   }
   async function saveConfig(name: string) {
     let parsed: any;
     try { parsed = JSON.parse(configDrafts[name]); } catch { return alert("Invalid JSON"); }
-    await api(`/admin/bot/jobs/${name}/config`, {
-      method: "PUT",
-      body: JSON.stringify({ config: parsed }),
-    });
-    loadJobs();
+    setActionKey(`${name}:config`);
+    try {
+      await api(`/admin/bot/jobs/${name}/config`, {
+        method: "PUT",
+        body: JSON.stringify({ config: parsed }),
+      });
+      await loadJobs(false);
+    } finally {
+      setActionKey(null);
+    }
   }
   async function runNow(name: string) {
-    await api(`/admin/bot/jobs/${name}/run`, { method: "POST" });
-    setTimeout(loadAll, 1500);
+    setActionKey(`${name}:run`);
+    try {
+      await api(`/admin/bot/jobs/${name}/run`, { method: "POST" });
+      setTimeout(loadAll, 1500);
+    } finally {
+      setActionKey(null);
+    }
   }
   async function reviewFlag(id: string, wasCorrect: boolean) {
-    await api(`/admin/bot/flags/${id}/review`, {
-      method: "POST",
-      body: JSON.stringify({ wasCorrect }),
-    });
-    Promise.all([loadJobs(), loadFlags()]);
+    setActionKey(`${id}:flag`);
+    try {
+      await api(`/admin/bot/flags/${id}/review`, {
+        method: "POST",
+        body: JSON.stringify({ wasCorrect }),
+      });
+      await Promise.all([loadJobs(false), loadFlags(false)]);
+    } finally {
+      setActionKey(null);
+    }
   }
   async function ignoreFlag(id: string) {
-    await api(`/admin/bot/flags/${id}/ignore`, { method: "POST" });
-    loadFlags();
+    setActionKey(`${id}:ignore`);
+    try {
+      await api(`/admin/bot/flags/${id}/ignore`, { method: "POST" });
+      await loadFlags(false);
+    } finally {
+      setActionKey(null);
+    }
   }
   async function doRollback(id: string) {
     if (!confirm("Roll back this action? This cannot be undone.")) return;
-    await api(`/admin/bot/rollback/${id}`, { method: "POST" });
-    loadRollbacks();
+    setActionKey(`${id}:rollback`);
+    try {
+      await api(`/admin/bot/rollback/${id}`, { method: "POST" });
+      await loadRollbacks(false);
+    } finally {
+      setActionKey(null);
+    }
   }
 
   return (
@@ -197,12 +272,19 @@ export default function AdminBot() {
           <p className="label">Admin</p>
           <h1 className="font-display text-2xl flex items-center gap-2"><Bot /> Bot Control Center</h1>
         </div>
-        <button onClick={loadAll} className="btn-outline"><RefreshCw size={14} /> Refresh</button>
+        <button onClick={loadAll} className="btn-outline" disabled={refreshing}>
+          <ButtonLoading loading={refreshing} loadingText="Refreshing...">
+            <RefreshCw size={14} /> Refresh
+          </ButtonLoading>
+        </button>
       </div>
 
       {/* SECTION 1: Job Control */}
       <section className="space-y-3">
         <h2 className="label">Job Control</h2>
+        {jobsLoading ? (
+          <CardGridSkeleton count={4} />
+        ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {jobs.map((j) => {
             const total = j.truePositives + j.falsePositives;
@@ -252,13 +334,14 @@ export default function AdminBot() {
                     label="Enabled"
                     checked={j.isEnabled}
                     onChange={(v) => toggle(j.name, v)}
-                    disabled={j.dryRunEnabled && !j.isEnabled}
+                    disabled={(j.dryRunEnabled && !j.isEnabled) || actionKey?.startsWith(`${j.name}:`)}
                     hint={j.dryRunEnabled ? "Disable Dry Run first" : undefined}
                   />
                   <ToggleRow
                     label="Dry Run (no DB writes)"
                     checked={j.dryRunEnabled}
                     onChange={(v) => toggleDryRun(j.name, v)}
+                    disabled={actionKey?.startsWith(`${j.name}:`)}
                     accent="amber"
                   />
                 </div>
@@ -280,10 +363,12 @@ export default function AdminBot() {
                   <span className="text-white/60">mins</span>
                   <button
                     className="btn-outline text-xs"
-                    disabled={intervalDrafts[j.name] === j.intervalMins}
+                    disabled={intervalDrafts[j.name] === j.intervalMins || actionKey?.startsWith(`${j.name}:`)}
                     onClick={() => saveInterval(j.name)}
                   >
-                    <Save size={12} /> Save
+                    <ButtonLoading loading={actionKey === `${j.name}:interval`} loadingText="Saving...">
+                      <Save size={12} /> Save
+                    </ButtonLoading>
                   </button>
                   <span className="text-white/60 ml-2">Max actions</span>
                   <input
@@ -294,13 +379,21 @@ export default function AdminBot() {
                   />
                   <button
                     className="btn-outline text-xs"
-                    disabled={maxActDrafts[j.name] === j.maxActionsPerRun}
+                    disabled={maxActDrafts[j.name] === j.maxActionsPerRun || actionKey?.startsWith(`${j.name}:`)}
                     onClick={() => saveMaxActions(j.name)}
                   >
-                    <Save size={12} />
+                    <ButtonLoading loading={actionKey === `${j.name}:max-actions`} loadingText="Saving...">
+                      <Save size={12} />
+                    </ButtonLoading>
                   </button>
-                  <button className="btn-primary text-xs ml-auto" onClick={() => runNow(j.name)}>
-                    <Play size={12} /> Run Now
+                  <button
+                    className="btn-primary text-xs ml-auto"
+                    onClick={() => runNow(j.name)}
+                    disabled={actionKey?.startsWith(`${j.name}:`)}
+                  >
+                    <ButtonLoading loading={actionKey === `${j.name}:run`} loadingText="Starting...">
+                      <Play size={12} /> Run Now
+                    </ButtonLoading>
                   </button>
                 </div>
 
@@ -319,8 +412,14 @@ export default function AdminBot() {
                       value={configDrafts[j.name] ?? ""}
                       onChange={(e) => setConfigDrafts((d) => ({ ...d, [j.name]: e.target.value }))}
                     />
-                    <button className="btn-primary text-xs" onClick={() => saveConfig(j.name)}>
-                      <Save size={12} /> Save Config
+                    <button
+                      className="btn-primary text-xs"
+                      onClick={() => saveConfig(j.name)}
+                      disabled={actionKey?.startsWith(`${j.name}:`)}
+                    >
+                      <ButtonLoading loading={actionKey === `${j.name}:config`} loadingText="Saving...">
+                        <Save size={12} /> Save Config
+                      </ButtonLoading>
                     </button>
                   </div>
                 )}
@@ -328,6 +427,7 @@ export default function AdminBot() {
             );
           })}
         </div>
+        )}
       </section>
 
       {/* SECTION 2: Flags */}
@@ -349,6 +449,9 @@ export default function AdminBot() {
           </div>
         </div>
         <div className="overflow-x-auto">
+          {flagsLoading ? (
+            <TableLoading columns={7} rows={5} />
+          ) : (
           <table className="data-table text-xs">
             <thead>
               <tr><th>Time</th><th>Job</th><th>Target</th><th>Reason</th><th>Severity</th><th>Evidence</th><th>Action</th></tr>
@@ -371,14 +474,35 @@ export default function AdminBot() {
                   <td>
                     {f.wasCorrect === null ? (
                       <div className="flex gap-1">
-                        <button onClick={() => reviewFlag(f.id, true)} className="btn-outline text-[10px]" title="Mark as correct">
-                          <Check size={10} className="text-neon-green" />
+                        <button
+                          onClick={() => reviewFlag(f.id, true)}
+                          className="btn-outline text-[10px]"
+                          title="Mark as correct"
+                          disabled={actionKey?.startsWith(`${f.id}:`)}
+                        >
+                          <ButtonLoading loading={actionKey === `${f.id}:flag`} loadingText="Saving...">
+                            <Check size={10} className="text-neon-green" />
+                          </ButtonLoading>
                         </button>
-                        <button onClick={() => reviewFlag(f.id, false)} className="btn-outline text-[10px]" title="Mark as wrong">
-                          <X size={10} className="text-red-400" />
+                        <button
+                          onClick={() => reviewFlag(f.id, false)}
+                          className="btn-outline text-[10px]"
+                          title="Mark as wrong"
+                          disabled={actionKey?.startsWith(`${f.id}:`)}
+                        >
+                          <ButtonLoading loading={actionKey === `${f.id}:flag`} loadingText="Saving...">
+                            <X size={10} className="text-red-400" />
+                          </ButtonLoading>
                         </button>
-                        <button onClick={() => ignoreFlag(f.id)} className="btn-outline text-[10px]" title="Ignore">
-                          –
+                        <button
+                          onClick={() => ignoreFlag(f.id)}
+                          className="btn-outline text-[10px]"
+                          title="Ignore"
+                          disabled={actionKey?.startsWith(`${f.id}:`)}
+                        >
+                          <ButtonLoading loading={actionKey === `${f.id}:ignore`} loadingText="Ignoring...">
+                            –
+                          </ButtonLoading>
                         </button>
                       </div>
                     ) : (
@@ -394,6 +518,7 @@ export default function AdminBot() {
               )}
             </tbody>
           </table>
+          )}
         </div>
       </section>
 
@@ -403,6 +528,9 @@ export default function AdminBot() {
           <Undo2 size={18} /> Rollback Log ({rollbacks.total})
         </h2>
         <div className="overflow-x-auto">
+          {rollbacksLoading ? (
+            <TableLoading columns={7} rows={5} />
+          ) : (
           <table className="data-table text-xs">
             <thead>
               <tr><th>Time</th><th>Job</th><th>Action</th><th>Target</th><th>Diff</th><th>Status</th><th></th></tr>
@@ -429,10 +557,12 @@ export default function AdminBot() {
                   <td>
                     <button
                       onClick={() => doRollback(r.id)}
-                      disabled={r.rolledBack}
+                      disabled={r.rolledBack || actionKey?.startsWith(`${r.id}:`)}
                       className="btn-outline text-[10px] disabled:opacity-40"
                     >
-                      <Undo2 size={10} /> Rollback
+                      <ButtonLoading loading={actionKey === `${r.id}:rollback`} loadingText="Rolling back...">
+                        <Undo2 size={10} /> Rollback
+                      </ButtonLoading>
                     </button>
                   </td>
                 </tr>
@@ -442,6 +572,7 @@ export default function AdminBot() {
               )}
             </tbody>
           </table>
+          )}
         </div>
       </section>
 
@@ -455,6 +586,9 @@ export default function AdminBot() {
           </select>
         </div>
         <div className="overflow-x-auto">
+          {logsLoading ? (
+            <TableLoading columns={5} rows={6} />
+          ) : (
           <table className="data-table text-xs">
             <thead>
               <tr><th>Time</th><th>Job</th><th>Status</th><th>Duration</th><th>Summary</th></tr>
@@ -478,11 +612,12 @@ export default function AdminBot() {
               )}
             </tbody>
           </table>
+          )}
         </div>
         <div className="flex items-center gap-3 mt-3">
-          <button disabled={logPage <= 1} onClick={() => setLogPage(logPage - 1)} className="btn-outline">Prev</button>
+          <button disabled={logsLoading || logPage <= 1} onClick={() => setLogPage(logPage - 1)} className="btn-outline">Prev</button>
           <span className="text-sm text-white/60">Page {logPage} of {Math.max(1, Math.ceil(logs.total / 20))}</span>
-          <button disabled={logs.items.length < 20} onClick={() => setLogPage(logPage + 1)} className="btn-outline">Next</button>
+          <button disabled={logsLoading || logs.items.length < 20} onClick={() => setLogPage(logPage + 1)} className="btn-outline">Next</button>
         </div>
       </section>
     </div>

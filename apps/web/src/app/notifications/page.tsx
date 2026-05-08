@@ -2,19 +2,26 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { fmtDate } from "@/lib/utils";
-import { EmptyState, PageHeader, StatusBadge } from "@/components/ui";
+import { ButtonLoading, EmptyState, PageHeader, StatusBadge, TableLoading } from "@/components/ui";
 
 export default function NotificationsPage() {
   const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [markingId, setMarkingId] = useState<string | null>(null);
   async function load() {
     setItems(await api("/notifications"));
   }
   useEffect(() => {
-    load().catch(() => {});
+    load().catch(() => {}).finally(() => setLoading(false));
   }, []);
   async function markRead(id: string) {
-    await api(`/notifications/${id}/read`, { method: "POST" });
-    load();
+    setMarkingId(id);
+    try {
+      await api(`/notifications/${id}/read`, { method: "POST" });
+      await load();
+    } finally {
+      setMarkingId(null);
+    }
   }
 
   return (
@@ -25,7 +32,9 @@ export default function NotificationsPage() {
         description="Payment reviews, room unlocks, result updates, wallet alerts, and system messages."
       />
       <div className="mt-4 space-y-3">
-        {items.length === 0 ? (
+        {loading ? (
+          <TableLoading columns={2} rows={5} />
+        ) : items.length === 0 ? (
           <EmptyState
             title="No notifications"
             description="Important match and wallet updates will appear here."
@@ -48,10 +57,13 @@ export default function NotificationsPage() {
               </div>
               {!n.read && (
                 <button
+                  disabled={markingId === n.id}
                   onClick={() => markRead(n.id)}
                   className="btn-outline text-xs"
                 >
-                  Mark read
+                  <ButtonLoading loading={markingId === n.id} loadingText="Saving...">
+                    Mark read
+                  </ButtonLoading>
                 </button>
               )}
             </div>

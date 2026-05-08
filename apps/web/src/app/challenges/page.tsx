@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { Coins, Plus, Swords, Gamepad2 } from "lucide-react";
 import { useToast, handleJoinError } from "@/lib/toast";
 import { useAuth } from "@/lib/auth-context";
+import { ButtonLoading, CardSkeleton, LoadingState } from "@/components/ui";
 
 type GameMode = "BR" | "CS" | "ALL";
 type Status = "OPEN" | "MATCHED" | "COMPLETED" | "ALL";
@@ -26,12 +27,22 @@ export default function ChallengesPage() {
   const [gameMode, setGameMode] = useState<GameMode>("ALL");
   const [status, setStatus] = useState<Status>("OPEN");
   const [joiningId, setJoiningId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
 
   async function load() {
     const params = new URLSearchParams();
     if (gameMode !== "ALL") params.set("gameMode", gameMode);
     if (status !== "ALL") params.set("status", status);
-    setItems(await api(`/challenges?${params}`));
+    setErr(null);
+    setLoading(true);
+    try {
+      setItems(await api(`/challenges?${params}`));
+    } catch (e: any) {
+      setErr(e.message ?? "Could not load challenges");
+    } finally {
+      setLoading(false);
+    }
   }
   useEffect(() => { load().catch(() => {}); }, [gameMode, status]);
 
@@ -78,7 +89,15 @@ export default function ChallengesPage() {
         </div>
       </div>
 
-      {items.length === 0 ? (
+      {loading ? (
+        <div className="space-y-3">
+          <CardSkeleton lines={4} />
+          <CardSkeleton lines={4} />
+          <CardSkeleton lines={4} />
+        </div>
+      ) : err ? (
+        <LoadingState label={err} />
+      ) : items.length === 0 ? (
         <p className="py-12 text-center text-white/50">No challenges in this filter</p>
       ) : (
         <div className="space-y-3">
@@ -147,7 +166,9 @@ export default function ChallengesPage() {
                         onClick={() => quickJoin(c.id)}
                         className="rounded-md bg-[#E53935] px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50"
                       >
-                        {joiningId === c.id ? "..." : `JOIN`}
+                        <ButtonLoading loading={joiningId === c.id} loadingText="Joining...">
+                          JOIN
+                        </ButtonLoading>
                       </button>
                     )}
                     {c.status === "COMPLETED" && c.winnerId && (

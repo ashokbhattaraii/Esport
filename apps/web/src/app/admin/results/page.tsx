@@ -2,19 +2,32 @@
 import { useEffect, useState } from "react";
 import { api, FILE_BASE } from "@/lib/api";
 import { fmtDate } from "@/lib/utils";
-import { EmptyState, PageHeader } from "@/components/ui";
+import { ButtonLoading, CardGridSkeleton, EmptyState, PageHeader } from "@/components/ui";
 
 export default function AdminResults() {
   const [items, setItems] = useState<any[]>([]);
-  async function load() {
-    setItems(await api("/results?verified=false"));
+  const [loading, setLoading] = useState(true);
+  const [verifyingId, setVerifyingId] = useState<string | null>(null);
+
+  async function load(showLoading = true) {
+    if (showLoading) setLoading(true);
+    try {
+      setItems(await api("/results?verified=false"));
+    } finally {
+      if (showLoading) setLoading(false);
+    }
   }
   useEffect(() => {
     load().catch(() => {});
   }, []);
   async function verify(id: string) {
-    await api(`/results/${id}/verify`, { method: "POST" });
-    load();
+    setVerifyingId(id);
+    try {
+      await api(`/results/${id}/verify`, { method: "POST" });
+      await load(false);
+    } finally {
+      setVerifyingId(null);
+    }
   }
 
   return (
@@ -24,6 +37,9 @@ export default function AdminResults() {
         title="Match Results"
         description="Review submitted screenshots, placements, and kills before marking results verified."
       />
+      {loading ? (
+        <CardGridSkeleton count={4} />
+      ) : (
       <div className="grid gap-4 md:grid-cols-2">
         {items.map((r) => (
           <div key={r.id} className="card">
@@ -42,8 +58,14 @@ export default function AdminResults() {
                 className="mt-2 rounded-md max-h-48 border border-border"
               />
             )}
-            <button onClick={() => verify(r.id)} className="btn-primary mt-3">
-              Verify
+            <button
+              onClick={() => verify(r.id)}
+              className="btn-primary mt-3"
+              disabled={verifyingId === r.id}
+            >
+              <ButtonLoading loading={verifyingId === r.id} loadingText="Verifying...">
+                Verify
+              </ButtonLoading>
             </button>
           </div>
         ))}
@@ -54,6 +76,7 @@ export default function AdminResults() {
           />
         )}
       </div>
+      )}
     </div>
   );
 }

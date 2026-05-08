@@ -2,30 +2,47 @@
 import { useEffect, useState } from "react";
 import { api, FILE_BASE } from "@/lib/api";
 import { fmtDate, npr } from "@/lib/utils";
-import { EmptyState, PageHeader, StatusBadge } from "@/components/ui";
+import { ButtonLoading, CardGridSkeleton, EmptyState, PageHeader, StatusBadge } from "@/components/ui";
 
 export default function AdminPayments() {
   const [items, setItems] = useState<any[]>([]);
   const [filter, setFilter] = useState("PENDING");
+  const [loading, setLoading] = useState(true);
+  const [actingKey, setActingKey] = useState<string | null>(null);
 
-  async function load() {
-    setItems(await api(`/payments?status=${filter}`));
+  async function load(showLoading = true) {
+    if (showLoading) setLoading(true);
+    try {
+      setItems(await api(`/payments?status=${filter}`));
+    } finally {
+      if (showLoading) setLoading(false);
+    }
   }
   useEffect(() => {
     load().catch(() => {});
   }, [filter]);
 
   async function approve(id: string) {
-    await api(`/payments/${id}/approve`, { method: "POST" });
-    load();
+    setActingKey(`${id}:approve`);
+    try {
+      await api(`/payments/${id}/approve`, { method: "POST" });
+      await load(false);
+    } finally {
+      setActingKey(null);
+    }
   }
   async function reject(id: string) {
     const note = prompt("Reject reason?") ?? undefined;
-    await api(`/payments/${id}/reject`, {
-      method: "POST",
-      body: JSON.stringify({ note }),
-    });
-    load();
+    setActingKey(`${id}:reject`);
+    try {
+      await api(`/payments/${id}/reject`, {
+        method: "POST",
+        body: JSON.stringify({ note }),
+      });
+      await load(false);
+    } finally {
+      setActingKey(null);
+    }
   }
 
   return (
@@ -46,6 +63,9 @@ export default function AdminPayments() {
           </select>
         }
       />
+      {loading ? (
+        <CardGridSkeleton count={4} />
+      ) : (
       <div className="grid gap-4 md:grid-cols-2">
         {items.map((p) => (
           <div key={p.id} className="card">
@@ -83,11 +103,23 @@ export default function AdminPayments() {
             )}
             {p.status === "PENDING" && (
               <div className="mt-3 flex gap-2">
-                <button onClick={() => approve(p.id)} className="btn-primary">
-                  Approve
+                <button
+                  onClick={() => approve(p.id)}
+                  className="btn-primary"
+                  disabled={actingKey?.startsWith(`${p.id}:`)}
+                >
+                  <ButtonLoading loading={actingKey === `${p.id}:approve`} loadingText="Approving...">
+                    Approve
+                  </ButtonLoading>
                 </button>
-                <button onClick={() => reject(p.id)} className="btn-outline">
-                  Reject
+                <button
+                  onClick={() => reject(p.id)}
+                  className="btn-outline"
+                  disabled={actingKey?.startsWith(`${p.id}:`)}
+                >
+                  <ButtonLoading loading={actingKey === `${p.id}:reject`} loadingText="Rejecting...">
+                    Reject
+                  </ButtonLoading>
                 </button>
               </div>
             )}
@@ -95,6 +127,7 @@ export default function AdminPayments() {
         ))}
         {items.length === 0 && <EmptyState title="No payments in this queue" />}
       </div>
+      )}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { ButtonLoading, CardSkeleton } from "@/components/ui";
 
 interface ConfigItem {
   id: string;
@@ -16,14 +17,20 @@ export default function ConfigPage() {
   const [groups, setGroups] = useState<Record<string, ConfigItem[]>>({});
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState<string | null>(null);
 
   async function load() {
-    const data = await api<Record<string, ConfigItem[]>>("/admin/config");
-    setGroups(data);
-    const d: Record<string, string> = {};
-    Object.values(data).flat().forEach((c) => (d[c.key] = c.value));
-    setDrafts(d);
+    setLoading(true);
+    try {
+      const data = await api<Record<string, ConfigItem[]>>("/admin/config");
+      setGroups(data);
+      const d: Record<string, string> = {};
+      Object.values(data).flat().forEach((c) => (d[c.key] = c.value));
+      setDrafts(d);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -54,7 +61,12 @@ export default function ConfigPage() {
         {msg && <span className="text-xs text-white/70">{msg}</span>}
       </div>
 
-      {Object.entries(groups).map(([cat, items]) => (
+      {loading ? (
+        <>
+          <CardSkeleton lines={5} />
+          <CardSkeleton lines={5} />
+        </>
+      ) : Object.entries(groups).map(([cat, items]) => (
         <div key={cat} className="card">
           <h2 className="font-display text-lg text-neon-cyan">{cat}</h2>
           <div className="mt-3 divide-y divide-border">
@@ -70,7 +82,9 @@ export default function ConfigPage() {
                   disabled={savingKey === c.key || drafts[c.key] === c.value}
                   onClick={() => save(c.key)}
                 >
-                  {savingKey === c.key ? "..." : "Save"}
+                  <ButtonLoading loading={savingKey === c.key} loadingText="Saving...">
+                    Save
+                  </ButtonLoading>
                 </button>
               </div>
             ))}

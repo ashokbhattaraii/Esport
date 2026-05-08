@@ -2,13 +2,21 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { fmtDate, npr } from "@/lib/utils";
-import { EmptyState, PageHeader, StatusBadge } from "@/components/ui";
+import { ButtonLoading, EmptyState, PageHeader, StatusBadge, TableLoading } from "@/components/ui";
 
 export default function AdminWithdrawals() {
   const [items, setItems] = useState<any[]>([]);
   const [filter, setFilter] = useState("PENDING");
-  async function load() {
-    setItems(await api(`/wallet/withdrawals?status=${filter}`));
+  const [loading, setLoading] = useState(true);
+  const [actingKey, setActingKey] = useState<string | null>(null);
+
+  async function load(showLoading = true) {
+    if (showLoading) setLoading(true);
+    try {
+      setItems(await api(`/wallet/withdrawals?status=${filter}`));
+    } finally {
+      if (showLoading) setLoading(false);
+    }
   }
   useEffect(() => {
     load().catch(() => {});
@@ -17,11 +25,16 @@ export default function AdminWithdrawals() {
   async function review(id: string, status: string) {
     const note =
       status !== "APPROVED" ? (prompt("Note?") ?? undefined) : undefined;
-    await api(`/wallet/withdrawals/${id}/review`, {
-      method: "POST",
-      body: JSON.stringify({ status, note }),
-    });
-    load();
+    setActingKey(`${id}:${status}`);
+    try {
+      await api(`/wallet/withdrawals/${id}/review`, {
+        method: "POST",
+        body: JSON.stringify({ status, note }),
+      });
+      await load(false);
+    } finally {
+      setActingKey(null);
+    }
   }
 
   return (
@@ -44,7 +57,9 @@ export default function AdminWithdrawals() {
         }
       />
       <div className="table-wrap">
-        {items.length === 0 ? (
+        {loading ? (
+          <TableLoading columns={7} rows={6} />
+        ) : items.length === 0 ? (
           <EmptyState title="No withdrawals in this queue" />
         ) : (
           <table className="data-table">
@@ -76,14 +91,20 @@ export default function AdminWithdrawals() {
                         <button
                           onClick={() => review(w.id, "APPROVED")}
                           className="btn-outline text-xs"
+                          disabled={actingKey?.startsWith(`${w.id}:`)}
                         >
-                          Approve
+                          <ButtonLoading loading={actingKey === `${w.id}:APPROVED`} loadingText="Approving...">
+                            Approve
+                          </ButtonLoading>
                         </button>
                         <button
                           onClick={() => review(w.id, "REJECTED")}
                           className="btn-outline text-xs"
+                          disabled={actingKey?.startsWith(`${w.id}:`)}
                         >
-                          Reject
+                          <ButtonLoading loading={actingKey === `${w.id}:REJECTED`} loadingText="Rejecting...">
+                            Reject
+                          </ButtonLoading>
                         </button>
                       </>
                     )}
@@ -91,8 +112,11 @@ export default function AdminWithdrawals() {
                       <button
                         onClick={() => review(w.id, "PAID")}
                         className="btn-primary text-xs"
+                        disabled={actingKey?.startsWith(`${w.id}:`)}
                       >
-                        Mark Paid
+                        <ButtonLoading loading={actingKey === `${w.id}:PAID`} loadingText="Saving...">
+                          Mark Paid
+                        </ButtonLoading>
                       </button>
                     )}
                   </td>

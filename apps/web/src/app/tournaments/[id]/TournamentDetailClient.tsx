@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth-context";
 import { fmtDate } from "@/lib/utils";
 import { useToast, handleJoinError } from "@/lib/toast";
 import { useTournamentRealtime } from "@/hooks/useTournamentRealtime";
+import { ButtonLoading, PageLoading } from "@/components/ui";
 import {
   Trophy, AlertTriangle, Settings, BookOpen, ShieldCheck, X,
 } from "lucide-react";
@@ -78,7 +79,7 @@ export default function TournamentDetailClient() {
 
   const alreadyJoined = !!t?.participants?.some((p: any) => p.userId === user?.id);
 
-  if (!t) return <p className="text-white/60">Loading…</p>;
+  if (!t) return <PageLoading label="Loading tournament..." />;
 
   const rules: MatchRules = (t.matchRules as MatchRules) ?? {
     entryFee: t.entryFeeNpr,
@@ -169,13 +170,13 @@ export default function TournamentDetailClient() {
           disabled={joining || t.status !== "UPCOMING" || alreadyJoined}
           className="w-full rounded-lg bg-gradient-to-r from-rose-500 to-pink-500 py-3 font-display text-base text-white shadow-lg disabled:opacity-50"
         >
-          {alreadyJoined
-            ? "Already Joined"
-            : t.status !== "UPCOMING"
-              ? t.status
-              : joining
-                ? "..."
+          <ButtonLoading loading={joining} loadingText="Joining...">
+            {alreadyJoined
+              ? "Already Joined"
+              : t.status !== "UPCOMING"
+                ? t.status
                 : `JOIN NOW · Rs ${t.entryFeeNpr}`}
+          </ButtonLoading>
         </button>
         {msg && <p className="mt-2 text-center text-xs text-white/70">{msg}</p>}
       </div>

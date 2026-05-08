@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
-import { EmptyState, PageHeader, StatusBadge } from "@/components/ui";
+import { ButtonLoading, EmptyState, PageHeader, StatusBadge, TableLoading } from "@/components/ui";
 import { npr } from "@/lib/utils";
 import { UserAccessModal } from "@/components/admin/UserAccessModal";
 import { Search, Shield, Sliders } from "lucide-react";
@@ -34,15 +34,27 @@ export default function AdminUsers() {
   const [q, setQ] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("");
   const [editing, setEditing] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [banningId, setBanningId] = useState<string | null>(null);
 
-  async function load() {
-    setUsers(await api("/admin/users"));
+  async function load(showLoading = true) {
+    if (showLoading) setLoading(true);
+    try {
+      setUsers(await api("/admin/users"));
+    } finally {
+      if (showLoading) setLoading(false);
+    }
   }
   useEffect(() => { load().catch(() => {}); }, []);
 
   async function ban(id: string, banned: boolean) {
-    await api(`/admin/users/${id}/${banned ? "unban" : "ban"}`, { method: "POST" });
-    load();
+    setBanningId(id);
+    try {
+      await api(`/admin/users/${id}/${banned ? "unban" : "ban"}`, { method: "POST" });
+      await load(false);
+    } finally {
+      setBanningId(null);
+    }
   }
 
   const filtered = useMemo(() => {
@@ -109,7 +121,9 @@ export default function AdminUsers() {
       </div>
 
       <div className="table-wrap">
-        {filtered.length === 0 ? (
+        {loading ? (
+          <TableLoading columns={6} rows={8} />
+        ) : filtered.length === 0 ? (
           <EmptyState title="No users match your filter" />
         ) : (
           <table className="data-table">
@@ -171,8 +185,14 @@ export default function AdminUsers() {
                           Manage Access
                         </button>
                         {roleName !== "SUPER_ADMIN" && (
-                          <button onClick={() => ban(u.id, u.isBanned)} className="btn-outline text-xs">
-                            {u.isBanned ? "Unban" : "Ban"}
+                          <button
+                            onClick={() => ban(u.id, u.isBanned)}
+                            className="btn-outline text-xs"
+                            disabled={banningId === u.id}
+                          >
+                            <ButtonLoading loading={banningId === u.id} loadingText="Saving...">
+                              {u.isBanned ? "Unban" : "Ban"}
+                            </ButtonLoading>
                           </button>
                         )}
                       </div>

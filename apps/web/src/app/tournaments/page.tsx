@@ -4,6 +4,7 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 import { Trophy, Users, Coins, ChevronDown, MapPin, Bomb } from "lucide-react";
 import { fmtDate, npr } from "@/lib/utils";
+import { CardSkeleton, LoadingState } from "@/components/ui";
 
 type Tab = "ONGOING" | "UPCOMING" | "RESULTS";
 
@@ -11,9 +12,16 @@ export default function TournamentsListPage() {
   const [items, setItems] = useState<any[]>([]);
   const [tab, setTab] = useState<Tab>("UPCOMING");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    api("/tournaments").then(setItems).catch(() => {});
+    setLoading(true);
+    setErr(null);
+    api("/tournaments")
+      .then(setItems)
+      .catch((e: any) => setErr(e.message ?? "Could not load matches"))
+      .finally(() => setLoading(false));
   }, []);
 
   const filtered = useMemo(() => {
@@ -40,7 +48,15 @@ export default function TournamentsListPage() {
         ))}
       </div>
 
-      {filtered.length === 0 ? (
+      {loading ? (
+        <div className="space-y-4">
+          <CardSkeleton lines={5} />
+          <CardSkeleton lines={5} />
+          <CardSkeleton lines={5} />
+        </div>
+      ) : err ? (
+        <LoadingState label={err} />
+      ) : filtered.length === 0 ? (
         <p className="py-12 text-center text-white/50">No matches in this tab</p>
       ) : (
         <div className="space-y-4">

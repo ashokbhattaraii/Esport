@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { TableLoading } from "@/components/ui";
 
 interface Log {
   id: string;
@@ -20,14 +21,18 @@ export default function LogsPage() {
   const [resource, setResource] = useState("");
   const [page, setPage] = useState(1);
   const [err, setErr] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   async function load() {
+    setLoading(true);
+    setErr(null);
     try {
       const q = new URLSearchParams({ page: String(page), limit: "50" });
       if (resource) q.set("resource", resource);
       const r = await api<{ items: Log[]; total: number }>(`/admin/logs?${q}`);
       setData(r);
     } catch (e: any) { setErr(e.message); }
+    finally { setLoading(false); }
   }
   useEffect(() => { load(); }, [page, resource]);
 
@@ -44,6 +49,9 @@ export default function LogsPage() {
         </select>
       </div>
       {err && <p className="text-red-400 text-sm">{err}</p>}
+      {loading ? (
+        <TableLoading columns={7} rows={8} />
+      ) : (
       <div className="card overflow-x-auto">
         <table className="w-full text-xs">
           <thead className="text-white/50">
@@ -75,10 +83,11 @@ export default function LogsPage() {
           </tbody>
         </table>
       </div>
+      )}
       <div className="flex items-center gap-3">
-        <button disabled={page <= 1} onClick={() => setPage(page - 1)} className="btn-outline">Prev</button>
+        <button disabled={loading || page <= 1} onClick={() => setPage(page - 1)} className="btn-outline">Prev</button>
         <span className="text-sm text-white/60">Page {page} of {Math.max(1, Math.ceil((data?.total ?? 0) / 50))}</span>
-        <button disabled={(data?.items.length ?? 0) < 50} onClick={() => setPage(page + 1)} className="btn-outline">Next</button>
+        <button disabled={loading || (data?.items.length ?? 0) < 50} onClick={() => setPage(page + 1)} className="btn-outline">Next</button>
       </div>
     </div>
   );

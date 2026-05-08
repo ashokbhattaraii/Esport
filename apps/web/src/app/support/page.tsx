@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { Plus, MessageSquare, X, Send } from "lucide-react";
+import { ButtonLoading, CardSkeleton, PageLoading } from "@/components/ui";
 
 const CATEGORIES = [
   { v: "PAYMENT_ISSUE", label: "Payment Issue" },
@@ -37,43 +38,69 @@ interface TicketDetail extends Ticket {
 }
 
 export default function SupportPage() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
   const [detail, setDetail] = useState<TicketDetail | null>(null);
   const [creating, setCreating] = useState(false);
+  const [ticketsLoading, setTicketsLoading] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [creatingTicket, setCreatingTicket] = useState(false);
+  const [sendingReply, setSendingReply] = useState(false);
   const [reply, setReply] = useState("");
   const [draft, setDraft] = useState({ category: "GENERAL", subject: "", message: "" });
 
   async function load() {
-    const r = await api<{ items: Ticket[] }>("/support/tickets");
-    setTickets(r.items);
+    setTicketsLoading(true);
+    try {
+      const r = await api<{ items: Ticket[] }>("/support/tickets");
+      setTickets(r.items);
+    } finally {
+      setTicketsLoading(false);
+    }
   }
   useEffect(() => { if (user) load().catch(() => {}); }, [user]);
 
   async function loadDetail(id: string) {
     setOpenId(id);
-    setDetail(await api(`/support/tickets/${id}`));
+    setDetail(null);
+    setDetailLoading(true);
+    try {
+      setDetail(await api(`/support/tickets/${id}`));
+    } finally {
+      setDetailLoading(false);
+    }
   }
 
   async function createTicket() {
     if (!draft.subject || !draft.message) return;
-    await api("/support/tickets", { method: "POST", body: JSON.stringify(draft) });
-    setCreating(false);
-    setDraft({ category: "GENERAL", subject: "", message: "" });
-    load();
+    setCreatingTicket(true);
+    try {
+      await api("/support/tickets", { method: "POST", body: JSON.stringify(draft) });
+      setCreating(false);
+      setDraft({ category: "GENERAL", subject: "", message: "" });
+      await load();
+    } finally {
+      setCreatingTicket(false);
+    }
   }
 
   async function sendReply() {
     if (!reply.trim() || !openId) return;
-    await api(`/support/tickets/${openId}/reply`, {
-      method: "POST",
-      body: JSON.stringify({ message: reply }),
-    });
-    setReply("");
-    loadDetail(openId);
+    setSendingReply(true);
+    try {
+      await api(`/support/tickets/${openId}/reply`, {
+        method: "POST",
+        body: JSON.stringify({ message: reply }),
+      });
+      setReply("");
+      await loadDetail(openId);
+    } finally {
+      setSendingReply(false);
+    }
   }
 
+  if (authLoading) return <PageLoading label="Loading support..." />;
   if (!user) return <p className="text-white/60">Please sign in to view your tickets.</p>;
 
   return (
@@ -88,7 +115,13 @@ export default function SupportPage() {
         </button>
       </div>
 
-      {tickets.length === 0 ? (
+      {ticketsLoading ? (
+        <div className="space-y-2">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <CardSkeleton key={i} lines={2} />
+          ))}
+        </div>
+      ) : tickets.length === 0 ? (
         <div className="card text-center text-white/50">
           No tickets yet. Open one if you need help.
         </div>
@@ -142,7 +175,29 @@ export default function SupportPage() {
                 <label className="label">Message</label>
                 <textarea className="input" rows={4} value={draft.message} onChange={(e) => setDraft({ ...draft, message: e.target.value })} />
               </div>
-              <button className="btn-primary w-full" onClick={createTicket}>Submit Ticket</button>
+              <button
+                className="btn-primary w-full"
+                onClick={createTicket}
+                disabled={creatingTicket}
+              >
+                <ButtonLoading loading={creatingTicket} loadingText="Submitting ticket...">
+                  Submit Ticket
+                </ButtonLoading>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {openId && detailLoading && !detail && (
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/70 p-4">
+          <div className="card w-full max-w-md">
+            <div className="flex items-center justify-between">
+              <h3 className="font-display text-lg">Opening Ticket</h3>
+              <button onClick={() => { setOpenId(null); setDetail(null); }}><X size={18} /></button>
+            </div>
+            <div className="mt-4">
+              <CardSkeleton lines={4} />
             </div>
           </div>
         </div>
@@ -194,8 +249,10 @@ export default function SupportPage() {
                   value={reply}
                   onChange={(e) => setReply(e.target.value)}
                 />
-                <button className="btn-primary" type="submit">
-                  <Send size={14} />
+                <button className="btn-primary" type="submit" disabled={sendingReply}>
+                  <ButtonLoading loading={sendingReply} loadingText="Sending...">
+                    <Send size={14} />
+                  </ButtonLoading>
                 </button>
               </form>
             )}

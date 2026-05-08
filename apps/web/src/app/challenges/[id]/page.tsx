@@ -7,6 +7,7 @@ import { Gamepad2, Swords, Trophy, ShieldCheck, AlertTriangle, X } from "lucide-
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { useToast, handleJoinError } from "@/lib/toast";
+import { ButtonLoading, PageLoading } from "@/components/ui";
 
 const REASONS = [
   { val: "SUSPECTED_HACKER", label: "Suspected Hacker" },
@@ -39,6 +40,10 @@ export default function ChallengeDetailPage() {
   const [showDispute, setShowDispute] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [joining, setJoining] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [roomSubmitting, setRoomSubmitting] = useState(false);
+  const [resultSubmitting, setResultSubmitting] = useState(false);
+  const [disputeSubmitting, setDisputeSubmitting] = useState(false);
 
   // result form
   const [result, setResult] = useState({
@@ -59,10 +64,11 @@ export default function ChallengeDetailPage() {
   async function load() {
     try { setC(await api(`/challenges/${id}`)); }
     catch (e: any) { toast.error(e.message); }
+    finally { setLoading(false); }
   }
   useEffect(() => { load(); }, [id]);
 
-  if (!c) return <p className="text-white/60">Loading…</p>;
+  if (loading || !c) return <PageLoading label="Loading challenge..." />;
 
   const isCreator = user?.id === c.creatorId;
   const isOpponent = user?.id === c.opponentId;
@@ -86,6 +92,7 @@ export default function ChallengeDetailPage() {
   }
 
   async function submitRoom() {
+    setRoomSubmitting(true);
     try {
       await api(`/challenges/${c.id}/room`, {
         method: "POST",
@@ -96,10 +103,13 @@ export default function ChallengeDetailPage() {
       load();
     } catch (e: any) {
       toast.error(e.message);
+    } finally {
+      setRoomSubmitting(false);
     }
   }
 
   async function submitResult() {
+    setResultSubmitting(true);
     try {
       await api(`/challenges/${c.id}/result`, {
         method: "POST",
@@ -118,10 +128,13 @@ export default function ChallengeDetailPage() {
       load();
     } catch (e: any) {
       toast.error(e.message);
+    } finally {
+      setResultSubmitting(false);
     }
   }
 
   async function submitDispute() {
+    setDisputeSubmitting(true);
     try {
       await api(`/challenges/${c.id}/dispute`, {
         method: "POST",
@@ -136,6 +149,8 @@ export default function ChallengeDetailPage() {
       load();
     } catch (e: any) {
       toast.error(e.message);
+    } finally {
+      setDisputeSubmitting(false);
     }
   }
 
@@ -250,7 +265,15 @@ export default function ChallengeDetailPage() {
             <input className="input" placeholder="Room ID" value={room.roomId} onChange={(e) => setRoom({ ...room, roomId: e.target.value })} />
             <input className="input" placeholder="Password" value={room.password} onChange={(e) => setRoom({ ...room, password: e.target.value })} />
           </div>
-          <button onClick={submitRoom} className="btn-primary mt-3 w-full">Send to opponent</button>
+          <button
+            onClick={submitRoom}
+            className="btn-primary mt-3 w-full"
+            disabled={roomSubmitting}
+          >
+            <ButtonLoading loading={roomSubmitting} loadingText="Sharing room...">
+              Send to opponent
+            </ButtonLoading>
+          </button>
         </div>
       )}
 
@@ -294,7 +317,9 @@ export default function ChallengeDetailPage() {
             disabled={!agreed || joining}
             className="mt-3 w-full rounded-lg bg-[#E53935] py-3 font-display text-sm font-bold text-white disabled:opacity-50"
           >
-            {joining ? "JOINING..." : `JOIN · Rs ${c.entryFee}`}
+            <ButtonLoading loading={joining} loadingText="Joining...">
+              JOIN · Rs {c.entryFee}
+            </ButtonLoading>
           </button>
         </Modal>
       )}
@@ -328,7 +353,15 @@ export default function ChallengeDetailPage() {
               onChange={(e) => setResult({ ...result, povUrl: e.target.value })}
             />
           </div>
-          <button onClick={submitResult} className="btn-primary mt-3 w-full">Submit</button>
+          <button
+            onClick={submitResult}
+            className="btn-primary mt-3 w-full"
+            disabled={resultSubmitting}
+          >
+            <ButtonLoading loading={resultSubmitting} loadingText="Submitting result...">
+              Submit
+            </ButtonLoading>
+          </button>
         </Modal>
       )}
 
@@ -375,7 +408,15 @@ export default function ChallengeDetailPage() {
           >
             + Add evidence URL
           </button>
-          <button onClick={submitDispute} className="btn-primary mt-3 w-full">Submit Dispute</button>
+          <button
+            onClick={submitDispute}
+            className="btn-primary mt-3 w-full"
+            disabled={disputeSubmitting}
+          >
+            <ButtonLoading loading={disputeSubmitting} loadingText="Submitting dispute...">
+              Submit Dispute
+            </ButtonLoading>
+          </button>
         </Modal>
       )}
     </div>

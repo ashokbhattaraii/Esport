@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { fmtDate, npr } from "@/lib/utils";
 import { withdrawalSchema } from "@fireslot/shared";
-import { EmptyState, LoadingState, StatusBadge } from "@/components/ui";
+import { ButtonLoading, EmptyState, LoadingState, StatusBadge } from "@/components/ui";
 import { useAuth } from "@/lib/auth-context";
 import { GoogleAuthPanel } from "@/components/GoogleAuthPanel";
 
@@ -24,14 +24,22 @@ export default function WalletPage() {
   });
   const [proof, setProof] = useState<File | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [dataLoading, setDataLoading] = useState(false);
+  const [withdrawing, setWithdrawing] = useState(false);
+  const [depositing, setDepositing] = useState(false);
 
   async function load() {
-    const [walletData, paymentRows] = await Promise.all([
-      api("/wallet"),
-      api("/payments/me"),
-    ]);
-    setData(walletData);
-    setPayments(paymentRows);
+    setDataLoading(true);
+    try {
+      const [walletData, paymentRows] = await Promise.all([
+        api("/wallet"),
+        api("/payments/me"),
+      ]);
+      setData(walletData);
+      setPayments(paymentRows);
+    } finally {
+      setDataLoading(false);
+    }
   }
   useEffect(() => {
     setTab(
@@ -56,6 +64,7 @@ export default function WalletPage() {
       setMsg(parsed.error.issues[0]?.message ?? "Invalid");
       return;
     }
+    setWithdrawing(true);
     try {
       await api("/wallet/withdraw", {
         method: "POST",
@@ -65,6 +74,8 @@ export default function WalletPage() {
       load();
     } catch (e: any) {
       setMsg(e.message);
+    } finally {
+      setWithdrawing(false);
     }
   }
 
@@ -74,6 +85,7 @@ export default function WalletPage() {
       setMsg("Upload payment proof screenshot.");
       return;
     }
+    setDepositing(true);
     const fd = new FormData();
     fd.append("amountNpr", String(deposit.amountNpr));
     fd.append("method", deposit.method);
@@ -86,6 +98,8 @@ export default function WalletPage() {
       load();
     } catch (e: any) {
       setMsg(e.message);
+    } finally {
+      setDepositing(false);
     }
   }
 
@@ -97,7 +111,7 @@ export default function WalletPage() {
       </div>
     );
   }
-  if (!data) return <LoadingState label="Loading wallet..." />;
+  if (!data || dataLoading) return <LoadingState label="Loading wallet..." />;
 
   return (
     <div>
@@ -178,7 +192,11 @@ export default function WalletPage() {
                 required
               />
             </div>
-            <button className="btn-primary w-full">Submit Deposit</button>
+            <button className="btn-primary w-full" disabled={depositing}>
+              <ButtonLoading loading={depositing} loadingText="Submitting deposit...">
+                Submit Deposit
+              </ButtonLoading>
+            </button>
           </form>
         ) : (
           <form onSubmit={withdraw} className="card space-y-3">
@@ -218,7 +236,11 @@ export default function WalletPage() {
                 required
               />
             </div>
-            <button className="btn-primary w-full">Submit Request</button>
+            <button className="btn-primary w-full" disabled={withdrawing}>
+              <ButtonLoading loading={withdrawing} loadingText="Submitting request...">
+                Submit Request
+              </ButtonLoading>
+            </button>
           </form>
         )}
 

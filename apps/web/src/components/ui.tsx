@@ -81,7 +81,90 @@ export function StatusBadge({ status }: { status: string }) {
 export function LoadingState({ label = "Loading..." }: { label?: string }) {
   return (
     <div className="rounded-lg border border-border bg-card/70 p-6 text-sm text-white/60">
-      {label}
+      <InlineLoading label={label} />
+    </div>
+  );
+}
+
+export function InlineLoading({ label = "Loading..." }: { label?: string }) {
+  return (
+    <span className="inline-flex items-center gap-2 text-white/60">
+      <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-white/20 border-t-neon-cyan" />
+      <span>{label}</span>
+    </span>
+  );
+}
+
+export function ButtonLoading({
+  loading,
+  children,
+  loadingText = "Working...",
+}: {
+  loading?: boolean;
+  children: ReactNode;
+  loadingText?: string;
+}) {
+  if (!loading) return <>{children}</>;
+  return <InlineLoading label={loadingText} />;
+}
+
+export function PageLoading({ label = "Loading..." }: { label?: string }) {
+  return (
+    <div className="flex min-h-[45vh] items-center justify-center">
+      <LoadingState label={label} />
+    </div>
+  );
+}
+
+export function CardSkeleton({ lines = 3 }: { lines?: number }) {
+  return (
+    <div className="rounded-lg border border-border bg-card/70 p-4">
+      <div className="h-4 w-1/3 animate-pulse rounded bg-white/10" />
+      <div className="mt-4 space-y-2">
+        {Array.from({ length: lines }).map((_, i) => (
+          <div
+            key={i}
+            className="h-3 animate-pulse rounded bg-white/10"
+            style={{ width: `${90 - i * 14}%` }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function CardGridSkeleton({ count = 4 }: { count?: number }) {
+  return (
+    <div className="grid gap-4 md:grid-cols-2">
+      {Array.from({ length: count }).map((_, i) => (
+        <CardSkeleton key={i} lines={4} />
+      ))}
+    </div>
+  );
+}
+
+export function TableLoading({
+  columns = 4,
+  rows = 5,
+}: {
+  columns?: number;
+  rows?: number;
+}) {
+  return (
+    <div className="table-wrap">
+      <table className="data-table">
+        <tbody>
+          {Array.from({ length: rows }).map((_, r) => (
+            <tr key={r}>
+              {Array.from({ length: columns }).map((__, c) => (
+                <td key={c}>
+                  <div className="h-3 w-full animate-pulse rounded bg-white/10" />
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
