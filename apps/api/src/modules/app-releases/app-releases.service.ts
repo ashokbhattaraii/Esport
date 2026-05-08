@@ -9,7 +9,7 @@ import { PrismaClient } from "@fireslot/db";
 import { createHash } from "crypto";
 import { spawn } from "child_process";
 import { createReadStream, existsSync } from "fs";
-import { copyFile, mkdir, readFile, stat } from "fs/promises";
+import { copyFile, mkdir, readFile, readdir, rm, stat } from "fs/promises";
 import { basename, join, resolve } from "path";
 import { PRISMA } from "../../prisma/prisma.module";
 import { AdminActionLogService } from "../admin/admin-action-log.service";
@@ -155,10 +155,13 @@ export class AppReleasesService {
       const repoRoot = this.repoRoot();
       const webDir = join(repoRoot, "apps/web");
       const androidDir = join(webDir, "android");
+      await this.pruneBundledDownloadArtifacts();
       const env = {
         ...process.env,
         CAPACITOR_BUILD: "true",
         NEXT_PUBLIC_IS_NATIVE: "true",
+        APP_VERSION_NAME: version,
+        APP_VERSION_CODE: String(this.versionCode(version)),
         ...(info.apiUrl ? { NEXT_PUBLIC_API_URL: info.apiUrl } : {}),
       };
 
@@ -186,7 +189,23 @@ export class AppReleasesService {
         ),
       );
 
-      const apkPath = await this.findGeneratedApk(androidDir);
+      let apkPath = this.findSignedReleaseApk(androidDir);
+      if (!apkPath) {
+        commands.push(
+          await this.runCommand(
+            "Gradle installable debug APK",
+            process.platform === "win32" ? "gradlew.bat" : "./gradlew",
+            ["assembleDebug"],
+            androidDir,
+            env,
+            600_000,
+          ),
+        );
+        apkPath = this.findDebugApk(androidDir);
+      }
+      if (!apkPath) {
+        throw new BadRequestException("Gradle completed but no installable APK was found.");
+      }
       const filename = `fireslot-nepal-${this.safeFilePart(version)}.apk`;
       await this.copyToDownloadDirs(apkPath, filename);
       const apkStat = await stat(apkPath);
@@ -579,6 +598,14 @@ export class AppReleasesService {
     return value.replace(/[^A-Za-z0-9._-]/g, "-");
   }
 
+  private versionCode(version: string) {
+    const [major = 0, minor = 0, patch = 0] = version
+      .split(/[+-]/)[0]
+      .split(".")
+      .map((part) => Number.parseInt(part, 10) || 0);
+    return Math.max(1, major * 10000 + minor * 100 + patch);
+  }
+
   private publicDownloadUrl(filename: string) {
     return filename.startsWith("http") ? filename : `/downloads/${filename}`;
   }
@@ -715,16 +742,34 @@ export class AppReleasesService {
     };
   }
 
-  private async findGeneratedApk(androidDir: string) {
+  private findSignedReleaseApk(androidDir: string) {
     const releaseDir = join(androidDir, "app/build/outputs/apk/release");
-    const candidates = [
-      join(releaseDir, "app-release.apk"),
-      join(releaseDir, "app-release-unsigned.apk"),
+    const signed = join(releaseDir, "app-release.apk");
+    return existsSync(signed) ? signed : null;
+  }
+
+  private findDebugApk(androidDir: string) {
+    const debug = join(androidDir, "app/build/outputs/apk/debug/app-debug.apk");
+    return existsSync(debug) ? debug : null;
+  }
+
+  private async pruneBundledDownloadArtifacts() {
+    const repoRoot = this.repoRoot();
+    const dirs = [
+      join(repoRoot, "apps/web/public/downloads"),
+      join(repoRoot, "apps/web/out/downloads"),
+      join(repoRoot, "apps/web/android/app/src/main/assets/public/downloads"),
     ];
-    for (const candidate of candidates) {
-      if (existsSync(candidate)) return candidate;
-    }
-    throw new BadRequestException("Gradle completed but no release APK was found.");
+    await Promise.all(
+      dirs.map(async (dir) => {
+        const files = await readdir(dir).catch(() => []);
+        await Promise.all(
+          files
+            .filter((file) => file.toLowerCase().endsWith(".apk"))
+            .map((file) => rm(join(dir, file), { force: true })),
+        );
+      }),
+    );
   }
 
   private async copyToDownloadDirs(source: string, filename: string) {

@@ -528,7 +528,7 @@ function serveDownload(req, res) {
   );
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.setHeader('Content-Length', stat.size);
-  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  res.setHeader('Cache-Control', 'no-store, max-age=0');
 
   if (req.method === 'HEAD') {
     res.end();

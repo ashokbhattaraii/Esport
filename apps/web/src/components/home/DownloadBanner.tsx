@@ -17,6 +17,7 @@ export function DownloadBanner() {
   const isNative = useIsNativeApp();
   const [release, setRelease] = useState<LatestRelease | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [cacheBust] = useState(() => Date.now().toString());
 
   useEffect(() => {
     if (isNative) return;
@@ -54,11 +55,12 @@ export function DownloadBanner() {
 
   if (isNative) return null;
 
-  const downloadHref = release?.downloadUrl
+  const rawDownloadHref = release?.downloadUrl
     ? release.downloadUrl.startsWith("http")
       ? release.downloadUrl
       : `${FILE_BASE}${release.downloadUrl}`
     : `${FILE_BASE}/downloads/${FALLBACK_FILENAME}`;
+  const downloadHref = withDownloadVersion(rawDownloadHref, release?.version ?? cacheBust);
 
   return (
     <section className="rounded-lg border border-neon/40 bg-gradient-to-r from-neon/10 via-surface to-neon-cyan/10 p-4">
@@ -97,4 +99,9 @@ export function DownloadBanner() {
       </div>
     </section>
   );
+}
+
+function withDownloadVersion(url: string, version: string) {
+  const separator = url.includes("?") ? "&" : "?";
+  return `${url}${separator}v=${encodeURIComponent(version)}`;
 }
