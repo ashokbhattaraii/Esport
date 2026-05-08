@@ -74,12 +74,10 @@ export default function AdminAppReleases() {
   const latest = useMemo(() => items.find((item) => item.isLatest), [items]);
 
   async function load() {
-    const [releases, info] = await Promise.all([
-      api<AppRelease[]>("/admin/app-releases"),
-      api<BuildInfo>("/admin/app-releases/build-info"),
-    ]);
-    setItems(releases);
+    const info = await api<BuildInfo>("/admin/app-releases/build-info");
     setBuildInfo(info);
+    const releases = await api<AppRelease[]>("/admin/app-releases");
+    setItems(releases);
     if (releases.length && version === "1.0.0") {
       setVersion(nextPatch(releases[0].version));
     }

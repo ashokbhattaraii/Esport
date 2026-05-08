@@ -7,6 +7,7 @@ import {
 } from "@nestjs/common";
 import { PrismaClient } from "@fireslot/db";
 import { PRISMA } from "../../prisma/prisma.module";
+import { MemoryCacheService } from "../../common/cache/memory-cache.service";
 import { AdminActionLogService } from "./admin-action-log.service";
 
 export interface PermissionInput {
@@ -14,10 +15,30 @@ export interface PermissionInput {
   action: string;
 }
 
+type PermissionEffect = "ALLOW" | "DENY";
+
+interface CachedPermission {
+  resource: string;
+  action: string;
+}
+
+interface CachedPermissionOverride extends CachedPermission {
+  effect: PermissionEffect;
+}
+
+interface CachedPermissionProfile {
+  exists: boolean;
+  role: "PLAYER" | "ADMIN";
+  roleName: string | null;
+  rolePermissions: CachedPermission[];
+  permissionOverrides: CachedPermissionOverride[];
+}
+
 @Injectable()
 export class RolesService {
   constructor(
     @Inject(PRISMA) private prisma: PrismaClient,
+    private cache: MemoryCacheService,
     private logs: AdminActionLogService,
   ) {}
 
@@ -48,6 +69,7 @@ export class RolesService {
       include: { permissions: true },
     });
     await this.logs.log(adminId, "role.create", "role", role.id, null, { name, permissions }, ip);
+    this.invalidatePermissionCache();
     return role;
   }
 
@@ -65,6 +87,7 @@ export class RolesService {
       }),
     ]);
     await this.logs.log(adminId, "role.permissions_update", "role", roleId, { permissions: old }, { permissions }, ip);
+    this.invalidatePermissionCache();
     return this.prisma.userRole.findUnique({ where: { id: roleId }, include: { permissions: true } });
   }
 
@@ -74,6 +97,7 @@ export class RolesService {
     if (role.isSystem) throw new ForbiddenException("System roles cannot be deleted");
     await this.prisma.userRole.delete({ where: { id } });
     await this.logs.log(adminId, "role.delete", "role", id, role, null, ip);
+    this.invalidatePermissionCache();
     return { ok: true };
   }
 
@@ -86,6 +110,7 @@ export class RolesService {
       data: { roleId, role: role.name === "PLAYER" ? "PLAYER" : "ADMIN" },
     });
     await this.logs.log(adminId, "user.assign_role", "user", userId, before, { roleId, roleName: role.name }, ip);
+    this.invalidatePermissionCache(userId);
     return updated;
   }
 
@@ -104,44 +129,26 @@ export class RolesService {
   }
 
   async hasPermission(userId: string, resource: string, action: string): Promise<boolean> {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        roleRef: { include: { permissions: true } },
-        permissionOverrides: true,
-      },
-    });
-    if (!user) return false;
+    const user = await this.getPermissionProfile(userId);
+    if (!user.exists) return false;
 
     // Per-user overrides win over role permissions; explicit DENY beats ALLOW.
     const overrides = user.permissionOverrides ?? [];
-    const matchOverride = (effect: "ALLOW" | "DENY") =>
-      overrides.some(
-        (o) =>
-          o.effect === effect &&
-          (o.resource === resource || o.resource === "*") &&
-          (o.action === action || o.action === "*"),
-      );
+    const matchOverride = (effect: PermissionEffect) =>
+      overrides.some((o) => this.permissionMatches(o, resource, action) && o.effect === effect);
     if (matchOverride("DENY")) return false;
     if (matchOverride("ALLOW")) return true;
 
-    let perms = user.roleRef?.permissions;
+    let perms = user.rolePermissions;
     const legacyAdminRoleRef =
-      user.role === "ADMIN" && (!user.roleRef || user.roleRef.name === "PLAYER");
+      user.role === "ADMIN" && (!user.roleName || user.roleName === "PLAYER");
     if (legacyAdminRoleRef) {
-      const adminRole = await this.prisma.userRole.findUnique({
-        where: { name: "ADMIN" },
-        include: { permissions: true },
-      });
-      perms = adminRole?.permissions;
-      if (!perms) return true;
+      const adminRole = await this.getRolePermissionsByName("ADMIN");
+      perms = adminRole.permissions;
+      if (!adminRole.exists) return true;
     }
-    if (!perms) return false;
-    return perms.some(
-      (p) =>
-        (p.resource === resource || p.resource === "*") &&
-        (p.action === action || p.action === "*"),
-    );
+    if (!perms.length) return false;
+    return perms.some((p) => this.permissionMatches(p, resource, action));
   }
 
   async getUserAccess(userId: string) {
@@ -196,6 +203,7 @@ export class RolesService {
       { overrides },
       ip,
     );
+    this.invalidatePermissionCache(userId);
     return this.prisma.userPermission.findMany({ where: { userId } });
   }
 
@@ -207,5 +215,78 @@ export class RolesService {
   async ensureSuperAdminRoleId(): Promise<string | null> {
     const r = await this.prisma.userRole.findUnique({ where: { name: "SUPER_ADMIN" } });
     return r?.id ?? null;
+  }
+
+  private getPermissionProfile(userId: string): Promise<CachedPermissionProfile> {
+    return this.cache.getStaleWhileRevalidate(
+      `permissions:user:${userId}`,
+      30,
+      300,
+      async () => {
+        const user = await this.prisma.user.findUnique({
+          where: { id: userId },
+          select: {
+            role: true,
+            roleRef: {
+              select: {
+                name: true,
+                permissions: { select: { resource: true, action: true } },
+              },
+            },
+            permissionOverrides: {
+              select: { resource: true, action: true, effect: true },
+            },
+          },
+        });
+        if (!user) {
+          return {
+            exists: false,
+            role: "PLAYER",
+            roleName: null,
+            rolePermissions: [],
+            permissionOverrides: [],
+          };
+        }
+        return {
+          exists: true,
+          role: user.role,
+          roleName: user.roleRef?.name ?? null,
+          rolePermissions: user.roleRef?.permissions ?? [],
+          permissionOverrides: user.permissionOverrides,
+        };
+      },
+    );
+  }
+
+  private getRolePermissionsByName(
+    name: string,
+  ): Promise<{ exists: boolean; permissions: CachedPermission[] }> {
+    return this.cache.getStaleWhileRevalidate(
+      `permissions:role-name:${name}`,
+      60,
+      600,
+      async () => {
+        const role = await this.prisma.userRole.findUnique({
+          where: { name },
+          select: { permissions: { select: { resource: true, action: true } } },
+        });
+        return { exists: !!role, permissions: role?.permissions ?? [] };
+      },
+    );
+  }
+
+  private permissionMatches(permission: CachedPermission, resource: string, action: string) {
+    return (
+      (permission.resource === resource || permission.resource === "*") &&
+      (permission.action === action || permission.action === "*")
+    );
+  }
+
+  private invalidatePermissionCache(userId?: string) {
+    if (userId) {
+      this.cache.del(`permissions:user:${userId}`);
+      return;
+    }
+    this.cache.delPrefix("permissions:");
   }
 }
