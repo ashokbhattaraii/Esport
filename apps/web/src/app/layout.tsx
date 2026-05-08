@@ -1,5 +1,6 @@
 import "./globals.css";
 import type { Metadata } from "next";
+import Script from "next/script";
 import { Navbar } from "@/components/Navbar";
 import { Providers } from "./providers";
 import { AppShell } from "@/components/AppShell";
@@ -27,6 +28,15 @@ export default function RootLayout({
         {supaUrl && <link rel="dns-prefetch" href={supaUrl} />}
       </head>
       <body>
+        <Script id="sw-register" strategy="afterInteractive">
+          {`
+            if ('serviceWorker' in navigator) {
+              window.addEventListener('load', function () {
+                navigator.serviceWorker.register('/sw.js').catch(function () {});
+              });
+            }
+          `}
+        </Script>
         <Providers>
           <NativeBootstrap />
           <AppShell>

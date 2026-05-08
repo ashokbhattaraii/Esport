@@ -5,6 +5,7 @@ const config: CapacitorConfig = {
   appName: "FireSlot Nepal",
   webDir: "out",
   server: {
+    url: process.env.NEXT_PUBLIC_APP_URL,
     androidScheme: "https",
     cleartext: false,
   },
