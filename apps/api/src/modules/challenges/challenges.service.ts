@@ -283,7 +283,7 @@ export class ChallengesService {
     return created;
   }
 
-  async list(filters: { gameMode?: ChallengGameMode; status?: ChallengeStatus }) {
+  async list(filters: { gameMode?: ChallengGameMode; status?: ChallengeStatus; limit?: number }) {
     return this.cache.getStaleWhileRevalidate(
       this.listCacheKey(filters),
       CHALLENGE_LIST_SOFT_TTL_SECONDS,
@@ -292,7 +292,11 @@ export class ChallengesService {
     );
   }
 
-  private async loadChallengeList(filters: { gameMode?: ChallengGameMode; status?: ChallengeStatus }) {
+  private async loadChallengeList(filters: {
+    gameMode?: ChallengGameMode;
+    status?: ChallengeStatus;
+    limit?: number;
+  }) {
     const where: any = { isPrivate: false };
     if (filters.gameMode) where.gameMode = filters.gameMode;
     if (filters.status) where.status = filters.status;
@@ -301,6 +305,7 @@ export class ChallengesService {
       where,
       orderBy: { createdAt: "desc" },
       select: CHALLENGE_LIST_SELECT,
+      take: this.normalizeListLimit(filters.limit),
     });
     return items.map((c) => ({ ...c, rulesText: this.getChallengeRulesText(c) }));
   }
@@ -788,13 +793,14 @@ export class ChallengesService {
     };
   }
 
-  async listAdmin(filters: { status?: ChallengeStatus; gameMode?: ChallengGameMode }) {
+  async listAdmin(filters: { status?: ChallengeStatus; gameMode?: ChallengGameMode; limit?: number }) {
     const where: any = {};
     if (filters.status) where.status = filters.status;
     if (filters.gameMode) where.gameMode = filters.gameMode;
     return this.prisma.challenge.findMany({
       where,
       orderBy: { createdAt: "desc" },
+      take: this.normalizeListLimit(filters.limit),
       include: {
         creator: { select: { id: true, name: true, email: true } },
         opponent: { select: { id: true, name: true, email: true } },
@@ -816,11 +822,21 @@ export class ChallengesService {
     return s;
   }
 
-  private listCacheKey(filters: { gameMode?: ChallengGameMode; status?: ChallengeStatus }) {
+  private listCacheKey(filters: {
+    gameMode?: ChallengGameMode;
+    status?: ChallengeStatus;
+    limit?: number;
+  }) {
     return `${CHALLENGE_LIST_CACHE_PREFIX}${JSON.stringify({
       gameMode: filters.gameMode ?? null,
       status: filters.status ?? "OPEN",
+      limit: this.normalizeListLimit(filters.limit),
     })}`;
+  }
+
+  private normalizeListLimit(limit?: number) {
+    if (!Number.isFinite(limit)) return 50;
+    return Math.min(Math.max(Math.trunc(limit!), 1), 100);
   }
 
   private detailCacheKey(challengeId: string) {

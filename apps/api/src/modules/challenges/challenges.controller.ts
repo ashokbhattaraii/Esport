@@ -26,8 +26,13 @@ export class ChallengesController {
   list(
     @Query("gameMode") gameMode?: ChallengGameMode,
     @Query("status") status?: ChallengeStatus,
+    @Query("limit") limit?: string,
   ) {
-    return this.svc.list({ gameMode, status });
+    return this.svc.list({
+      gameMode,
+      status,
+      limit: limit ? parseInt(limit, 10) : undefined,
+    });
   }
 
   @Get("invite/:code")
@@ -125,8 +130,13 @@ export class AdminChallengesController {
   list(
     @Query("status") status?: ChallengeStatus,
     @Query("gameMode") gameMode?: ChallengGameMode,
+    @Query("limit") limit?: string,
   ) {
-    return this.svc.listAdmin({ status, gameMode });
+    return this.svc.listAdmin({
+      status,
+      gameMode,
+      limit: limit ? parseInt(limit, 10) : undefined,
+    });
   }
 
   @RequirePermission("tournaments", "read")

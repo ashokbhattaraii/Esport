@@ -25,10 +25,13 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
 import { HealthController } from './health.controller';
 
+const schedulerImports =
+  process.env.BOT_SCHEDULER_ENABLED === 'true' ? [ScheduleModule.forRoot()] : [];
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    ScheduleModule.forRoot(),
+    ...schedulerImports,
     PrismaModule,
     StorageModule,
     CacheModule,

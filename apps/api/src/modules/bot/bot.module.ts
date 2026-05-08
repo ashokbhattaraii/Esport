@@ -6,10 +6,13 @@ import { BotAccuracyService } from "./bot-accuracy.service";
 import { BotRollbackService } from "./bot-rollback.service";
 import { AdminModule } from "../admin/admin.module";
 
+const schedulerProviders =
+  process.env.BOT_SCHEDULER_ENABLED === "true" ? [BotSchedulerService] : [];
+
 @Module({
   imports: [AdminModule],
   controllers: [BotController],
-  providers: [BotJobService, BotSchedulerService, BotAccuracyService, BotRollbackService],
+  providers: [BotJobService, ...schedulerProviders, BotAccuracyService, BotRollbackService],
   exports: [BotJobService, BotAccuracyService, BotRollbackService],
 })
 export class BotModule {}

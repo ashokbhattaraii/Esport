@@ -37,6 +37,7 @@ export class TournamentsController {
     @Query("type") type?: TournamentType,
     @Query("minFee") minFee?: string,
     @Query("maxFee") maxFee?: string,
+    @Query("limit") limit?: string,
   ) {
     return this.svc.list({
       mode,
@@ -44,6 +45,7 @@ export class TournamentsController {
       type,
       minFee: minFee ? parseInt(minFee, 10) : undefined,
       maxFee: maxFee ? parseInt(maxFee, 10) : undefined,
+      limit: limit ? parseInt(limit, 10) : undefined,
     });
   }
 

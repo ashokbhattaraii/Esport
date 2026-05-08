@@ -7,14 +7,22 @@ import { AdminActionLogService } from "./admin-action-log.service";
 export class SystemConfigService implements OnModuleInit {
   private readonly logger = new Logger(SystemConfigService.name);
   private cache = new Map<string, SystemConfig>();
+  private refreshPromise: Promise<void> | null = null;
 
   constructor(
     @Inject(PRISMA) private prisma: PrismaClient,
     private logs: AdminActionLogService,
   ) {}
 
-  async onModuleInit() {
-    await this.refresh();
+  onModuleInit() {
+    if (process.env.SYSTEM_CONFIG_BOOT_SYNC === "true") {
+      return this.refresh();
+    }
+    this.refreshPromise = this.refresh()
+      .catch((e) => this.logger.warn(`[SystemConfig] Background refresh failed: ${e.message}`))
+      .finally(() => {
+        this.refreshPromise = null;
+      });
   }
 
   async refresh() {
@@ -40,6 +48,10 @@ export class SystemConfigService implements OnModuleInit {
       }
       throw e;
     }
+  }
+
+  async ready() {
+    await this.refreshPromise;
   }
 
   private isDatabaseUnavailable(e: any): boolean {

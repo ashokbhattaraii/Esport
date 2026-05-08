@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
   OnModuleInit,
 } from "@nestjs/common";
@@ -108,6 +109,8 @@ export interface RoomDetails {
 
 @Injectable()
 export class TournamentsService implements OnModuleInit {
+  private readonly logger = new Logger(TournamentsService.name);
+
   constructor(
     @Inject(PRISMA) private prisma: PrismaClient,
     private prizes: PrizeService,
@@ -118,7 +121,10 @@ export class TournamentsService implements OnModuleInit {
   ) {}
 
   onModuleInit() {
-    void this.warmReadCaches();
+    if (process.env.WARM_READ_CACHES !== "true") return;
+    void this.warmReadCaches().catch((e) =>
+      this.logger.warn(`Read cache warmup skipped: ${e.message}`),
+    );
   }
 
   private buildEtag(t: { roomId: string | null; roomPassword: string | null; status: string; updatedAt: Date }) {
@@ -186,6 +192,7 @@ export class TournamentsService implements OnModuleInit {
     type?: TournamentType;
     minFee?: number;
     maxFee?: number;
+    limit?: number;
   }) {
     const key = this.listCacheKey(filters);
     return this.cache.getStaleWhileRevalidate(
@@ -202,6 +209,7 @@ export class TournamentsService implements OnModuleInit {
     type?: TournamentType;
     minFee?: number;
     maxFee?: number;
+    limit?: number;
   }) {
     const where: any = {};
     if (filters.mode) where.mode = filters.mode;
@@ -216,6 +224,7 @@ export class TournamentsService implements OnModuleInit {
       where,
       select: TOURNAMENT_LIST_SELECT,
       orderBy: { dateTime: "asc" },
+      take: this.normalizeListLimit(filters.limit),
     });
   }
 
@@ -609,6 +618,7 @@ export class TournamentsService implements OnModuleInit {
     type?: TournamentType;
     minFee?: number;
     maxFee?: number;
+    limit?: number;
   }) {
     return `${TOURNAMENT_LIST_CACHE_PREFIX}${JSON.stringify({
       mode: filters.mode ?? null,
@@ -616,7 +626,13 @@ export class TournamentsService implements OnModuleInit {
       type: filters.type ?? null,
       minFee: filters.minFee ?? null,
       maxFee: filters.maxFee ?? null,
+      limit: this.normalizeListLimit(filters.limit),
     })}`;
+  }
+
+  private normalizeListLimit(limit?: number) {
+    if (!Number.isFinite(limit)) return 100;
+    return Math.min(Math.max(Math.trunc(limit!), 1), 200);
   }
 
   private async warmReadCaches() {

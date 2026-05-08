@@ -478,8 +478,11 @@ model Tournament {
   results      MatchResult[]
 
   @@index([status, dateTime])
+  @@index([dateTime])
   @@index([mode, status])
+  @@index([mode, dateTime])
   @@index([type, status])
+  @@index([type, dateTime])
   @@index([createdById, createdAt])
 }
 
@@ -582,6 +585,11 @@ model Challenge {
   results   ChallengeResult[]
   createdAt DateTime          @default(now())
   updatedAt DateTime          @updatedAt
+
+  @@index([isPrivate, status, createdAt])
+  @@index([creatorId, createdAt])
+  @@index([opponentId, createdAt])
+  @@index([status, endedAt])
 }
 
 model ChallengeResult {
@@ -603,6 +611,7 @@ model ChallengeResult {
   user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([challengeId, userId])
+  @@index([userId, submittedAt])
 }
 
 model ChallengeDispute {
@@ -617,6 +626,8 @@ model ChallengeDispute {
   resolution   String?
   createdAt    DateTime      @default(now())
   resolvedAt   DateTime?
+
+  @@index([status, createdAt])
 }
 
 model ChallengeInvite {

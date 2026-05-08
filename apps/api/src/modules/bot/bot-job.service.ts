@@ -31,7 +31,12 @@ export class BotJobService implements OnModuleInit {
     private rollbacks: BotRollbackService,
   ) {}
 
-  async onModuleInit() {
+  onModuleInit() {
+    if (process.env.BOT_BOOT_CHECK !== "true") return;
+    void this.checkBotTableReady();
+  }
+
+  private async checkBotTableReady() {
     try {
       await this.prisma.botJob.findMany();
     } catch {
