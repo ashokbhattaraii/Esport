@@ -7,6 +7,7 @@ import {
   Download,
   FlaskConical,
   Rocket,
+  Save,
   Smartphone,
   TerminalSquare,
   Upload,
@@ -61,14 +62,91 @@ interface BuildInfo {
   downloadsDir: string;
 }
 
+interface ConfigItem {
+  id: string;
+  key: string;
+  value: string;
+  type: "STRING" | "NUMBER" | "BOOLEAN" | "JSON";
+  category: string;
+  label: string;
+  updatedAt: string;
+}
+
+const APP_RUNTIME_SETTINGS: Array<{
+  key: string;
+  label: string;
+  type: "STRING" | "BOOLEAN";
+  placeholder?: string;
+}> = [
+  {
+    key: "APP_API_URL",
+    label: "Public API URL",
+    type: "STRING",
+    placeholder: "https://your-api.vercel.app/api",
+  },
+  {
+    key: "APP_PUBLIC_WEB_URL",
+    label: "Public Web URL",
+    type: "STRING",
+    placeholder: "https://your-web.vercel.app",
+  },
+  {
+    key: "APP_MIN_ANDROID_VERSION",
+    label: "Minimum Android Version",
+    type: "STRING",
+    placeholder: "1.0.1",
+  },
+  {
+    key: "APP_LATEST_VERSION",
+    label: "Fallback Latest Version",
+    type: "STRING",
+    placeholder: "1.0.1",
+  },
+  {
+    key: "APP_FORCE_UPDATE_ENABLED",
+    label: "Force Android Update",
+    type: "BOOLEAN",
+  },
+  {
+    key: "APP_DOWNLOAD_ENABLED",
+    label: "Download Enabled",
+    type: "BOOLEAN",
+  },
+  {
+    key: "APP_MAINTENANCE_ENABLED",
+    label: "App Maintenance",
+    type: "BOOLEAN",
+  },
+  {
+    key: "APP_MAINTENANCE_MESSAGE",
+    label: "Maintenance Message",
+    type: "STRING",
+    placeholder: "FireSlot Nepal is updating. Please try again soon.",
+  },
+];
+
+const APP_RUNTIME_DEFAULTS: Record<string, string> = {
+  APP_API_URL: "",
+  APP_PUBLIC_WEB_URL: "",
+  APP_MIN_ANDROID_VERSION: "1.0.0",
+  APP_LATEST_VERSION: "1.0.0",
+  APP_FORCE_UPDATE_ENABLED: "false",
+  APP_DOWNLOAD_ENABLED: "true",
+  APP_MAINTENANCE_ENABLED: "false",
+  APP_MAINTENANCE_MESSAGE: "FireSlot Nepal is updating. Please try again soon.",
+};
+
 export default function AdminAppReleases() {
   const [items, setItems] = useState<AppRelease[]>([]);
   const [buildInfo, setBuildInfo] = useState<BuildInfo | null>(null);
   const [version, setVersion] = useState("1.0.0");
   const [notes, setNotes] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [apkUrl, setApkUrl] = useState("");
+  const [runtimeDrafts, setRuntimeDrafts] = useState<Record<string, string>>(() => defaultRuntimeDrafts());
   const [building, setBuilding] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [savingRuntime, setSavingRuntime] = useState(false);
   const [loading, setLoading] = useState(true);
   const [testingId, setTestingId] = useState<string | null>(null);
   const [publishingId, setPublishingId] = useState<string | null>(null);
@@ -80,10 +158,16 @@ export default function AdminAppReleases() {
   async function load(showLoading = true) {
     if (showLoading) setLoading(true);
     try {
-      const info = await api<BuildInfo>("/admin/app-releases/build-info");
+      const [info, releases, configGroups] = await Promise.all([
+        api<BuildInfo>("/admin/app-releases/build-info"),
+        api<AppRelease[]>("/admin/app-releases"),
+        api<Record<string, ConfigItem[]>>("/admin/config").catch(() => null),
+      ]);
       setBuildInfo(info);
-      const releases = await api<AppRelease[]>("/admin/app-releases");
       setItems(releases);
+      if (configGroups) {
+        setRuntimeDrafts(flattenConfig(configGroups));
+      }
       if (releases.length && version === "1.0.0") {
         setVersion(nextPatch(releases[0].version));
       }
@@ -122,23 +206,52 @@ export default function AdminAppReleases() {
 
   async function upload(e: React.FormEvent) {
     e.preventDefault();
-    if (!file) return setMsg("Pick an APK first.");
+    const cleanApkUrl = apkUrl.trim();
+    if (!file && !cleanApkUrl) return setMsg("Pick an APK file or paste a public APK URL.");
+    if (cleanApkUrl && !/^https?:\/\//.test(cleanApkUrl)) {
+      return setMsg("APK URL must start with http:// or https://.");
+    }
     setUploading(true);
     setMsg(null);
     try {
       const fd = new FormData();
-      fd.append("apk", file);
+      if (file) fd.append("apk", file);
+      if (!file && cleanApkUrl) fd.append("apkUrl", cleanApkUrl);
       fd.append("version", version);
       fd.append("releaseNotes", notes);
       await api("/admin/app-releases", { method: "POST", body: fd });
-      setMsg("APK uploaded as draft. Run tests before pushing it live.");
+      setMsg("APK saved as draft. Run tests before pushing it live.");
       setFile(null);
+      setApkUrl("");
       setNotes("");
       await load(false);
     } catch (e: any) {
       setMsg(e.message);
     } finally {
       setUploading(false);
+    }
+  }
+
+  async function saveRuntimeSettings(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingRuntime(true);
+    setMsg(null);
+    try {
+      await api("/admin/config/bulk", {
+        method: "POST",
+        body: JSON.stringify({
+          updates: APP_RUNTIME_SETTINGS.map((setting) => ({
+            key: setting.key,
+            value: runtimeDrafts[setting.key] ?? "",
+          })),
+        }),
+      });
+      setMsg("App settings saved.");
+      await load(false);
+    } catch (e: any) {
+      setMsg(e.message);
+    } finally {
+      setSavingRuntime(false);
     }
   }
 
@@ -196,14 +309,21 @@ export default function AdminAppReleases() {
         )}
       </div>
 
+      {msg && (
+        <div className="rounded-lg border border-border bg-card/70 px-4 py-3 text-xs text-white/70">
+          {msg}
+        </div>
+      )}
+
       {loading ? (
         <CardGridSkeleton count={5} />
       ) : (
       <div className="grid gap-3 md:grid-cols-5">
         <SystemTile
-          label="Build machine"
+          label="Build mode"
           ok={!!buildInfo?.canBuild}
-          value={buildInfo?.canBuild ? "Ready" : "Missing Android tools"}
+          value={buildInfo?.canBuild ? "Server compiler ready" : "Manual APK upload"}
+          soft={!buildInfo?.canBuild}
         />
         <SystemTile
           label="Native load mode"
@@ -229,6 +349,34 @@ export default function AdminAppReleases() {
       </div>
       )}
 
+      <form onSubmit={saveRuntimeSettings} className="card space-y-3">
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="font-display text-lg flex items-center gap-2">
+              <Save size={18} /> App Update Controls
+            </h2>
+            <p className="mt-1 text-xs text-white/50">
+              Set the URLs and rollout gates the installed Android app reads at startup.
+            </p>
+          </div>
+          <button className="btn-primary" disabled={savingRuntime} type="submit">
+            <ButtonLoading loading={savingRuntime} loadingText="Saving...">
+              <Save size={14} /> Save Settings
+            </ButtonLoading>
+          </button>
+        </div>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          {APP_RUNTIME_SETTINGS.map((setting) => (
+            <RuntimeSettingInput
+              key={setting.key}
+              setting={setting}
+              value={runtimeDrafts[setting.key] ?? ""}
+              onChange={(value) => setRuntimeDrafts((drafts) => ({ ...drafts, [setting.key]: value }))}
+            />
+          ))}
+        </div>
+      </form>
+
       <form onSubmit={generate} className="card space-y-3">
         <div className="flex items-center justify-between gap-3">
           <h2 className="font-display text-lg flex items-center gap-2">
@@ -244,13 +392,17 @@ export default function AdminAppReleases() {
           setVersion={setVersion}
           setNotes={setNotes}
         />
+        {!buildInfo?.canBuild && (
+          <div className="rounded-md border border-neon-orange/30 bg-neon-orange/10 p-3 text-xs text-neon-orange">
+            This server cannot compile Android APKs. Upload an APK file or paste a hosted APK URL below.
+          </div>
+        )}
         <div className="flex flex-wrap items-center gap-3">
           <button className="btn-primary" disabled={building || !buildInfo?.canBuild} type="submit">
             <ButtonLoading loading={building} loadingText="Compiling...">
               <Rocket size={14} /> Compile, Test & Save Draft
             </ButtonLoading>
           </button>
-          {msg && <span className="text-xs text-white/70">{msg}</span>}
         </div>
       </form>
 
@@ -273,9 +425,18 @@ export default function AdminAppReleases() {
             className="w-full text-xs text-white/70 file:mr-3 file:rounded-md file:border-0 file:bg-surface file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white"
           />
         </div>
+        <div>
+          <label className="label">Hosted APK URL</label>
+          <input
+            className="input"
+            value={apkUrl}
+            onChange={(e) => setApkUrl(e.target.value)}
+            placeholder="https://example.com/fireslot-nepal.apk"
+          />
+        </div>
         <button className="btn-outline" disabled={uploading} type="submit">
           <ButtonLoading loading={uploading} loadingText="Uploading...">
-            <Upload size={14} /> Upload Draft
+            <Upload size={14} /> Save Draft
           </ButtonLoading>
         </button>
       </form>
@@ -375,6 +536,36 @@ export default function AdminAppReleases() {
         </table>
         )}
       </div>
+    </div>
+  );
+}
+
+function RuntimeSettingInput({
+  setting,
+  value,
+  onChange,
+}: {
+  setting: (typeof APP_RUNTIME_SETTINGS)[number];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div>
+      <label className="label">{setting.label}</label>
+      {setting.type === "BOOLEAN" ? (
+        <select className="input" value={value || "false"} onChange={(e) => onChange(e.target.value)}>
+          <option value="false">false</option>
+          <option value="true">true</option>
+        </select>
+      ) : (
+        <input
+          className="input"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={setting.placeholder}
+        />
+      )}
+      <p className="mt-1 truncate font-mono text-[10px] text-white/35">{setting.key}</p>
     </div>
   );
 }
@@ -529,4 +720,24 @@ function nextPatch(version: string) {
   const match = version.match(/^(\d+)\.(\d+)\.(\d+)/);
   if (!match) return "1.0.0";
   return `${match[1]}.${match[2]}.${Number(match[3]) + 1}`;
+}
+
+function flattenConfig(groups: Record<string, ConfigItem[]>) {
+  const drafts = defaultRuntimeDrafts();
+  Object.values(groups)
+    .flat()
+    .forEach((item) => {
+      if (APP_RUNTIME_SETTINGS.some((setting) => setting.key === item.key)) {
+        drafts[item.key] = item.value;
+      }
+    });
+  return drafts;
+}
+
+function defaultRuntimeDrafts() {
+  const drafts: Record<string, string> = {};
+  for (const setting of APP_RUNTIME_SETTINGS) {
+    drafts[setting.key] = APP_RUNTIME_DEFAULTS[setting.key] ?? (setting.type === "BOOLEAN" ? "false" : "");
+  }
+  return drafts;
 }

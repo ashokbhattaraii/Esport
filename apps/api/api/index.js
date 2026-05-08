@@ -31,6 +31,7 @@ const APP_CONFIG_DEFAULTS = {
   APP_FORCE_UPDATE_ENABLED: 'false',
   APP_MIN_ANDROID_VERSION: '1.0.0',
   APP_LATEST_VERSION: '1.0.0',
+  APP_API_URL: '',
   APP_PUBLIC_WEB_URL: '',
   APP_DOWNLOAD_ENABLED: 'true',
   APP_SUPPORT_URL: '/support',
@@ -373,7 +374,45 @@ async function loadFastLatestRelease() {
   };
 }
 
-async function loadFastAppConfig() {
+function cleanUrl(value) {
+  return String(value ?? '').trim().replace(/\/+$/, '') || null;
+}
+
+function normalizeApiUrl(value) {
+  const clean = cleanUrl(value);
+  if (!clean) return null;
+  return clean.endsWith('/api') ? clean : `${clean}/api`;
+}
+
+function isLocalUrl(value) {
+  try {
+    const host = new URL(normalizeApiUrl(value) || value).hostname;
+    return host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0';
+  } catch {
+    return false;
+  }
+}
+
+function inferApiUrl(req) {
+  const host = cleanUrl(req.headers['x-forwarded-host'] || req.headers.host);
+  if (!host) return null;
+  const proto = cleanUrl(req.headers['x-forwarded-proto']) || 'https';
+  return normalizeApiUrl(`${proto.split(',')[0]}://${host.split(',')[0]}`);
+}
+
+function inferWebUrl(req) {
+  const origin = cleanUrl(req.headers.origin);
+  if (origin) return origin;
+  const referer = cleanUrl(req.headers.referer);
+  if (!referer) return cleanUrl(process.env.NEXT_PUBLIC_APP_URL);
+  try {
+    return cleanUrl(new URL(referer).origin);
+  } catch {
+    return cleanUrl(process.env.NEXT_PUBLIC_APP_URL);
+  }
+}
+
+async function loadFastAppConfig(req) {
   let configs = {};
   try {
     const rows = await getPrisma().systemConfig.findMany({
@@ -388,7 +427,12 @@ async function loadFastAppConfig() {
   const get = (key) => configs[key] ?? APP_CONFIG_DEFAULTS[key] ?? '';
   const bool = (key) => String(get(key)).toLowerCase() === 'true';
   const latest = await loadFastLatestRelease().catch(() => null);
-  const cleanUrl = (value) => String(value ?? '').trim().replace(/\/+$/, '') || null;
+  const configuredApi = cleanUrl(get('APP_API_URL')) || cleanUrl(process.env.NEXT_PUBLIC_API_URL);
+  const inferredApi = inferApiUrl(req);
+  const api = configuredApi && !isLocalUrl(configuredApi) ? normalizeApiUrl(configuredApi) : inferredApi || normalizeApiUrl(configuredApi);
+  const configuredWeb = cleanUrl(get('APP_PUBLIC_WEB_URL')) || cleanUrl(process.env.NEXT_PUBLIC_APP_URL);
+  const inferredWeb = inferWebUrl(req);
+  const publicWeb = configuredWeb && !isLocalUrl(configuredWeb) ? configuredWeb : inferredWeb || configuredWeb;
   return {
     maintenance: {
       enabled: bool('APP_MAINTENANCE_ENABLED') || bool('MAINTENANCE_MODE'),
@@ -402,8 +446,8 @@ async function loadFastAppConfig() {
       downloadUrl: latest?.downloadUrl ?? null,
     },
     urls: {
-      api: process.env.NEXT_PUBLIC_API_URL ?? null,
-      publicWeb: cleanUrl(get('APP_PUBLIC_WEB_URL') || process.env.NEXT_PUBLIC_APP_URL),
+      api,
+      publicWeb,
       support: get('APP_SUPPORT_URL'),
     },
     native: {
@@ -434,7 +478,11 @@ async function handleFastPath(req, res, start) {
   else if (url.pathname === '/api/categories') loader = loadFastCategories;
   else if (url.pathname === '/api/challenges') loader = () => loadFastChallenges(url);
   else if (url.pathname === '/api/app/latest-release') loader = loadFastLatestRelease;
-  else if (url.pathname === '/api/app/config') loader = loadFastAppConfig;
+  else if (url.pathname === '/api/app/config') {
+    const data = await loadFastAppConfig(req);
+    sendJson(req, res, 200, data, start, 'no-store');
+    return true;
+  }
   else return false;
 
   const key = `fast:${stableSearchKey(url)}`;

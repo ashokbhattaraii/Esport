@@ -323,6 +323,7 @@ async function seedSystemConfig() {
     { key: "APP_FORCE_UPDATE_ENABLED", value: "false", type: "BOOLEAN", category: "FEATURE_FLAG", label: "Force Android Update" },
     { key: "APP_MIN_ANDROID_VERSION", value: "1.0.0", type: "STRING", category: "FEATURE_FLAG", label: "Minimum Android App Version" },
     { key: "APP_LATEST_VERSION", value: "1.0.0", type: "STRING", category: "FEATURE_FLAG", label: "Fallback Latest App Version" },
+    { key: "APP_API_URL", value: "", type: "STRING", category: "FEATURE_FLAG", label: "Public API URL" },
     { key: "APP_PUBLIC_WEB_URL", value: "", type: "STRING", category: "FEATURE_FLAG", label: "Public Web URL" },
     { key: "APP_DOWNLOAD_ENABLED", value: "true", type: "BOOLEAN", category: "FEATURE_FLAG", label: "APK Download Enabled" },
     { key: "APP_SUPPORT_URL", value: "/support", type: "STRING", category: "FEATURE_FLAG", label: "App Support URL" },

@@ -104,6 +104,7 @@ export class SystemConfigService implements OnModuleInit {
     APP_FORCE_UPDATE_ENABLED: { value: "false", type: "BOOLEAN", category: "FEATURE_FLAG", label: "Force Android Update" },
     APP_MIN_ANDROID_VERSION: { value: "1.0.0", type: "STRING", category: "FEATURE_FLAG", label: "Minimum Android App Version" },
     APP_LATEST_VERSION: { value: "1.0.0", type: "STRING", category: "FEATURE_FLAG", label: "Fallback Latest App Version" },
+    APP_API_URL: { value: "", type: "STRING", category: "FEATURE_FLAG", label: "Public API URL" },
     APP_PUBLIC_WEB_URL: { value: "", type: "STRING", category: "FEATURE_FLAG", label: "Public Web URL" },
     APP_DOWNLOAD_ENABLED: { value: "true", type: "BOOLEAN", category: "FEATURE_FLAG", label: "APK Download Enabled" },
     APP_SUPPORT_URL: { value: "/support", type: "STRING", category: "FEATURE_FLAG", label: "App Support URL" },

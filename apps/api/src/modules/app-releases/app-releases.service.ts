@@ -38,6 +38,12 @@ interface BuildRequest {
   runTests?: boolean;
 }
 
+interface RequestLike {
+  protocol?: string;
+  headers?: Record<string, string | string[] | undefined>;
+  get?: (name: string) => string | undefined;
+}
+
 @Injectable()
 export class AppReleasesService {
   private building = false;
@@ -65,11 +71,11 @@ export class AppReleasesService {
     };
   }
 
-  async getPublicConfig() {
+  async getPublicConfig(req?: RequestLike) {
     await this.config.ready();
     const latest = await this.getLatest().catch(() => null);
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? null;
-    const publicWebUrl = this.cleanUrl(this.config.getOr("APP_PUBLIC_WEB_URL", process.env.NEXT_PUBLIC_APP_URL ?? ""));
+    const apiUrl = this.effectiveApiUrl(req);
+    const publicWebUrl = this.effectivePublicWebUrl(req);
     const downloadUrl = latest?.downloadUrl ?? null;
     const fallbackLatestVersion = this.config.getOr("APP_LATEST_VERSION", "1.0.0");
     return {
@@ -108,13 +114,14 @@ export class AppReleasesService {
     return this.prisma.appRelease.findMany({ orderBy: { createdAt: "desc" } });
   }
 
-  getBuildInfo() {
+  getBuildInfo(req?: RequestLike) {
     const repoRoot = this.repoRoot();
     const webDir = join(repoRoot, "apps/web");
     const androidDir = join(webDir, "android");
     const downloadsDir = join(repoRoot, "apps/api/public/downloads");
     const gradlew = join(androidDir, process.platform === "win32" ? "gradlew.bat" : "gradlew");
-    const appUrl = this.cleanUrl(this.config.getOr("APP_PUBLIC_WEB_URL", process.env.NEXT_PUBLIC_APP_URL ?? ""));
+    const appUrl = this.effectivePublicWebUrl(req);
+    const apiUrl = this.effectiveApiUrl(req);
     return {
       repoRoot,
       webDir,
@@ -123,21 +130,21 @@ export class AppReleasesService {
       canBuild: existsSync(webDir) && existsSync(androidDir) && existsSync(gradlew),
       hasAppUrl: !!appUrl,
       appUrl: appUrl || null,
-      apiUrl: process.env.NEXT_PUBLIC_API_URL ?? null,
+      apiUrl,
       nativeLoadMode: this.nativeLoadMode(),
       remoteServerUrl: process.env.CAPACITOR_SERVER_URL ?? null,
       currentBuildRunning: this.building,
     };
   }
 
-  async buildFromSource(data: BuildRequest, adminId: string, ip?: string | null) {
+  async buildFromSource(data: BuildRequest, adminId: string, ip?: string | null, req?: RequestLike) {
     if (this.building) {
       throw new ConflictException("An APK build is already running.");
     }
 
     const version = this.normalizeVersion(data.version);
     const releaseNotes = data.releaseNotes?.trim() || undefined;
-    const info = this.getBuildInfo();
+    const info = this.getBuildInfo(req);
     if (!info.canBuild) {
       throw new BadRequestException("Android build tools are not available on this server.");
     }
@@ -152,6 +159,7 @@ export class AppReleasesService {
         ...process.env,
         CAPACITOR_BUILD: "true",
         NEXT_PUBLIC_IS_NATIVE: "true",
+        ...(info.apiUrl ? { NEXT_PUBLIC_API_URL: info.apiUrl } : {}),
       };
 
       commands.push(
@@ -205,7 +213,7 @@ export class AppReleasesService {
 
       let release = created;
       if (data.runTests !== false) {
-        release = await this.runSystemTests(created.id, adminId, ip);
+        release = await this.runSystemTests(created.id, adminId, ip, req);
       }
 
       await this.logs.log(
@@ -295,7 +303,7 @@ export class AppReleasesService {
     return created;
   }
 
-  async runSystemTests(id: string, adminId: string, ip?: string | null) {
+  async runSystemTests(id: string, adminId: string, ip?: string | null, req?: RequestLike) {
     const release = await this.prisma.appRelease.findUnique({ where: { id } });
     if (!release) throw new NotFoundException();
 
@@ -304,7 +312,7 @@ export class AppReleasesService {
       data: { testStatus: "TESTING" },
     });
 
-    const checks = await this.buildChecks(release);
+    const checks = await this.buildChecks(release, req);
     const requiredFailures = checks.filter((c) => c.required !== false && c.status === "FAIL");
     const warnings = checks.filter((c) => c.status === "WARN");
     const testStatus = requiredFailures.length ? "FAILED" : "PASSED";
@@ -371,7 +379,7 @@ export class AppReleasesService {
     return { ok: true };
   }
 
-  private async buildChecks(release: any): Promise<ReleaseCheck[]> {
+  private async buildChecks(release: any, req?: RequestLike): Promise<ReleaseCheck[]> {
     const checks: ReleaseCheck[] = [];
     const localPath = this.localDownloadPath(release.filename);
     let size = release.fileSizeBytes ?? 0;
@@ -457,7 +465,7 @@ export class AppReleasesService {
       required: true,
     });
 
-    const appUrl = this.cleanUrl(this.config.getOr("APP_PUBLIC_WEB_URL", process.env.NEXT_PUBLIC_APP_URL ?? ""));
+    const appUrl = this.effectivePublicWebUrl(req);
     checks.push({
       key: "public-web-url",
       label: "Public web URL",
@@ -484,7 +492,7 @@ export class AppReleasesService {
       });
     }
 
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+    const apiUrl = this.effectiveApiUrl(req);
     checks.push({
       key: "api-url",
       label: "Native API URL",
@@ -581,6 +589,67 @@ export class AppReleasesService {
 
   private cleanUrl(value?: string | null) {
     return value?.trim().replace(/\/+$/, "") || null;
+  }
+
+  private normalizeApiUrl(value?: string | null) {
+    const clean = this.cleanUrl(value);
+    if (!clean) return null;
+    return clean.endsWith("/api") ? clean : `${clean}/api`;
+  }
+
+  private effectiveApiUrl(req?: RequestLike) {
+    const configured =
+      this.cleanUrl(this.config.getOr("APP_API_URL", "")) ||
+      this.cleanUrl(process.env.NEXT_PUBLIC_API_URL);
+    const inferred = this.inferApiUrl(req);
+    if (configured && !this.isLocalUrl(configured)) return this.normalizeApiUrl(configured);
+    if (inferred) return inferred;
+    return this.normalizeApiUrl(configured);
+  }
+
+  private effectivePublicWebUrl(req?: RequestLike) {
+    const configured =
+      this.cleanUrl(this.config.getOr("APP_PUBLIC_WEB_URL", "")) ||
+      this.cleanUrl(process.env.NEXT_PUBLIC_APP_URL);
+    const inferred = this.headerOrigin(req, "origin") || this.refererOrigin(req);
+    if (configured && !this.isLocalUrl(configured)) return configured;
+    if (inferred) return inferred;
+    return configured;
+  }
+
+  private inferApiUrl(req?: RequestLike) {
+    const host = this.headerOrigin(req, "x-forwarded-host") ?? this.headerOrigin(req, "host");
+    if (!host) return null;
+    const proto = this.headerOrigin(req, "x-forwarded-proto") ?? req?.protocol ?? "https";
+    return this.normalizeApiUrl(`${proto.split(",")[0]}://${host.split(",")[0]}`);
+  }
+
+  private refererOrigin(req?: RequestLike) {
+    const referer = this.headerOrigin(req, "referer");
+    if (!referer) return null;
+    try {
+      return this.cleanUrl(new URL(referer).origin);
+    } catch {
+      return null;
+    }
+  }
+
+  private headerOrigin(req: RequestLike | undefined, name: string) {
+    const value =
+      req?.get?.(name) ??
+      req?.headers?.[name] ??
+      req?.headers?.[name.toLowerCase()];
+    const first = Array.isArray(value) ? value[0] : value;
+    return this.cleanUrl(first);
+  }
+
+  private isLocalUrl(value: string) {
+    try {
+      const host = new URL(this.normalizeApiUrl(value) ?? value).hostname;
+      return host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0";
+    } catch {
+      return false;
+    }
   }
 
   private localDownloadPath(filename: string) {
@@ -706,6 +775,13 @@ export class AppReleasesService {
         method: "HEAD",
         signal: AbortSignal.timeout(10_000),
       });
+      if (!res.ok && (res.status === 403 || res.status === 405)) {
+        const fallback = await fetch(url, {
+          headers: { Range: "bytes=0-0" },
+          signal: AbortSignal.timeout(10_000),
+        });
+        return { ok: fallback.ok, status: fallback.status, headers: fallback.headers };
+      }
       return { ok: res.ok, status: res.status, headers: res.headers };
     } catch (err: any) {
       return { ok: false, status: 0, error: err?.message ?? String(err), headers: null };

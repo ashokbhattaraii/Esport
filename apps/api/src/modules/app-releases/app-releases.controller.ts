@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -28,8 +29,8 @@ export class PublicAppReleasesController {
   }
 
   @Get("config")
-  config() {
-    return this.svc.getPublicConfig();
+  config(@Req() req: any) {
+    return this.svc.getPublicConfig(req);
   }
 }
 
@@ -43,8 +44,8 @@ export class AppReleasesController {
 
   @RequirePermission("config", "read")
   @Get("build-info")
-  buildInfo() {
-    return this.svc.getBuildInfo();
+  buildInfo(@Req() req: any) {
+    return this.svc.getBuildInfo(req);
   }
 
   @RequirePermission("config", "read")
@@ -68,6 +69,7 @@ export class AppReleasesController {
       },
       u.sub,
       req.ip,
+      req,
     );
   }
 
@@ -79,12 +81,17 @@ export class AppReleasesController {
     }),
   )
   async upload(
-    @UploadedFile() file: Express.Multer.File,
-    @Body() body: { version: string; releaseNotes?: string; isLatest?: string },
+    @UploadedFile() file: Express.Multer.File | undefined,
+    @Body() body: { version: string; releaseNotes?: string; isLatest?: string; apkUrl?: string },
     @CurrentUser() u: any,
     @Req() req: any,
   ) {
-    const url = file ? (await this.storage.upload(file, "releases", body.version)).url : "";
+    if (!file && (!body.apkUrl || !/^https?:\/\//.test(body.apkUrl.trim()))) {
+      throw new BadRequestException("Upload an APK file or provide a public APK URL.");
+    }
+    const url = file
+      ? (await this.storage.upload(file, "releases", body.version)).url
+      : body.apkUrl?.trim() ?? "";
     const sha256 = file?.buffer
       ? createHash("sha256").update(file.buffer).digest("hex")
       : undefined;
@@ -111,7 +118,7 @@ export class AppReleasesController {
     @CurrentUser() u: any,
     @Req() req: any,
   ) {
-    return this.svc.runSystemTests(id, u.sub, req.ip);
+    return this.svc.runSystemTests(id, u.sub, req.ip, req);
   }
 
   @RequirePermission("config", "write")
