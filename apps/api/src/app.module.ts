@@ -16,6 +16,7 @@ import { CategoriesModule } from './modules/categories/categories.module';
 import { BotModule } from './modules/bot/bot.module';
 import { SupportModule } from './modules/support/support.module';
 import { AppReleasesModule } from './modules/app-releases/app-releases.module';
+import { BannersModule } from './modules/banners/banners.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { StorageModule } from './common/storage/storage.module';
 import { CacheModule } from './common/cache/cache.module';
@@ -50,6 +51,7 @@ const schedulerImports =
     BotModule,
     SupportModule,
     AppReleasesModule,
+    BannersModule,
   ],
   controllers: [HealthController],
   providers: [

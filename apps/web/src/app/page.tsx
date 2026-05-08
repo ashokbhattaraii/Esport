@@ -9,6 +9,7 @@ import { npr } from "@/lib/utils";
 import { TournamentCard } from "@/components/TournamentCard";
 import { CardSkeleton, EmptyState, LoadingState } from "@/components/ui";
 import { DownloadBanner } from "@/components/home/DownloadBanner";
+import { HeroSlider } from "@/components/home/HeroSlider";
 import { ChevronDown, Gamepad2 } from "lucide-react";
 
 interface CategoryChild {
@@ -61,79 +62,66 @@ export default function HomePage() {
     return map;
   }, [tournaments]);
 
-  return (
-    <div className="space-y-5">
-      <section className="rounded-lg border border-border bg-surface/80 p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="label">Free Fire Nepal</p>
-            <h1 className="mt-1 font-display text-2xl text-white">
-              Play. Pay. Win.
-            </h1>
-            <p className="mt-2 text-sm text-white/60">
-              Tournaments and challenges built like a mobile match lobby.
-            </p>
-          </div>
-          <span className="flex h-12 w-12 items-center justify-center rounded-lg bg-neon/15 text-neon">
-            <Flame />
-          </span>
-        </div>
-      </section>
-
-      <DownloadBanner />
-
-      <section className="card">
-        {user ? (
-          <>
-            <div className="flex items-center gap-3">
-              {user.avatarUrl ? (
-                <img
-                  src={user.avatarUrl}
-                  alt=""
-                  className="h-12 w-12 rounded-lg border border-border"
-                />
-              ) : (
-                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-surface text-neon-cyan">
-                  <Wallet />
-                </div>
-              )}
-              <div className="min-w-0">
-                <p className="label">Profile Balance</p>
-                <p className="truncate font-semibold text-white">
-                  {user.profile?.ign ?? user.name ?? user.email}
-                </p>
+  const profileSection = (
+    <section className="card">
+      {user ? (
+        <>
+          <div className="flex items-center gap-3">
+            {user.avatarUrl ? (
+              <img
+                src={user.avatarUrl}
+                alt=""
+                className="h-12 w-12 rounded-lg border border-border"
+              />
+            ) : (
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-surface text-neon-cyan">
+                <Wallet />
               </div>
-            </div>
-            <p className="mt-4 font-display text-3xl text-white">
-              {npr(wallet?.wallet?.balanceNpr ?? user.wallet?.balanceNpr ?? 0)}
-            </p>
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <Link href="/wallet?tab=deposit" className="btn-primary">
-                <Plus size={16} /> Deposit
-              </Link>
-              <Link href="/wallet?tab=withdraw" className="btn-outline">
-                Withdraw
-              </Link>
-            </div>
-          </>
-        ) : (
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="label">Profile</p>
-              <p className="font-semibold text-white">
-                Google sign-in required
-              </p>
-              <p className="mt-1 text-sm text-white/60">
-                Create your player wallet instantly.
+            )}
+            <div className="min-w-0">
+              <p className="label">Profile Balance</p>
+              <p className="truncate font-semibold text-white">
+                {user.profile?.ign ?? user.name ?? user.email}
               </p>
             </div>
-            <Link href="/login" className="btn-primary whitespace-nowrap">
-              Sign in
+          </div>
+          <p className="mt-4 font-display text-3xl text-white">
+            {npr(wallet?.wallet?.balanceNpr ?? user.wallet?.balanceNpr ?? 0)}
+          </p>
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <Link href="/wallet?tab=deposit" className="btn-primary">
+              <Plus size={16} /> Deposit
+            </Link>
+            <Link href="/wallet?tab=withdraw" className="btn-outline">
+              Withdraw
             </Link>
           </div>
-        )}
-      </section>
+        </>
+      ) : (
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="label">Profile</p>
+            <p className="font-semibold text-white">
+              Google sign-in required
+            </p>
+            <p className="mt-1 text-sm text-white/60">
+              Create your player wallet instantly.
+            </p>
+          </div>
+          <Link href="/login" className="btn-primary whitespace-nowrap">
+            Sign in
+          </Link>
+        </div>
+      )}
+    </section>
+  );
 
+  return (
+    <>
+      <div className="-mx-4 -mt-4">
+        <HeroSlider />
+      </div>
+      <div className="mt-5 space-y-5">
       <section>
         <div className="mb-3 flex items-center justify-between">
           <div>
@@ -247,6 +235,10 @@ export default function HomePage() {
         )}
       </section>
 
+      <DownloadBanner />
+
+      {profileSection}
+
       <section className="grid grid-cols-2 gap-3">
         <Link
           href="/challenges"
@@ -265,6 +257,7 @@ export default function HomePage() {
           <p className="text-xs text-white/50">Top prize winners</p>
         </Link>
       </section>
-    </div>
+      </div>
+    </>
   );
 }

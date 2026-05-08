@@ -12,6 +12,7 @@ const NAV = [
   { href: "/admin/results", label: "Results" },
   { href: "/admin/withdrawals", label: "Withdrawals" },
   { href: "/admin/users", label: "Users" },
+  { href: "/admin/banners", label: "Banners" },
   { href: "/admin/config", label: "System Config" },
   { href: "/admin/schedule", label: "Free Daily Schedule" },
   { href: "/admin/roles", label: "Roles & Permissions" },

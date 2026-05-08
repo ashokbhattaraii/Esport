@@ -19,6 +19,13 @@ const downloadDirs = [
   path.join(__dirname, '../../../public/downloads'),
 ];
 
+const bannerDirs = [
+  path.join(__dirname, '../public/banners'),
+  path.join(process.cwd(), 'public/banners'),
+  path.join(__dirname, '../../../public/banners'),
+  path.join(__dirname, '../../web/public/banners'),
+];
+
 const fastCache = new Map();
 const fastPending = new Map();
 const FAST_SOFT_TTL_MS = 10_000;
@@ -539,6 +546,59 @@ function serveDownload(req, res) {
   return true;
 }
 
+function serveBanner(req, res) {
+  const url = new URL(req.url ?? '/', 'http://localhost');
+  if (!url.pathname.startsWith('/banners/')) return false;
+  if (req.method !== 'GET' && req.method !== 'HEAD') return false;
+
+  let filename;
+  try {
+    filename = decodeURIComponent(url.pathname.slice('/banners/'.length));
+  } catch {
+    res.statusCode = 400;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ message: 'Invalid banner path' }));
+    return true;
+  }
+
+  if (!/^[A-Za-z0-9._-]+$/.test(filename) || filename.includes('..')) {
+    res.statusCode = 400;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ message: 'Invalid banner path' }));
+    return true;
+  }
+
+  const filePath = bannerDirs
+    .map((dir) => path.join(dir, filename))
+    .find((candidate) => fs.existsSync(candidate) && fs.statSync(candidate).isFile());
+
+  if (!filePath) return false;
+
+  const stat = fs.statSync(filePath);
+  const ext = path.extname(filename).toLowerCase();
+  const type =
+    ext === '.svg'
+      ? 'image/svg+xml'
+      : ext === '.png'
+        ? 'image/png'
+        : ext === '.webp'
+          ? 'image/webp'
+          : 'image/jpeg';
+  res.statusCode = 200;
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Content-Type', type);
+  res.setHeader('Content-Length', stat.size);
+  res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=86400');
+
+  if (req.method === 'HEAD') {
+    res.end();
+    return true;
+  }
+
+  fs.createReadStream(filePath).pipe(res);
+  return true;
+}
+
 async function getServer() {
   if (serverPromise) return serverPromise;
   serverPromise = (async () => {
@@ -554,6 +614,7 @@ module.exports = async function handler(req, res) {
   const start = Date.now();
   try {
     if (serveDownload(req, res)) return;
+    if (serveBanner(req, res)) return;
 
     try {
       if (await handleFastPath(req, res, start)) return;

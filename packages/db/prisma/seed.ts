@@ -128,6 +128,7 @@ async function main() {
   await seedSystemConfig();
   await seedRolesAndSuperAdmin();
   await seedGameCategories();
+  await seedHeroBanners();
   await seedBotJobs();
 }
 
@@ -285,6 +286,81 @@ async function seedGameCategories() {
   });
 
   console.log("Seeded game categories: free-fire (+4 modes), pubg-mobile, ludo-king");
+}
+
+async function seedHeroBanners() {
+  const banners = [
+    {
+      title: "Free Fire Tournaments",
+      subtitle: "Win real cash — starting Rs 10 entry",
+      imageUrl: "/banners/ff-banner-1.svg",
+      ctaText: "Play Now",
+      ctaLink: "/tournaments?category=ff-br",
+      badgeText: "HOT",
+      badgeColor: "#E53935",
+      sortOrder: 1,
+      isActive: true,
+    },
+    {
+      title: "Daily Free Match",
+      subtitle: "1 free match every 24 hours — Rs 100 prize pool",
+      imageUrl: "/banners/ff-banner-2.svg",
+      ctaText: "Join Free",
+      ctaLink: "/tournaments?type=FREE_DAILY",
+      badgeText: "FREE",
+      badgeColor: "#4CAF50",
+      sortOrder: 2,
+      isActive: true,
+    },
+    {
+      title: "Fast Withdrawals",
+      subtitle: "Winnings credited instantly to your wallet",
+      imageUrl: "/banners/feature-withdraw.svg",
+      ctaText: "View Wallet",
+      ctaLink: "/wallet",
+      badgeText: null,
+      badgeColor: null,
+      sortOrder: 3,
+      isActive: true,
+    },
+    {
+      title: "24/7 Support",
+      subtitle: "Raise a ticket — our team responds within 1 hour",
+      imageUrl: "/banners/feature-support.svg",
+      ctaText: "Get Help",
+      ctaLink: "/support",
+      badgeText: null,
+      badgeColor: null,
+      sortOrder: 4,
+      isActive: true,
+    },
+    {
+      title: "Clash Squad Challenges",
+      subtitle: "1v1 to 4v4 — challenge any player for real money",
+      imageUrl: "/banners/ff-cs-banner.svg",
+      ctaText: "Challenge Now",
+      ctaLink: "/challenges",
+      badgeText: "NEW",
+      badgeColor: "#9C27B0",
+      sortOrder: 5,
+      isActive: true,
+    },
+  ];
+
+  for (const banner of banners) {
+    const existing = await prisma.heroBanner.findFirst({
+      where: { title: banner.title },
+    });
+    if (existing) {
+      await prisma.heroBanner.update({
+        where: { id: existing.id },
+        data: banner,
+      });
+    } else {
+      await prisma.heroBanner.create({ data: banner });
+    }
+  }
+  console.log(`Seeded ${banners.length} hero banners`);
 }
 
 async function seedSystemConfig() {

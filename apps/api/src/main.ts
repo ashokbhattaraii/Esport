@@ -55,6 +55,10 @@ export async function createApp(opts: { createStaticDirs?: boolean } = {}): Prom
     const apkDir = process.env.APK_DIR ?? './public/downloads';
     if (!existsSync(apkDir)) mkdirSync(apkDir, { recursive: true });
     app.use('/downloads', express.static(join(process.cwd(), apkDir)));
+
+    const bannerDir = process.env.BANNER_DIR ?? './public/banners';
+    if (!existsSync(bannerDir)) mkdirSync(bannerDir, { recursive: true });
+    app.use('/banners', express.static(join(process.cwd(), bannerDir)));
   }
 
   return app;
