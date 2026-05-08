@@ -30,7 +30,8 @@ export default function RootLayout({
       <body>
         <Script id="sw-register" strategy="afterInteractive">
           {`
-            if ('serviceWorker' in navigator) {
+            var isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+            if (!isNative && 'serviceWorker' in navigator) {
               window.addEventListener('load', function () {
                 navigator.serviceWorker.register('/sw.js').catch(function () {});
               });

@@ -5,6 +5,7 @@ import { AuthProvider } from "@/lib/auth-context";
 import { ViewportProvider } from "@/lib/viewport-context";
 import { ToastProvider } from "@/lib/toast";
 import { SWRProvider } from "@/lib/swr-config";
+import { AppConfigGate } from "@/components/AppConfigGate";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
@@ -14,7 +15,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <SWRProvider>
         <AuthProvider>
           <ViewportProvider>
-            <ToastProvider>{children}</ToastProvider>
+            <ToastProvider>
+              <AppConfigGate>{children}</AppConfigGate>
+            </ToastProvider>
           </ViewportProvider>
         </AuthProvider>
       </SWRProvider>

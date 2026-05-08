@@ -1,14 +1,28 @@
 import { CapacitorConfig } from "@capacitor/cli";
 
+const remoteServerUrl =
+  process.env.CAPACITOR_SERVER_URL ||
+  (process.env.CAPACITOR_LIVE_RELOAD === "true"
+    ? process.env.NEXT_PUBLIC_APP_URL
+    : undefined);
+
+const server: CapacitorConfig["server"] =
+  remoteServerUrl && /^https?:\/\//.test(remoteServerUrl)
+    ? {
+        url: remoteServerUrl,
+        androidScheme: "https",
+        cleartext: remoteServerUrl.startsWith("http://"),
+      }
+    : {
+        androidScheme: "https",
+        cleartext: false,
+      };
+
 const config: CapacitorConfig = {
   appId: "com.fireslot.nepal",
   appName: "FireSlot Nepal",
   webDir: "out",
-  server: {
-    url: process.env.NEXT_PUBLIC_APP_URL,
-    androidScheme: "https",
-    cleartext: false,
-  },
+  server,
   android: {
     buildOptions: {
       keystorePath: "fireslot-release.keystore",

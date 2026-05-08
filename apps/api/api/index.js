@@ -24,6 +24,18 @@ const fastPending = new Map();
 const FAST_SOFT_TTL_MS = 10_000;
 const FAST_HARD_TTL_MS = 60_000;
 
+const APP_CONFIG_DEFAULTS = {
+  MAINTENANCE_MODE: 'false',
+  APP_MAINTENANCE_ENABLED: 'false',
+  APP_MAINTENANCE_MESSAGE: 'FireSlot Nepal is updating. Please try again soon.',
+  APP_FORCE_UPDATE_ENABLED: 'false',
+  APP_MIN_ANDROID_VERSION: '1.0.0',
+  APP_LATEST_VERSION: '1.0.0',
+  APP_PUBLIC_WEB_URL: '',
+  APP_DOWNLOAD_ENABLED: 'true',
+  APP_SUPPORT_URL: '/support',
+};
+
 const TOURNAMENT_LIST_SELECT = {
   id: true,
   title: true,
@@ -361,6 +373,45 @@ async function loadFastLatestRelease() {
   };
 }
 
+async function loadFastAppConfig() {
+  let configs = {};
+  try {
+    const rows = await getPrisma().systemConfig.findMany({
+      where: { key: { in: Object.keys(APP_CONFIG_DEFAULTS) } },
+      select: { key: true, value: true },
+    });
+    configs = Object.fromEntries(rows.map((row) => [row.key, row.value]));
+  } catch {
+    configs = {};
+  }
+
+  const get = (key) => configs[key] ?? APP_CONFIG_DEFAULTS[key] ?? '';
+  const bool = (key) => String(get(key)).toLowerCase() === 'true';
+  const latest = await loadFastLatestRelease().catch(() => null);
+  const cleanUrl = (value) => String(value ?? '').trim().replace(/\/+$/, '') || null;
+  return {
+    maintenance: {
+      enabled: bool('APP_MAINTENANCE_ENABLED') || bool('MAINTENANCE_MODE'),
+      message: get('APP_MAINTENANCE_MESSAGE'),
+    },
+    update: {
+      force: bool('APP_FORCE_UPDATE_ENABLED'),
+      minAndroidVersion: get('APP_MIN_ANDROID_VERSION'),
+      latestVersion: latest?.version ?? get('APP_LATEST_VERSION'),
+      downloadEnabled: bool('APP_DOWNLOAD_ENABLED'),
+      downloadUrl: latest?.downloadUrl ?? null,
+    },
+    urls: {
+      api: process.env.NEXT_PUBLIC_API_URL ?? null,
+      publicWeb: cleanUrl(get('APP_PUBLIC_WEB_URL') || process.env.NEXT_PUBLIC_APP_URL),
+      support: get('APP_SUPPORT_URL'),
+    },
+    native: {
+      loadMode: process.env.CAPACITOR_SERVER_URL ? 'remote' : 'bundled',
+    },
+  };
+}
+
 async function handleFastPath(req, res, start) {
   if (req.method === 'OPTIONS') {
     setCorsHeaders(req, res);
@@ -383,6 +434,7 @@ async function handleFastPath(req, res, start) {
   else if (url.pathname === '/api/categories') loader = loadFastCategories;
   else if (url.pathname === '/api/challenges') loader = () => loadFastChallenges(url);
   else if (url.pathname === '/api/app/latest-release') loader = loadFastLatestRelease;
+  else if (url.pathname === '/api/app/config') loader = loadFastAppConfig;
   else return false;
 
   const key = `fast:${stableSearchKey(url)}`;

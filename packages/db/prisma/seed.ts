@@ -318,6 +318,14 @@ async function seedSystemConfig() {
     { key: "MAINTENANCE_MODE", value: "false", type: "BOOLEAN", category: "FEATURE_FLAG", label: "Maintenance Mode" },
     { key: "NEW_USER_BONUS_ENABLED", value: "false", type: "BOOLEAN", category: "FEATURE_FLAG", label: "New User Bonus Enabled" },
     { key: "NEW_USER_BONUS_AMOUNT", value: "50", type: "NUMBER", category: "FEATURE_FLAG", label: "New User Bonus (NPR)" },
+    { key: "APP_MAINTENANCE_ENABLED", value: "false", type: "BOOLEAN", category: "FEATURE_FLAG", label: "App Maintenance Enabled" },
+    { key: "APP_MAINTENANCE_MESSAGE", value: "FireSlot Nepal is updating. Please try again soon.", type: "STRING", category: "FEATURE_FLAG", label: "App Maintenance Message" },
+    { key: "APP_FORCE_UPDATE_ENABLED", value: "false", type: "BOOLEAN", category: "FEATURE_FLAG", label: "Force Android Update" },
+    { key: "APP_MIN_ANDROID_VERSION", value: "1.0.0", type: "STRING", category: "FEATURE_FLAG", label: "Minimum Android App Version" },
+    { key: "APP_LATEST_VERSION", value: "1.0.0", type: "STRING", category: "FEATURE_FLAG", label: "Fallback Latest App Version" },
+    { key: "APP_PUBLIC_WEB_URL", value: "", type: "STRING", category: "FEATURE_FLAG", label: "Public Web URL" },
+    { key: "APP_DOWNLOAD_ENABLED", value: "true", type: "BOOLEAN", category: "FEATURE_FLAG", label: "APK Download Enabled" },
+    { key: "APP_SUPPORT_URL", value: "/support", type: "STRING", category: "FEATURE_FLAG", label: "App Support URL" },
   ];
 
   for (const c of defaults) {

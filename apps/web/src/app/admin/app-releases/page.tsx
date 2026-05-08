@@ -55,6 +55,8 @@ interface BuildInfo {
   hasAppUrl: boolean;
   appUrl: string | null;
   apiUrl: string | null;
+  nativeLoadMode: "bundled" | "remote";
+  remoteServerUrl: string | null;
   currentBuildRunning: boolean;
   downloadsDir: string;
 }
@@ -195,23 +197,28 @@ export default function AdminAppReleases() {
       </div>
 
       {loading ? (
-        <CardGridSkeleton count={4} />
+        <CardGridSkeleton count={5} />
       ) : (
-      <div className="grid gap-3 md:grid-cols-4">
+      <div className="grid gap-3 md:grid-cols-5">
         <SystemTile
           label="Build machine"
           ok={!!buildInfo?.canBuild}
           value={buildInfo?.canBuild ? "Ready" : "Missing Android tools"}
         />
         <SystemTile
-          label="Native live URL"
-          ok={!!buildInfo?.hasAppUrl}
-          value={buildInfo?.appUrl ?? "Not configured"}
+          label="Native load mode"
+          ok={buildInfo?.nativeLoadMode !== "remote"}
+          value={buildInfo?.nativeLoadMode === "remote" ? "Remote URL" : "Bundled app"}
         />
         <SystemTile
           label="API URL"
           ok={!!buildInfo?.apiUrl?.startsWith("https://")}
           value={buildInfo?.apiUrl ?? "Not configured"}
+        />
+        <SystemTile
+          label="Public web URL"
+          ok={!!buildInfo?.appUrl?.startsWith("https://")}
+          value={buildInfo?.appUrl ?? "Optional"}
           soft
         />
         <SystemTile

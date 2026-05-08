@@ -26,6 +26,11 @@ export class PublicAppReleasesController {
   latest() {
     return this.svc.getLatest();
   }
+
+  @Get("config")
+  config() {
+    return this.svc.getPublicConfig();
+  }
 }
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)

@@ -13,6 +13,7 @@ import { copyFile, mkdir, readFile, stat } from "fs/promises";
 import { basename, join, resolve } from "path";
 import { PRISMA } from "../../prisma/prisma.module";
 import { AdminActionLogService } from "../admin/admin-action-log.service";
+import { SystemConfigService } from "../admin/system-config.service";
 
 type CheckStatus = "PASS" | "FAIL" | "WARN" | "INFO";
 
@@ -44,6 +45,7 @@ export class AppReleasesService {
   constructor(
     @Inject(PRISMA) private prisma: PrismaClient,
     private logs: AdminActionLogService,
+    private config: SystemConfigService,
   ) {}
 
   async getLatest() {
@@ -63,6 +65,39 @@ export class AppReleasesService {
     };
   }
 
+  async getPublicConfig() {
+    await this.config.ready();
+    const latest = await this.getLatest().catch(() => null);
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? null;
+    const publicWebUrl = this.cleanUrl(this.config.getOr("APP_PUBLIC_WEB_URL", process.env.NEXT_PUBLIC_APP_URL ?? ""));
+    const downloadUrl = latest?.downloadUrl ?? null;
+    const fallbackLatestVersion = this.config.getOr("APP_LATEST_VERSION", "1.0.0");
+    return {
+      maintenance: {
+        enabled: this.config.getBool("APP_MAINTENANCE_ENABLED") || this.config.getBool("MAINTENANCE_MODE"),
+        message: this.config.getOr(
+          "APP_MAINTENANCE_MESSAGE",
+          "FireSlot Nepal is updating. Please try again soon.",
+        ),
+      },
+      update: {
+        force: this.config.getBool("APP_FORCE_UPDATE_ENABLED"),
+        minAndroidVersion: this.config.getOr("APP_MIN_ANDROID_VERSION", "1.0.0"),
+        latestVersion: latest?.version ?? fallbackLatestVersion,
+        downloadEnabled: this.config.getBool("APP_DOWNLOAD_ENABLED"),
+        downloadUrl,
+      },
+      urls: {
+        api: apiUrl,
+        publicWeb: publicWebUrl,
+        support: this.config.getOr("APP_SUPPORT_URL", "/support"),
+      },
+      native: {
+        loadMode: this.nativeLoadMode(),
+      },
+    };
+  }
+
   async incrementDownload(id: string) {
     return this.prisma.appRelease
       .update({ where: { id }, data: { downloadCount: { increment: 1 } } })
@@ -79,15 +114,18 @@ export class AppReleasesService {
     const androidDir = join(webDir, "android");
     const downloadsDir = join(repoRoot, "apps/api/public/downloads");
     const gradlew = join(androidDir, process.platform === "win32" ? "gradlew.bat" : "gradlew");
+    const appUrl = this.cleanUrl(this.config.getOr("APP_PUBLIC_WEB_URL", process.env.NEXT_PUBLIC_APP_URL ?? ""));
     return {
       repoRoot,
       webDir,
       androidDir,
       downloadsDir,
       canBuild: existsSync(webDir) && existsSync(androidDir) && existsSync(gradlew),
-      hasAppUrl: !!process.env.NEXT_PUBLIC_APP_URL,
-      appUrl: process.env.NEXT_PUBLIC_APP_URL ?? null,
+      hasAppUrl: !!appUrl,
+      appUrl: appUrl || null,
       apiUrl: process.env.NEXT_PUBLIC_API_URL ?? null,
+      nativeLoadMode: this.nativeLoadMode(),
+      remoteServerUrl: process.env.CAPACITOR_SERVER_URL ?? null,
       currentBuildRunning: this.building,
     };
   }
@@ -407,13 +445,25 @@ export class AppReleasesService {
       });
     }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+    const nativeLoadMode = this.nativeLoadMode();
     checks.push({
-      key: "native-live-url",
-      label: "Native live URL",
-      status: appUrl?.startsWith("https://") ? "PASS" : "FAIL",
-      detail: appUrl || "NEXT_PUBLIC_APP_URL is not configured.",
+      key: "native-load-mode",
+      label: "Native load mode",
+      status: nativeLoadMode === "bundled" ? "PASS" : "WARN",
+      detail:
+        nativeLoadMode === "bundled"
+          ? "APK loads the bundled static app, so deleted Vercel deployment URLs cannot break startup."
+          : `APK is configured to open ${process.env.CAPACITOR_SERVER_URL}.`,
       required: true,
+    });
+
+    const appUrl = this.cleanUrl(this.config.getOr("APP_PUBLIC_WEB_URL", process.env.NEXT_PUBLIC_APP_URL ?? ""));
+    checks.push({
+      key: "public-web-url",
+      label: "Public web URL",
+      status: appUrl ? "INFO" : "WARN",
+      detail: appUrl || "APP_PUBLIC_WEB_URL is not configured; native APK still uses bundled assets.",
+      required: false,
     });
     if (appUrl?.startsWith("https://")) {
       const liveHome = await this.head(appUrl);
@@ -437,15 +487,25 @@ export class AppReleasesService {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL;
     checks.push({
       key: "api-url",
-      label: "API URL",
-      status: apiUrl?.startsWith("https://") ? "PASS" : "WARN",
+      label: "Native API URL",
+      status: apiUrl?.startsWith("https://") ? "PASS" : "FAIL",
       detail: apiUrl || "NEXT_PUBLIC_API_URL is not configured.",
-      required: false,
+      required: true,
     });
+    if (apiUrl?.startsWith("https://")) {
+      const apiHealth = await this.head(new URL("/health/live", apiUrl).toString());
+      checks.push({
+        key: "api-health",
+        label: "API health",
+        status: apiHealth.ok ? "PASS" : "FAIL",
+        detail: apiHealth.ok ? `HTTP ${apiHealth.status}` : apiHealth.error ?? `HTTP ${apiHealth.status}`,
+        required: true,
+      });
+    }
 
     const repoRoot = this.repoRoot();
     checks.push(this.fileCheck("service-worker", "Static service worker fallback", join(repoRoot, "apps/web/out/sw.js"), false));
-    checks.push(this.fileCheck("home-export", "Static home fallback", join(repoRoot, "apps/web/out/index.html"), false));
+    checks.push(this.fileCheck("home-export", "Bundled app home", join(repoRoot, "apps/web/out/index.html"), true));
     checks.push(
       this.fileCheck(
         "tournament-fallback",
@@ -513,6 +573,14 @@ export class AppReleasesService {
 
   private publicDownloadUrl(filename: string) {
     return filename.startsWith("http") ? filename : `/downloads/${filename}`;
+  }
+
+  private nativeLoadMode() {
+    return process.env.CAPACITOR_SERVER_URL ? "remote" : "bundled";
+  }
+
+  private cleanUrl(value?: string | null) {
+    return value?.trim().replace(/\/+$/, "") || null;
   }
 
   private localDownloadPath(filename: string) {
