@@ -4,11 +4,15 @@ import { NestFactory } from '@nestjs/core';
 import { join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import * as express from 'express';
+import type { Express, Request, Response } from 'express';
 import { AppModule } from './app.module';
 
+let serverPromise: Promise<Express> | null = null;
+
 export async function createApp(opts: { createStaticDirs?: boolean } = {}): Promise<INestApplication> {
+  const isProd = process.env.NODE_ENV === 'production';
   const app = await NestFactory.create(AppModule, {
-    logger: ['error', 'warn', 'log'],
+    logger: isProd ? ['error', 'warn'] : ['error', 'warn', 'log'],
   });
 
   const corsOrigins = process.env.CORS_ORIGINS?.split(',')
@@ -34,7 +38,13 @@ export async function createApp(opts: { createStaticDirs?: boolean } = {}): Prom
   });
 
   app.useGlobalPipes(
-    new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: false }),
+    new ValidationPipe({
+      whitelist: true,
+      transform: false,
+      forbidNonWhitelisted: false,
+      stopAtFirstError: true,
+      validationError: { target: false, value: false },
+    }),
   );
 
   if (opts.createStaticDirs) {
@@ -48,6 +58,21 @@ export async function createApp(opts: { createStaticDirs?: boolean } = {}): Prom
   }
 
   return app;
+}
+
+async function getServer() {
+  if (serverPromise) return serverPromise;
+  serverPromise = (async () => {
+    const app = await createApp();
+    await app.init();
+    return app.getHttpAdapter().getInstance();
+  })();
+  return serverPromise;
+}
+
+export default async function handler(req: Request, res: Response) {
+  const server = await getServer();
+  return server(req, res);
 }
 
 if (require.main === module) {

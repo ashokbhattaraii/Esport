@@ -1,0 +1,14 @@
+{
+  "version": 2,
+  "regions": ["bom1"],
+  "buildCommand": "pnpm --filter @fireslot/api build",
+  "functions": {
+    "apps/api/api/index.js": {
+      "includeFiles": "{apps/api/dist/**,apps/api/public/downloads/**,packages/db/dist/**,public/downloads/**}"
+    }
+  },
+  "routes": [
+    { "handle": "filesystem" },
+    { "src": "/(.*)", "dest": "/apps/api/api/index.js" }
+  ]
+}

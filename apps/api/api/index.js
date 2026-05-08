@@ -1,6 +1,7 @@
 const Module = require('module');
 const fs = require('fs');
 const path = require('path');
+const { randomUUID } = require('crypto');
 
 const dbPackagePath = path.join(__dirname, '../../../packages/db/dist/index.js');
 const originalLoad = Module._load;
@@ -10,12 +11,385 @@ Module._load = function patchedLoad(request, parent, isMain) {
 };
 
 let serverPromise;
+let prismaClient;
 
 const downloadDirs = [
   path.join(__dirname, '../public/downloads'),
   path.join(process.cwd(), 'public/downloads'),
   path.join(__dirname, '../../../public/downloads'),
 ];
+
+const fastCache = new Map();
+const fastPending = new Map();
+const FAST_SOFT_TTL_MS = 10_000;
+const FAST_HARD_TTL_MS = 60_000;
+
+const TOURNAMENT_LIST_SELECT = {
+  id: true,
+  title: true,
+  description: true,
+  mode: true,
+  map: true,
+  type: true,
+  entryFeeNpr: true,
+  registrationFeeNpr: true,
+  prizePoolNpr: true,
+  perKillPrizeNpr: true,
+  firstPrize: true,
+  secondPrize: true,
+  thirdPrize: true,
+  fourthToTenthPrize: true,
+  maxSlots: true,
+  filledSlots: true,
+  dateTime: true,
+  status: true,
+  killPrize: true,
+  prizeStructure: true,
+  perKillReward: true,
+  booyahPrize: true,
+  actualPlayers: true,
+  roomLocked: true,
+  roomLockedAt: true,
+  createdAt: true,
+  updatedAt: true,
+};
+
+const PLAYER_SELECT = {
+  id: true,
+  name: true,
+  email: true,
+  profile: {
+    select: {
+      ign: true,
+      level: true,
+      avatarUrl: true,
+    },
+  },
+};
+
+const CHALLENGE_LIST_SELECT = {
+  id: true,
+  challengeNumber: true,
+  creatorId: true,
+  opponentId: true,
+  title: true,
+  gameMode: true,
+  entryFee: true,
+  prizeToWinner: true,
+  platformFee: true,
+  status: true,
+  brMap: true,
+  brTeamMode: true,
+  brWinCondition: true,
+  brTargetKills: true,
+  brBannedGuns: true,
+  brHeadshotOnly: true,
+  csTeamMode: true,
+  csRounds: true,
+  csCoins: true,
+  csThrowable: true,
+  csLoadout: true,
+  csCompulsoryWeapon: true,
+  csCompulsoryArmour: true,
+  characterSkill: true,
+  gunAttribute: true,
+  headshotOnly: true,
+  noEmulator: true,
+  minLevel: true,
+  maxHeadshotRate: true,
+  povRequired: true,
+  screenshotRequired: true,
+  reportWindowMins: true,
+  scheduledAt: true,
+  startedAt: true,
+  endedAt: true,
+  winnerId: true,
+  createdAt: true,
+  updatedAt: true,
+  creator: { select: PLAYER_SELECT },
+};
+
+function getPrisma() {
+  if (prismaClient) return prismaClient;
+  const db = require('@fireslot/db');
+  prismaClient = db.prisma ?? new db.PrismaClient();
+  return prismaClient;
+}
+
+function parseLimit(value, fallback, max) {
+  const parsed = Number.parseInt(value ?? '', 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(Math.max(parsed, 1), max);
+}
+
+function parseNumber(value) {
+  if (value == null || value === '') return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function getCorsOrigin(req) {
+  const origin = req.headers.origin;
+  if (!origin) return '*';
+
+  const configured = (process.env.CORS_ORIGINS ?? '')
+    .split(',')
+    .map((o) => o.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
+
+  if (!configured.length || configured.includes('*')) return origin;
+  const normalized = origin.replace(/\/+$/, '');
+  return configured.includes(normalized) ? origin : null;
+}
+
+function setCorsHeaders(req, res) {
+  const origin = getCorsOrigin(req);
+  if (origin) res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Vary', 'Origin');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, PUT, PATCH, POST, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Request-ID, If-None-Match');
+}
+
+function sendJson(req, res, status, data, start, cacheControl) {
+  setCorsHeaders(req, res);
+  const requestId = req.headers['x-request-id'] || randomUUID();
+  const responseTime = Date.now() - start;
+  res.statusCode = status;
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('X-Request-ID', requestId);
+  res.setHeader('X-Response-Time', `${responseTime}ms`);
+  if (cacheControl) res.setHeader('Cache-Control', cacheControl);
+  if (req.method === 'HEAD') return res.end();
+
+  res.end(JSON.stringify({
+    success: status >= 200 && status < 400,
+    data,
+    meta: {
+      timestamp: new Date().toISOString(),
+      requestId,
+      responseTime,
+      fastPath: true,
+    },
+  }));
+}
+
+function stableSearchKey(url) {
+  const params = [...url.searchParams.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([k, v]) => `${k}=${v}`)
+    .join('&');
+  return params ? `${url.pathname}?${params}` : url.pathname;
+}
+
+async function getFastCached(key, loader) {
+  const now = Date.now();
+  const cached = fastCache.get(key);
+  if (cached && cached.hardExpiresAt > now) {
+    if (cached.softExpiresAt <= now && !fastPending.has(key)) {
+      const refresh = loader()
+        .then((value) => setFastCache(key, value))
+        .catch(() => undefined)
+        .finally(() => fastPending.delete(key));
+      fastPending.set(key, refresh);
+    }
+    return cached.value;
+  }
+
+  const pending = fastPending.get(key);
+  if (pending) return pending;
+
+  const promise = loader()
+    .then((value) => setFastCache(key, value))
+    .finally(() => fastPending.delete(key));
+  fastPending.set(key, promise);
+  return promise;
+}
+
+function setFastCache(key, value) {
+  const now = Date.now();
+  fastCache.set(key, {
+    value,
+    softExpiresAt: now + FAST_SOFT_TTL_MS,
+    hardExpiresAt: now + FAST_HARD_TTL_MS,
+  });
+  if (fastCache.size > 200) fastCache.delete(fastCache.keys().next().value);
+  return value;
+}
+
+function challengeRulesText(c) {
+  const lines = [];
+  if (c.gameMode === 'CS') {
+    lines.push(`Team Mode: ${c.csTeamMode ?? '-'} | Rounds: ${c.csRounds} | Coins: ${c.csCoins}`);
+    lines.push(
+      `Throwable: ${c.csThrowable ? 'Yes' : 'No'} | Character Skill: ${c.characterSkill ? 'Yes' : 'No'} | Gun Attribute: ${c.gunAttribute ? 'Yes' : 'No'}`,
+    );
+    lines.push(`Headshot Only: ${c.headshotOnly ? 'Yes' : 'No'} | Loadout: ${c.csLoadout ? 'Yes' : 'No'}`);
+    if (c.csCompulsoryWeapon && c.csCompulsoryWeapon !== 'NONE') lines.push(`Compulsory Weapon: ${c.csCompulsoryWeapon}`);
+    if (c.csCompulsoryArmour && c.csCompulsoryArmour !== 'NONE') lines.push(`Compulsory Armour: ${c.csCompulsoryArmour}`);
+  } else {
+    lines.push(`Map: ${c.brMap ?? '-'} | Mode: ${c.brTeamMode ?? '-'} | Win: ${c.brWinCondition ?? '-'}`);
+    if (c.brWinCondition === 'FIRST_TO_N_KILLS' && c.brTargetKills) lines.push(`Target: First to ${c.brTargetKills} kills`);
+    if (c.brBannedGuns?.length) lines.push(`Banned Guns: ${c.brBannedGuns.join(', ')}`);
+    if (c.brHeadshotOnly) lines.push('HEADSHOT ONLY MODE');
+  }
+
+  lines.push('-');
+  if (c.noEmulator) lines.push('No emulator allowed');
+  if (c.povRequired) lines.push('POV recording mandatory');
+  if (c.screenshotRequired) lines.push('Screenshot required for result submission');
+  lines.push(`Disputes must be raised within ${c.reportWindowMins} minutes`);
+  lines.push('Hacker proof + recording = auto disqualification of hacker');
+  if (c.minLevel > 0) lines.push(`Minimum Level: ${c.minLevel}`);
+  if (c.maxHeadshotRate < 100) lines.push(`Max Headshot Rate: ${c.maxHeadshotRate}%`);
+  return lines.join('\n');
+}
+
+async function loadFastTournaments(url) {
+  const where = {};
+  const mode = url.searchParams.get('mode');
+  const status = url.searchParams.get('status');
+  const type = url.searchParams.get('type');
+  const minFee = parseNumber(url.searchParams.get('minFee'));
+  const maxFee = parseNumber(url.searchParams.get('maxFee'));
+  if (mode) where.mode = mode;
+  if (status) where.status = status;
+  if (type) where.type = type;
+  if (minFee !== undefined || maxFee !== undefined) {
+    where.entryFeeNpr = {};
+    if (minFee !== undefined) where.entryFeeNpr.gte = minFee;
+    if (maxFee !== undefined) where.entryFeeNpr.lte = maxFee;
+  }
+
+  return getPrisma().tournament.findMany({
+    where,
+    select: TOURNAMENT_LIST_SELECT,
+    orderBy: { dateTime: 'asc' },
+    take: parseLimit(url.searchParams.get('limit'), 100, 200),
+  });
+}
+
+async function loadFastCategories() {
+  const prisma = getPrisma();
+  const top = await prisma.gameCategory.findMany({
+    where: { parentId: null },
+    orderBy: { sortOrder: 'asc' },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      coverUrl: true,
+      isActive: true,
+      comingSoon: true,
+      sortOrder: true,
+    },
+  });
+  const activeIds = top.filter((t) => t.isActive).map((t) => t.id);
+  const allChildren = activeIds.length
+    ? await prisma.gameCategory.findMany({
+        where: { parentId: { in: activeIds }, isActive: true },
+        orderBy: { sortOrder: 'asc' },
+        select: {
+          id: true,
+          parentId: true,
+          name: true,
+          slug: true,
+          gameMode: true,
+          description: true,
+          sortOrder: true,
+        },
+      })
+    : [];
+  const childrenByParent = new Map();
+  for (const child of allChildren) {
+    const group = childrenByParent.get(child.parentId) ?? [];
+    group.push({
+      id: child.id,
+      name: child.name,
+      slug: child.slug,
+      gameMode: child.gameMode,
+      description: child.description,
+      sortOrder: child.sortOrder,
+    });
+    childrenByParent.set(child.parentId, group);
+  }
+
+  return top.map((t) => ({
+    ...t,
+    children: t.isActive ? childrenByParent.get(t.id) ?? [] : [],
+  }));
+}
+
+async function loadFastChallenges(url) {
+  const where = { isPrivate: false };
+  const gameMode = url.searchParams.get('gameMode');
+  const status = url.searchParams.get('status');
+  if (gameMode) where.gameMode = gameMode;
+  where.status = status || 'OPEN';
+
+  const items = await getPrisma().challenge.findMany({
+    where,
+    orderBy: { createdAt: 'desc' },
+    select: CHALLENGE_LIST_SELECT,
+    take: parseLimit(url.searchParams.get('limit'), 50, 100),
+  });
+  return items.map((c) => ({ ...c, rulesText: challengeRulesText(c) }));
+}
+
+async function loadFastLatestRelease() {
+  const r = await getPrisma().appRelease.findFirst({
+    where: { isLatest: true },
+    orderBy: { createdAt: 'desc' },
+    select: {
+      version: true,
+      releaseNotes: true,
+      filename: true,
+      fileSizeBytes: true,
+      sha256: true,
+      publishedAt: true,
+      testStatus: true,
+    },
+  });
+  if (!r) return null;
+  return {
+    version: r.version,
+    releaseNotes: r.releaseNotes,
+    downloadUrl: r.filename.startsWith('http') ? r.filename : `/downloads/${r.filename}`,
+    fileSizeBytes: r.fileSizeBytes,
+    sha256: r.sha256,
+    publishedAt: r.publishedAt,
+    testStatus: r.testStatus,
+  };
+}
+
+async function handleFastPath(req, res, start) {
+  if (req.method === 'OPTIONS') {
+    setCorsHeaders(req, res);
+    res.statusCode = 204;
+    res.end();
+    return true;
+  }
+
+  const url = new URL(req.url ?? '/', 'http://localhost');
+  const isRead = req.method === 'GET' || req.method === 'HEAD';
+  if (!isRead) return false;
+
+  if (url.pathname === '/api/health/live' || url.pathname === '/health/live') {
+    sendJson(req, res, 200, { ok: true }, start, 'public, max-age=5');
+    return true;
+  }
+
+  let loader;
+  if (url.pathname === '/api/tournaments') loader = () => loadFastTournaments(url);
+  else if (url.pathname === '/api/categories') loader = loadFastCategories;
+  else if (url.pathname === '/api/challenges') loader = () => loadFastChallenges(url);
+  else if (url.pathname === '/api/app/latest-release') loader = loadFastLatestRelease;
+  else return false;
+
+  const key = `fast:${stableSearchKey(url)}`;
+  const data = await getFastCached(key, loader);
+  sendJson(req, res, 200, data, start, 'public, s-maxage=10, stale-while-revalidate=60');
+  return true;
+}
 
 function serveDownload(req, res) {
   const url = new URL(req.url ?? '/', 'http://localhost');
@@ -77,8 +451,15 @@ async function getServer() {
 }
 
 module.exports = async function handler(req, res) {
+  const start = Date.now();
   try {
     if (serveDownload(req, res)) return;
+
+    try {
+      if (await handleFastPath(req, res, start)) return;
+    } catch (err) {
+      console.warn('Fast path skipped:', err?.message ?? err);
+    }
 
     const server = await getServer();
     return server(req, res);
