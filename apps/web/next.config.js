@@ -1,12 +1,16 @@
-const isStaticExport =
-  process.env.CAPACITOR_BUILD === 'true' ||
-  process.env.NEXT_PUBLIC_IS_NATIVE === 'true'
+/** @type {import('next').NextConfig} */
+const isCapacitorBuild = process.env.BUILD_TARGET === 'capacitor'
 
 const nextConfig = {
-  ...(isStaticExport ? { output: 'export' } : {}),
-  trailingSlash: true,
-  images: { unoptimized: true },
-  assetPrefix: isStaticExport ? './' : '',
-  // assetPrefix './' makes all asset paths relative -- required for file:// protocol
+  // Only export static files when building for Capacitor shell
+  ...(isCapacitorBuild ? { output: 'export', trailingSlash: true } : {}),
+  images: {
+    unoptimized: isCapacitorBuild,
+    formats: ['image/avif', 'image/webp'],
+    minimumCacheTTL: 3600,
+    deviceSizes: [320, 480, 640, 750, 828, 1080],
+  },
+  // Never set assetPrefix here — it breaks Vercel deployments.
 }
+
 module.exports = nextConfig

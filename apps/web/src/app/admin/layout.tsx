@@ -20,6 +20,7 @@ const NAV = [
   { href: "/admin/bot", label: "Bot Control" },
   { href: "/admin/support", label: "Support" },
   { href: "/admin/app-releases", label: "App Releases" },
+  { href: "/admin/apk-test", label: "APK Testing" },
 ];
 
 export default function AdminLayout({

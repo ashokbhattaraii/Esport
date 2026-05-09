@@ -6,6 +6,9 @@ import { Providers } from "./providers";
 import { AppShell } from "@/components/AppShell";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { NativeBootstrap } from "@/components/NativeBootstrap";
+import dynamic from 'next/dynamic'
+
+const ApkTestPanel = dynamic(() => import('@/components/admin/ApkTestPanel'), { ssr: false })
 
 export const metadata: Metadata = {
   title: "FireSlot Nepal — Free Fire Tournaments",
@@ -46,6 +49,7 @@ export default function RootLayout({
               {children}
             </main>
             <MobileBottomNav />
+            <ApkTestPanel />
           </AppShell>
         </Providers>
       </body>

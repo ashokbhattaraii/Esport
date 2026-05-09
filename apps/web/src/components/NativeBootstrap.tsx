@@ -2,11 +2,13 @@
 import { useEffect } from "react";
 import { useIsNativeApp } from "@/hooks/useIsNativeApp";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { useAndroidBackButton } from "@/hooks/useAndroidBackButton";
 
 export function NativeBootstrap() {
   const isNative = useIsNativeApp();
   // Hooks must be called unconditionally; the hook itself no-ops on web.
   usePushNotifications();
+  useAndroidBackButton();
 
   useEffect(() => {
     if (!isNative) return;

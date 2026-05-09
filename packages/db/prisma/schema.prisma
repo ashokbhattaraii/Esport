@@ -398,6 +398,18 @@ model AppRelease {
   @@index([testStatus])
 }
 
+model AppTestSession {
+  id           String   @id @default(cuid())
+  adminId      String
+  buildVersion String
+  deviceInfo   Json?
+  testNotes    String?
+  bugsFound    Json     @default("[]")
+  status       String   @default("ACTIVE")
+  startedAt    DateTime @default(now())
+  endedAt      DateTime?
+}
+
 model UserPermission {
   id        String           @id @default(cuid())
   userId    String

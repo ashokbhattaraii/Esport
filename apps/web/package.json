@@ -4,6 +4,8 @@
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "next build",
+    "build:capacitor": "BUILD_TARGET=capacitor next build",
+    "build:apk": "pnpm build:capacitor && npx cap sync android && cd android && ./gradlew assembleRelease",
     "start": "next start -p 3000",
     "lint": "next lint"
   },
@@ -32,6 +34,7 @@
     "react-hot-toast": "^2.6.0",
     "swiper": "^12.1.4",
     "swr": "^2.4.1",
+    "html2canvas": "^1.4.1",
     "tailwind-merge": "^2.5.0",
     "zod": "^3.23.8"
   },

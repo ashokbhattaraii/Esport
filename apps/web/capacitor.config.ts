@@ -1,52 +1,38 @@
-import { CapacitorConfig } from "@capacitor/cli";
-
-const remoteServerUrl =
-  process.env.CAPACITOR_SERVER_URL ||
-  (process.env.CAPACITOR_LIVE_RELOAD === "true"
-    ? process.env.NEXT_PUBLIC_APP_URL
-    : undefined);
-
-const server: CapacitorConfig["server"] =
-  remoteServerUrl && /^https?:\/\//.test(remoteServerUrl)
-    ? {
-        url: remoteServerUrl,
-        androidScheme: "https",
-        cleartext: remoteServerUrl.startsWith("http://"),
-      }
-    : {
-        androidScheme: "https",
-        cleartext: false,
-      };
+import { CapacitorConfig } from '@capacitor/cli'
 
 const config: CapacitorConfig = {
-  appId: "com.fireslot.nepal",
-  appName: "FireSlot Nepal",
-  webDir: "out",
-  server,
-  android: {
-    buildOptions: {
-      keystorePath: "fireslot-release.keystore",
-      keystorePassword: process.env.KEYSTORE_PASSWORD || "fireslot2024",
-      keystoreAlias: "fireslot",
-      keystoreAliasPassword: process.env.KEYSTORE_PASSWORD || "fireslot2024",
-      releaseType: "APK",
-    },
+  appId: 'com.fireslot.nepal',
+  appName: 'FireSlot Nepal',
+  webDir: 'out',   // used as offline fallback only
+
+  server: {
+    // App loads live website — NO file:// routing issues
+    url: process.env.CAPACITOR_SERVER_URL || 'https://fireslot.vercel.app',
+    cleartext: false,
+    androidScheme: 'https',
+    // Allow navigation to any path on this domain
+    allowNavigation: [
+      'fireslot.vercel.app',
+      '*.fireslot.vercel.app',
+    ],
   },
+
   plugins: {
     SplashScreen: {
       launchShowDuration: 2000,
-      backgroundColor: "#0f0f0f",
-      androidSplashResourceName: "splash",
+      backgroundColor: '#0f0f0f',
       showSpinner: false,
-    },
-    PushNotifications: {
-      presentationOptions: ["badge", "sound", "alert"],
+      androidScaleType: 'CENTER_CROP',
     },
     StatusBar: {
-      style: "DARK",
-      backgroundColor: "#0f0f0f",
+      style: 'DARK',
+      backgroundColor: '#0f0f0f',
+      overlaysWebView: false,
+    },
+    PushNotifications: {
+      presentationOptions: ['badge', 'sound', 'alert'],
     },
   },
-};
+}
 
-export default config;
+export default config
