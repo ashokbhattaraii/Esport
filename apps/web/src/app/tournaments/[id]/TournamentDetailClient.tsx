@@ -64,7 +64,29 @@ export default function TournamentDetailClient() {
     }
     setJoining(true);
     try {
-      await api(`/tournaments/${id}/join`, { method: "POST" });
+      const requiredCaptainRosterCount =
+        t.mode === "CS_4V4" ? 4 : t.mode === "LW_2V2" ? 2 : t.mode === "LW_1V1" ? 1 : 0;
+
+      let payload: any = undefined;
+      if (requiredCaptainRosterCount > 0) {
+        const uids: string[] = [];
+        for (let i = 1; i <= requiredCaptainRosterCount; i += 1) {
+          const entered = window.prompt(
+            `${t.mode}: Enter player ${i} Free Fire UID${i === 1 ? " (include your own UID)" : ""}`,
+          );
+          if (!entered) {
+            setJoining(false);
+            return;
+          }
+          uids.push(entered.trim());
+        }
+        payload = { playerUids: uids };
+      }
+
+      await api(`/tournaments/${id}/join`, {
+        method: "POST",
+        ...(payload ? { body: JSON.stringify(payload) } : {}),
+      });
       toast.success("Joined! Upload payment proof to confirm.");
       load();
     } catch (e: any) {

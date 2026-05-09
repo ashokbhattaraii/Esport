@@ -22,6 +22,7 @@ import {
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import {
   CreateTournamentDto,
+  JoinTournamentDto,
   PublishRoomDto,
   UpdateTournamentStatusDto,
 } from "./dto";
@@ -91,8 +92,8 @@ export class TournamentsController {
 
   @UseGuards(JwtAuthGuard)
   @Post(":id/join")
-  join(@Param("id") id: string, @CurrentUser() u: any) {
-    return this.svc.join(u.sub, id);
+  join(@Param("id") id: string, @CurrentUser() u: any, @Body() dto: JoinTournamentDto) {
+    return this.svc.join(u.sub, id, dto);
   }
 
   @UseGuards(JwtAuthGuard)

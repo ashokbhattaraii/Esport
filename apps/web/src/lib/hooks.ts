@@ -56,13 +56,17 @@ export const useFreeDailyStatus = () =>
   useSWR("/tournaments/free-daily/eligibility", { refreshInterval: 60000 });
 
 // MUTATION HELPERS (optimistic update pattern)
-export async function joinTournament(tournamentId: string) {
+export async function joinTournament(tournamentId: string, playerUids?: string[]) {
   try {
     // Optimistic: immediately update participant count in cache
     await mutate(
       `/tournaments/${tournamentId}`,
       async (current: any) => {
-        await api(`/tournaments/${tournamentId}/join`, post());
+        if (playerUids?.length) {
+          await api(`/tournaments/${tournamentId}/join`, post({ playerUids }));
+        } else {
+          await api(`/tournaments/${tournamentId}/join`, post());
+        }
         return {
           ...current,
           hasJoined: true,

@@ -18,6 +18,7 @@ import {
 import { PRISMA } from "../../prisma/prisma.module";
 import {
   CreateTournamentDto,
+  JoinTournamentDto,
   PublishRoomDto,
   UpdateTournamentStatusDto,
 } from "./dto";
@@ -276,11 +277,16 @@ export class TournamentsService implements OnModuleInit {
     const teamSize = GameModeTeamSize[dto.mode];
     const modeTeamCap = GameModeMaxTeams[dto.mode];
     const isTeamBased = teamSize > 1;
+    const isFixedTwoTeamMode =
+      dto.mode === "CS_4V4" || dto.mode === "LW_1V1" || dto.mode === "LW_2V2";
 
     let maxTeams: number | undefined;
     let maxSlots: number;
 
-    if (isTeamBased) {
+    if (isFixedTwoTeamMode) {
+      maxTeams = 2;
+      maxSlots = 2 * teamSize;
+    } else if (isTeamBased) {
       const requestedTeams = dto.maxTeams ?? Math.floor(dto.maxSlots / teamSize);
       if (!requestedTeams || requestedTeams < 1) {
         throw new BadRequestException(`Max teams must be at least 1 for ${dto.mode}`);
@@ -534,7 +540,7 @@ export class TournamentsService implements OnModuleInit {
     };
   }
 
-  async join(userId: string, tournamentId: string) {
+  async join(userId: string, tournamentId: string, dto?: JoinTournamentDto) {
     const t = await this.prisma.tournament.findUnique({
       where: { id: tournamentId },
     });
@@ -544,6 +550,8 @@ export class TournamentsService implements OnModuleInit {
 
     const teamSize = GameModeTeamSize[t.mode];
     const isTeamBased = teamSize > 1;
+    const requiresCaptainRoster =
+      t.mode === "CS_4V4" || t.mode === "LW_1V1" || t.mode === "LW_2V2";
 
     if (isTeamBased) {
       if (t.filledSlots >= t.maxSlots) {
@@ -575,6 +583,70 @@ export class TournamentsService implements OnModuleInit {
       where: { tournamentId_userId: { tournamentId, userId } },
     });
     if (existing) throw new ConflictException("Already joined");
+
+    if (requiresCaptainRoster) {
+      const playerUids = (dto?.playerUids ?? [])
+        .map((x) => x.trim())
+        .filter(Boolean);
+      const expectedSize = teamSize;
+
+      if (playerUids.length !== expectedSize) {
+        throw new BadRequestException(
+          `${t.mode} requires exactly ${expectedSize} player UID${expectedSize > 1 ? "s" : ""}`,
+        );
+      }
+
+      const unique = new Set(playerUids);
+      if (unique.size !== playerUids.length) {
+        throw new BadRequestException("Player UIDs must be unique");
+      }
+
+      const captainProfile = await this.prisma.playerProfile.findUnique({
+        where: { userId },
+      });
+      if (!captainProfile?.freeFireUid) {
+        throw new BadRequestException("Complete your profile with Free Fire UID first");
+      }
+      if (!unique.has(captainProfile.freeFireUid)) {
+        throw new BadRequestException("Your own Free Fire UID must be included in the submitted roster");
+      }
+
+      const teamSlots = t.maxTeams ?? GameModeMaxTeams[t.mode];
+      if (t.filledTeams >= teamSlots) {
+        throw new BadRequestException("Tournament is full (no more teams available)");
+      }
+
+      const team = await this.prisma.team.create({
+        data: {
+          name: `Team ${t.filledTeams + 1}`,
+          captainId: userId,
+        },
+      });
+
+      const participant = await this.prisma.tournamentParticipant.create({
+        data: {
+          tournamentId,
+          userId,
+          teamId: team.id,
+          submittedPlayerUids: playerUids,
+          paid: t.type === "FREE_DAILY",
+        },
+      });
+
+      await this.prisma.tournament.update({
+        where: { id: tournamentId },
+        data: {
+          filledTeams: { increment: 1 },
+          filledSlots: { increment: expectedSize },
+        },
+      });
+
+      if (t.type === "FREE_DAILY") {
+        await this.prizes.recordFreeDailyUse(userId, tournamentId);
+      }
+      this.invalidateReadCaches(tournamentId);
+      return participant;
+    }
 
     // Handle team-based vs individual joining
     let teamId: string | undefined;

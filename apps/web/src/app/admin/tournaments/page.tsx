@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
-import { GameModeLabels, GameModes, GameModeTeamSize } from "@fireslot/shared";
+import { GameModeLabels, GameModes, GameModeMaxTeams, GameModeTeamSize } from "@fireslot/shared";
 import { fmtDate, npr } from "@/lib/utils";
 import { ButtonLoading, CardSkeleton, EmptyState, PageHeader, StatusBadge } from "@/components/ui";
 
@@ -144,6 +144,21 @@ export default function AdminTournaments() {
     }
   }
 
+  function applyModeDefaults(mode: string) {
+    const teamSize = GameModeTeamSize[mode as keyof typeof GameModeTeamSize] ?? 1;
+    const modeMaxTeams = GameModeMaxTeams[mode as keyof typeof GameModeMaxTeams] ?? 2;
+    const isTeamBased = teamSize > 1;
+    const isFixedTwoTeamMode = mode === "CS_4V4" || mode === "LW_1V1" || mode === "LW_2V2";
+    const defaultTeams = isFixedTwoTeamMode ? 2 : modeMaxTeams;
+
+    setForm((prev: any) => ({
+      ...prev,
+      mode,
+      maxTeams: isTeamBased ? defaultTeams : undefined,
+      maxSlots: defaultTeams * teamSize,
+    }));
+  }
+
   return (
     <div>
       <PageHeader
@@ -176,7 +191,7 @@ export default function AdminTournaments() {
             <select
               className="input"
               value={form.mode}
-              onChange={(e) => setForm({ ...form, mode: e.target.value })}
+              onChange={(e) => applyModeDefaults(e.target.value)}
             >
               {GameModes.map((m) => (
                 <option key={m} value={m}>{GameModeLabels[m]}</option>
@@ -231,13 +246,31 @@ export default function AdminTournaments() {
             {GameModeTeamSize[form.mode as keyof typeof GameModeTeamSize] > 1 ? (
               <NumberInput
                 label={`Max Teams (${GameModeTeamSize[form.mode as keyof typeof GameModeTeamSize]}v${GameModeTeamSize[form.mode as keyof typeof GameModeTeamSize]})`}
-                value={form.maxTeams || Math.floor(form.maxSlots / GameModeTeamSize[form.mode as keyof typeof GameModeTeamSize])}
-                onChange={(v) => setForm({ ...form, maxTeams: v, maxSlots: v * GameModeTeamSize[form.mode as keyof typeof GameModeTeamSize] })}
-                min={1}
+                value={form.maxTeams || GameModeMaxTeams[form.mode as keyof typeof GameModeMaxTeams]}
+                onChange={(v) => {
+                  const teamSize = GameModeTeamSize[form.mode as keyof typeof GameModeTeamSize];
+                  const maxTeamCap = GameModeMaxTeams[form.mode as keyof typeof GameModeMaxTeams];
+                  const minTeams = form.mode === "CS_4V4" || form.mode === "LW_2V2" ? 2 : 1;
+                  const safeTeams = Math.max(1, Math.min(v, maxTeamCap));
+                  setForm({ ...form, maxTeams: Math.max(minTeams, safeTeams), maxSlots: Math.max(minTeams, safeTeams) * teamSize });
+                }}
+                min={form.mode === "CS_4V4" || form.mode === "LW_2V2" ? 2 : 1}
+                max={GameModeMaxTeams[form.mode as keyof typeof GameModeMaxTeams]}
                 step={1}
               />
             ) : (
-              <NumberInput label="Max Players" value={form.maxSlots} onChange={(v) => setForm({ ...form, maxSlots: v })} min={2} step={1} />
+              <NumberInput
+                label="Max Players"
+                value={form.maxSlots}
+                onChange={(v) => {
+                  const cap = GameModeMaxTeams[form.mode as keyof typeof GameModeMaxTeams] * GameModeTeamSize[form.mode as keyof typeof GameModeTeamSize];
+                  const safePlayers = Math.max(2, Math.min(v, cap));
+                  setForm({ ...form, maxSlots: safePlayers });
+                }}
+                min={2}
+                max={GameModeMaxTeams[form.mode as keyof typeof GameModeMaxTeams] * GameModeTeamSize[form.mode as keyof typeof GameModeTeamSize]}
+                step={1}
+              />
             )}
             <div>
               <label className="label">Date</label>

@@ -1,4 +1,5 @@
 import {
+  ArrayUnique,
   IsArray,
   IsBoolean,
   IsDateString,
@@ -66,4 +67,12 @@ export class UpdateTournamentStatusDto {
 export class PublishRoomDto {
   @IsString() roomId!: string;
   @IsString() roomPassword!: string;
+}
+
+export class JoinTournamentDto {
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsString({ each: true })
+  playerUids?: string[];
 }

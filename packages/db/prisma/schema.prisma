@@ -535,6 +535,7 @@ model TournamentParticipant {
   tournamentId String
   userId       String
   teamId       String?
+  submittedPlayerUids String[] @default([])
   paid         Boolean    @default(false)
   joinedAt     DateTime   @default(now())
   placement    Int?
