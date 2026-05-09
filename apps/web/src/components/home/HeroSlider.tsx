@@ -127,7 +127,7 @@ export function HeroSlider() {
       kind: "banner" as const,
     }));
 
-    return activeBanners.length ? [...FEATURE_SLIDES, ...activeBanners] : FEATURE_SLIDES;
+    return activeBanners.length ? [...activeBanners, ...FEATURE_SLIDES] : FEATURE_SLIDES;
   }, [banners]);
 
   if (isLoading) {
@@ -178,14 +178,14 @@ export function HeroSlider() {
 
       <style jsx global>{`
         .hero-slider-shell {
-            height: 220px;
+          height: 170px;
           width: 100%;
         }
         @media (min-width: 768px) {
-            .hero-slider-shell {
-              aspect-ratio: 16 / 6;
-              height: min(430px, 34vw);
-            }
+          .hero-slider-shell {
+            aspect-ratio: 16 / 4.5;
+            height: min(320px, 28vw);
+          }
         }
         .hero-slider-overlay {
           background: linear-gradient(
@@ -205,7 +205,7 @@ export function HeroSlider() {
           }
         }
         .hero-slider-title {
-          font-size: clamp(1.25rem, 3vw, 2.25rem);
+          font-size: clamp(1.1rem, 2.4vw, 1.9rem);
           line-height: 1.05;
           text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
         }
@@ -235,7 +235,7 @@ export function HeroSlider() {
           background: #fff;
         }
         .hero-slider-shell .swiper-pagination {
-          bottom: 14px;
+          bottom: 10px;
         }
       `}</style>
     </section>
@@ -254,22 +254,22 @@ function FeatureBannerSlide({ slide }: { slide: FeatureSlide }) {
       <div className="absolute -right-20 top-0 h-56 w-56 rounded-full bg-white/10 blur-3xl" />
       <div className="absolute -bottom-24 left-0 h-60 w-60 rounded-full bg-black/20 blur-3xl" />
 
-      <div className="relative z-10 flex w-full flex-col justify-between gap-6 p-5 md:grid md:grid-cols-[1.1fr_0.9fr] md:gap-8 md:p-8">
+      <div className="relative z-10 flex w-full flex-col justify-center gap-4 p-4 md:grid md:grid-cols-[1.1fr_0.9fr] md:items-center md:gap-6 md:p-6">
         <div className="flex flex-col justify-between">
           <div>
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-white/85">
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/85">
               <Icon size={12} />
               {slide.badge}
             </span>
-            <h1 className="mt-4 max-w-xl font-display text-[clamp(1.8rem,4.2vw,3.6rem)] font-bold leading-[0.95] text-white drop-shadow-[0_8px_24px_rgba(0,0,0,0.35)]">
+            <h1 className="mt-3 max-w-xl font-display text-[clamp(1.35rem,3vw,2.6rem)] font-bold leading-[0.98] text-white drop-shadow-[0_8px_24px_rgba(0,0,0,0.35)]">
               {slide.title}
             </h1>
-            <p className="mt-3 max-w-xl text-sm leading-6 text-white/80 md:text-base">
+            <p className="mt-2 line-clamp-2 max-w-xl text-xs leading-5 text-white/80 md:text-sm">
               {slide.subtitle}
             </p>
           </div>
 
-          <div className="mt-5 flex flex-wrap gap-2">
+          <div className="mt-3 hidden flex-wrap gap-2 sm:flex">
             {slide.highlights.map((item) => (
               <span
                 key={item}
@@ -280,7 +280,7 @@ function FeatureBannerSlide({ slide }: { slide: FeatureSlide }) {
             ))}
           </div>
 
-          <div className="mt-6 flex flex-wrap gap-3">
+          <div className="mt-4 flex flex-wrap gap-2">
             <Link href={slide.ctaLink} className="btn-primary text-xs md:text-sm">
               {slide.ctaText}
               <ArrowRight size={14} />
@@ -291,33 +291,33 @@ function FeatureBannerSlide({ slide }: { slide: FeatureSlide }) {
           </div>
         </div>
 
-        <div className="relative flex items-end md:justify-end">
-          <div className="relative w-full max-w-md rounded-[28px] border border-white/10 bg-white/8 p-4 shadow-[0_20px_70px_rgba(0,0,0,0.32)] backdrop-blur md:p-5">
+        <div className="relative hidden items-end md:flex md:justify-end">
+          <div className="relative w-full max-w-sm rounded-2xl border border-white/10 bg-white/8 p-4 shadow-[0_20px_70px_rgba(0,0,0,0.32)] backdrop-blur">
             <div className="grid gap-3 sm:grid-cols-3">
               {slide.stats.map((stat) => (
                 <div
                   key={stat.label}
-                  className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3 text-center"
+                  className="rounded-lg border border-white/10 bg-black/15 px-3 py-2 text-center"
                 >
-                  <p className="font-display text-2xl font-bold text-white">{stat.value}</p>
-                  <p className="mt-1 text-[11px] uppercase tracking-[0.2em] text-white/55">
+                  <p className="font-display text-xl font-bold text-white">{stat.value}</p>
+                  <p className="mt-1 text-[10px] uppercase tracking-[0.16em] text-white/55">
                     {stat.label}
                   </p>
                 </div>
               ))}
             </div>
 
-            <div className="mt-4 rounded-2xl border border-white/10 bg-black/18 p-4">
+            <div className="mt-3 rounded-lg border border-white/10 bg-black/18 p-3">
               <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-white">
-                  <Icon size={22} />
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/10 text-white">
+                  <Icon size={20} />
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-[0.22em] text-white/55">Featured capability</p>
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-white/55">Featured capability</p>
                   <p className="mt-1 font-semibold text-white">Designed for quick, repeat play.</p>
                 </div>
               </div>
-              <div className="mt-4 grid gap-2 text-sm text-white/72">
+              <div className="mt-3 grid gap-1 text-xs text-white/72">
                 <p>Built to move players from browsing to action with fewer taps.</p>
                 <p>Matches, wallet, and support stay visible from the same home surface.</p>
               </div>
@@ -344,10 +344,10 @@ function ImageBannerSlide({ slide }: { slide: BannerSlide }) {
         />
       </picture>
       <div className="hero-slider-overlay absolute inset-0" />
-      <div className="absolute inset-x-5 bottom-7 z-10 text-center md:inset-x-auto md:left-10 md:max-w-xl md:text-left">
+      <div className="absolute inset-x-5 bottom-6 z-10 text-center md:inset-x-auto md:left-8 md:max-w-xl md:text-left">
         {slide.badgeText && (
           <span
-            className="hero-banner-badge mb-3 inline-flex rounded-full px-3 py-1 text-[11px] font-bold text-white"
+            className="hero-banner-badge mb-2 inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold text-white"
             style={{ backgroundColor: slide.badgeColor || "#E53935" }}
           >
             {slide.badgeText}
@@ -364,7 +364,7 @@ function ImageBannerSlide({ slide }: { slide: BannerSlide }) {
         {slide.ctaText && slide.ctaLink && (
           <Link
             href={slide.ctaLink}
-            className="btn-primary mt-4 w-fit text-xs md:text-sm"
+            className="btn-primary mt-3 w-fit text-xs md:text-sm"
           >
             {slide.ctaText}
             <ArrowRight size={14} />

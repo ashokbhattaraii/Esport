@@ -11,6 +11,11 @@ interface PublicAppConfig {
     enabled: boolean;
     message: string;
   };
+  announcement?: {
+    active: boolean;
+    text: string;
+    color: string;
+  };
   update: {
     force: boolean;
     minAndroidVersion: string;
@@ -28,6 +33,17 @@ interface PublicAppConfig {
   };
 }
 
+type RawPublicAppConfig = Partial<PublicAppConfig> & {
+  MAINTENANCE_MODE?: string;
+  APP_MAINTENANCE_ENABLED?: string;
+  APP_MAINTENANCE_MESSAGE?: string;
+  APP_FORCE_UPDATE_ENABLED?: string;
+  APP_MIN_ANDROID_VERSION?: string;
+  APP_LATEST_VERSION?: string;
+  APP_DOWNLOAD_ENABLED?: string;
+  APP_SUPPORT_URL?: string;
+};
+
 export function AppConfigGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isNative = useIsNativeApp();
@@ -38,10 +54,10 @@ export function AppConfigGate({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
-    api<PublicAppConfig>("/app/config", { retries: 2, timeoutMs: 8_000 })
+    api<RawPublicAppConfig>("/app/config", { retries: 2, timeoutMs: 8_000 })
       .then((data) => {
         if (!cancelled) {
-          setConfig(data);
+          setConfig(normalizePublicConfig(data));
           setError(null);
         }
       })
@@ -177,4 +193,43 @@ function parseVersion(value: string) {
     .split(".")
     .map((part) => Number.parseInt(part, 10))
     .map((part) => (Number.isFinite(part) ? part : 0));
+}
+
+function normalizePublicConfig(data: RawPublicAppConfig): PublicAppConfig {
+  return {
+    maintenance: {
+      enabled:
+        Boolean(data.maintenance?.enabled) ||
+        configFlag(data.APP_MAINTENANCE_ENABLED) ||
+        configFlag(data.MAINTENANCE_MODE),
+      message:
+        data.maintenance?.message ??
+        data.APP_MAINTENANCE_MESSAGE ??
+        "FireSlot Nepal is updating. Please try again soon.",
+    },
+    announcement: data.announcement,
+    update: {
+      force: Boolean(data.update?.force) || configFlag(data.APP_FORCE_UPDATE_ENABLED),
+      minAndroidVersion: data.update?.minAndroidVersion ?? data.APP_MIN_ANDROID_VERSION ?? "1.0.0",
+      latestVersion: data.update?.latestVersion ?? data.APP_LATEST_VERSION ?? "1.0.0",
+      downloadEnabled:
+        data.update?.downloadEnabled ??
+        (data.APP_DOWNLOAD_ENABLED === undefined ? true : configFlag(data.APP_DOWNLOAD_ENABLED)),
+      downloadUrl: data.update?.downloadUrl ?? null,
+    },
+    urls: {
+      api: data.urls?.api ?? null,
+      publicWeb: data.urls?.publicWeb ?? null,
+      support: data.urls?.support ?? data.APP_SUPPORT_URL ?? "/support",
+    },
+    native: {
+      loadMode: data.native?.loadMode ?? "bundled",
+    },
+  };
+}
+
+function configFlag(value: unknown, fallback = false) {
+  if (typeof value === "boolean") return value;
+  if (typeof value !== "string") return fallback;
+  return value.toLowerCase() === "true";
 }

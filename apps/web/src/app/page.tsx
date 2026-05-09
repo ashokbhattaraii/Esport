@@ -10,7 +10,7 @@ import { TournamentCard } from "@/components/TournamentCard";
 import { CardSkeleton, EmptyState, LoadingState } from "@/components/ui";
 import { DownloadBanner } from "@/components/home/DownloadBanner";
 import { HeroSlider } from "@/components/home/HeroSlider";
-import { ChevronDown, Gamepad2 } from "lucide-react";
+import { Gamepad2 } from "lucide-react";
 
 interface CategoryChild {
   id: string;
@@ -29,12 +29,20 @@ interface Category {
   children: CategoryChild[];
 }
 
+interface GameChoice {
+  id: string;
+  name: string;
+  slug: string;
+  parentName?: string;
+  description?: string | null;
+  comingSoon?: boolean;
+}
+
 export default function HomePage() {
   const { user } = useAuth();
   const [tournaments, setTournaments] = useState<any[]>([]);
   const [wallet, setWallet] = useState<any>(null);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [expandedSlug, setExpandedSlug] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -61,6 +69,42 @@ export default function HomePage() {
     }
     return map;
   }, [tournaments]);
+
+  const gameChoices = useMemo<GameChoice[]>(() => {
+    const choices = categories.flatMap((category) =>
+      category.children.map((child) => ({
+        id: child.id,
+        name: child.name,
+        slug: child.slug,
+        parentName: category.name,
+        description: child.description,
+      })),
+    );
+
+    if (choices.length) return choices;
+
+    return categories
+      .filter((category) => category.isActive && !category.comingSoon)
+      .map((category) => ({
+        id: category.id,
+        name: category.name,
+        slug: category.slug,
+        description: null,
+      }));
+  }, [categories]);
+
+  const comingSoonGames = useMemo<GameChoice[]>(
+    () =>
+      categories
+        .filter((category) => category.comingSoon)
+        .map((category) => ({
+          id: category.id,
+          name: category.name,
+          slug: category.slug,
+          comingSoon: true,
+        })),
+    [categories],
+  );
 
   const profileSection = (
     <section className="card">
@@ -129,84 +173,57 @@ export default function HomePage() {
             <h2 className="font-display text-xl text-white">Games</h2>
           </div>
         </div>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {loading ? (
             <>
               <CardSkeleton lines={2} />
               <CardSkeleton lines={2} />
               <CardSkeleton lines={2} />
             </>
-          ) : categories.map((c) => {
-            const total = c.children.reduce(
-              (s, child) => s + (liveCounts[child.slug] ?? 0),
-              0,
-            );
-            const isOpen = expandedSlug === c.slug;
-            if (c.comingSoon) {
-              return (
+          ) : (
+            <>
+              {gameChoices.map((game) => {
+                const liveCount = liveCounts[game.slug] ?? 0;
+                return (
+                  <Link
+                    key={game.id}
+                    href={`/tournaments?category=${game.slug}`}
+                    className="relative min-h-[112px] rounded-lg border border-border bg-card/80 p-4 text-left transition hover:border-neon-cyan/50 hover:bg-neon-cyan/10"
+                  >
+                    {liveCount > 0 && (
+                      <span className="absolute right-2 top-2 rounded-md bg-neon-cyan/20 px-1.5 py-0.5 text-[9px] font-semibold text-neon-cyan">
+                        {liveCount} LIVE
+                      </span>
+                    )}
+                    <Flame className="text-neon" size={20} />
+                    <p className="mt-3 font-semibold text-white text-sm">{game.name}</p>
+                    {game.parentName && (
+                      <p className="mt-1 text-[11px] text-white/45">{game.parentName}</p>
+                    )}
+                  </Link>
+                );
+              })}
+              {comingSoonGames.map((game) => (
                 <div
-                  key={c.id}
-                  className="relative rounded-lg border border-border bg-card/80 p-4 opacity-60 pointer-events-none"
+                  key={game.id}
+                  className="relative min-h-[112px] rounded-lg border border-border bg-card/80 p-4 opacity-60"
                 >
                   <span className="absolute right-2 top-2 rounded-md bg-neon-orange/20 px-2 py-0.5 text-[9px] font-semibold text-neon-orange">
                     Coming Soon
                   </span>
                   <Gamepad2 className="text-white/40" size={20} />
-                  <p className="mt-3 font-semibold text-white/70 text-sm">{c.name}</p>
+                  <p className="mt-3 font-semibold text-white/70 text-sm">{game.name}</p>
                 </div>
-              );
-            }
-            return (
-              <button
-                key={c.id}
-                onClick={() => setExpandedSlug(isOpen ? null : c.slug)}
-                className={`relative rounded-lg border p-4 text-left transition ${
-                  isOpen
-                    ? "border-neon bg-neon/10"
-                    : "border-border bg-card/80 hover:border-neon-cyan/50"
-                }`}
-              >
-                {total > 0 && (
-                  <span className="absolute right-2 top-2 rounded-md bg-neon-cyan/20 px-1.5 py-0.5 text-[9px] font-semibold text-neon-cyan">
-                    {total} LIVE
-                  </span>
-                )}
-                <Flame className="text-neon" size={20} />
-                <p className="mt-3 font-semibold text-white text-sm flex items-center gap-1">
-                  {c.name}
-                  {c.children.length > 0 && (
-                    <ChevronDown
-                      size={14}
-                      className={`text-white/50 transition ${isOpen ? "rotate-180" : ""}`}
-                    />
-                  )}
-                </p>
-              </button>
-            );
-          })}
-        </div>
-        {expandedSlug && (() => {
-          const cat = categories.find((c) => c.slug === expandedSlug);
-          if (!cat || !cat.children.length) return null;
-          return (
-            <div className="mt-3 flex flex-wrap gap-2 rounded-lg border border-border bg-surface/60 p-3">
-              {cat.children.map((child) => (
-                <Link
-                  key={child.id}
-                  href={`/tournaments?category=${child.slug}`}
-                  className="rounded-md border border-neon-cyan/40 bg-neon-cyan/10 px-3 py-1.5 text-xs text-neon-cyan hover:bg-neon-cyan/20"
-                >
-                  {child.name}
-                  {liveCounts[child.slug] ? (
-                    <span className="ml-1 text-[10px] text-white/50">
-                      · {liveCounts[child.slug]}
-                    </span>
-                  ) : null}
-                </Link>
               ))}
-            </div>
-          );
-        })()}
+            </>
+          )}
+        </div>
+        {!loading && gameChoices.length === 0 && comingSoonGames.length === 0 && (
+          <EmptyState
+            title="No games available"
+            description="Active game categories will appear here."
+          />
+        )}
       </section>
 
       <section>

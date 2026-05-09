@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import { SplashScreen } from './SplashScreen'
 import { useLocalNotifications } from '@/hooks/useLocalNotifications'
 import { useAppConfig } from '@/hooks/useAppConfig'
+import { AnnouncementBanner } from './AnnouncementBanner'
 
 export function RootClient({ children }: { children: React.ReactNode }) {
   const [splashVisible, setSplashVisible] = useState(true)
@@ -56,14 +57,20 @@ export function RootClient({ children }: { children: React.ReactNode }) {
     }
   }, [readyToHide])
 
-  if (appConfig.maintenanceMode) {
-    // show maintenance overlay — handled by consumer via components
-  }
-
   return (
     <>
       {splashVisible && <SplashScreen onComplete={handleSplashComplete} />}
-      {!splashVisible && children}
+      {!splashVisible && (
+        <>
+          {appConfig.announcementActive && (
+            <AnnouncementBanner
+              text={appConfig.announcementText}
+              color={appConfig.announcementColor}
+            />
+          )}
+          {children}
+        </>
+      )}
     </>
   )
 }

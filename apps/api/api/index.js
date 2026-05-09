@@ -35,6 +35,9 @@ const APP_CONFIG_DEFAULTS = {
   MAINTENANCE_MODE: 'false',
   APP_MAINTENANCE_ENABLED: 'false',
   APP_MAINTENANCE_MESSAGE: 'FireSlot Nepal is updating. Please try again soon.',
+  APP_ANNOUNCEMENT_ACTIVE: 'false',
+  APP_ANNOUNCEMENT_TEXT: '',
+  APP_ANNOUNCEMENT_COLOR: '#E53935',
   APP_FORCE_UPDATE_ENABLED: 'false',
   APP_MIN_ANDROID_VERSION: '1.0.0',
   APP_LATEST_VERSION: '1.0.0',
@@ -422,11 +425,23 @@ function inferWebUrl(req) {
 async function loadFastAppConfig(req) {
   let configs = {};
   try {
-    const rows = await getPrisma().systemConfig.findMany({
+    const systemRows = await getPrisma().systemConfig.findMany({
       where: { key: { in: Object.keys(APP_CONFIG_DEFAULTS) } },
       select: { key: true, value: true },
     });
-    configs = Object.fromEntries(rows.map((row) => [row.key, row.value]));
+    let appRows = [];
+    try {
+      appRows = await getPrisma().appConfig.findMany({
+        where: { key: { in: Object.keys(APP_CONFIG_DEFAULTS) } },
+        select: { key: true, value: true },
+      });
+    } catch {
+      appRows = [];
+    }
+    configs = {
+      ...Object.fromEntries(systemRows.map((row) => [row.key, row.value])),
+      ...Object.fromEntries(appRows.map((row) => [row.key, row.value])),
+    };
   } catch {
     configs = {};
   }
@@ -444,6 +459,11 @@ async function loadFastAppConfig(req) {
     maintenance: {
       enabled: bool('APP_MAINTENANCE_ENABLED') || bool('MAINTENANCE_MODE'),
       message: get('APP_MAINTENANCE_MESSAGE'),
+    },
+    announcement: {
+      active: bool('APP_ANNOUNCEMENT_ACTIVE'),
+      text: get('APP_ANNOUNCEMENT_TEXT'),
+      color: get('APP_ANNOUNCEMENT_COLOR'),
     },
     update: {
       force: bool('APP_FORCE_UPDATE_ENABLED'),
