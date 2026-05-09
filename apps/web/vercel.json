@@ -2,5 +2,5 @@
   "version": 2,
   "buildCommand": "pnpm build",
   "cleanUrls": false,
-  "trailingSlash": true
+  "trailingSlash": false
 }

@@ -280,6 +280,21 @@ export class TournamentsService implements OnModuleInit {
     const isFixedTwoTeamMode =
       dto.mode === "CS_4V4" || dto.mode === "LW_1V1" || dto.mode === "LW_2V2";
 
+    // Reject any attempt to override fixed CS/LW team counts
+    if (isFixedTwoTeamMode) {
+      if (dto.maxTeams !== undefined && dto.maxTeams !== 2) {
+        throw new BadRequestException(
+          `${dto.mode} requires exactly 2 teams. Cannot change team count.`,
+        );
+      }
+      const expectedSlots = 2 * teamSize;
+      if (dto.maxSlots !== expectedSlots && dto.maxSlots !== 0) {
+        throw new BadRequestException(
+          `${dto.mode} requires exactly ${expectedSlots} players (2 teams × ${teamSize}v${teamSize}). Cannot change player count.`,
+        );
+      }
+    }
+
     let maxTeams: number | undefined;
     let maxSlots: number;
 

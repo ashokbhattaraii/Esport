@@ -37,8 +37,11 @@ export function RootClient({ children }: { children: React.ReactNode }) {
   const handleSplashComplete = () => {
     setSplashVisible(false)
     const token = typeof window !== 'undefined' ? localStorage.getItem('fs_token') : null
+    const normalizedPath = pathname.endsWith('/') && pathname.length > 1
+      ? pathname.slice(0, -1)
+      : pathname
     const publicRoutes = ['/', '/login', '/tournaments', '/leaderboard', '/challenges']
-    if (!token && !publicRoutes.includes(pathname)) {
+    if (!token && !publicRoutes.includes(normalizedPath)) {
       router.replace('/login')
     }
   }

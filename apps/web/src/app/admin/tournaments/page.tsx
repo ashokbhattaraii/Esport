@@ -244,20 +244,41 @@ export default function AdminTournaments() {
 
           <div className="grid grid-cols-2 gap-3">
             {GameModeTeamSize[form.mode as keyof typeof GameModeTeamSize] > 1 ? (
-              <NumberInput
-                label={`Max Teams (${GameModeTeamSize[form.mode as keyof typeof GameModeTeamSize]}v${GameModeTeamSize[form.mode as keyof typeof GameModeTeamSize]})`}
-                value={form.maxTeams || GameModeMaxTeams[form.mode as keyof typeof GameModeMaxTeams]}
-                onChange={(v) => {
-                  const teamSize = GameModeTeamSize[form.mode as keyof typeof GameModeTeamSize];
-                  const maxTeamCap = GameModeMaxTeams[form.mode as keyof typeof GameModeMaxTeams];
-                  const minTeams = form.mode === "CS_4V4" || form.mode === "LW_2V2" ? 2 : 1;
-                  const safeTeams = Math.max(1, Math.min(v, maxTeamCap));
-                  setForm({ ...form, maxTeams: Math.max(minTeams, safeTeams), maxSlots: Math.max(minTeams, safeTeams) * teamSize });
-                }}
-                min={form.mode === "CS_4V4" || form.mode === "LW_2V2" ? 2 : 1}
-                max={GameModeMaxTeams[form.mode as keyof typeof GameModeMaxTeams]}
-                step={1}
-              />
+              (() => {
+                const isFixedMode = form.mode === "CS_4V4" || form.mode === "LW_1V1" || form.mode === "LW_2V2";
+                const teamSize = GameModeTeamSize[form.mode as keyof typeof GameModeTeamSize];
+                const maxTeams = form.maxTeams || GameModeMaxTeams[form.mode as keyof typeof GameModeMaxTeams];
+                
+                if (isFixedMode) {
+                  return (
+                    <div>
+                      <label className="label">Team Configuration (Fixed)</label>
+                      <div className="input bg-white/5 flex items-center justify-between px-3 py-2 cursor-not-allowed">
+                        <span className="text-white/80">
+                          {maxTeams} teams × {teamSize}v{teamSize} = {maxTeams * teamSize} players
+                        </span>
+                        <span className="text-xs bg-neon/20 text-neon px-2 py-1 rounded">LOCKED</span>
+                      </div>
+                    </div>
+                  );
+                }
+                
+                return (
+                  <NumberInput
+                    label={`Max Teams (${teamSize}v${teamSize})`}
+                    value={maxTeams}
+                    onChange={(v) => {
+                      const maxTeamCap = GameModeMaxTeams[form.mode as keyof typeof GameModeMaxTeams];
+                      const minTeams = 1;
+                      const safeTeams = Math.max(minTeams, Math.min(v, maxTeamCap));
+                      setForm({ ...form, maxTeams: safeTeams, maxSlots: safeTeams * teamSize });
+                    }}
+                    min={1}
+                    max={GameModeMaxTeams[form.mode as keyof typeof GameModeMaxTeams]}
+                    step={1}
+                  />
+                );
+              })()
             ) : (
               <NumberInput
                 label="Max Players"
@@ -292,10 +313,19 @@ export default function AdminTournaments() {
                 Platform <b>{npr(preview.platformCut)}</b> ({preview.systemFeePercent}%) →
                 Net <b>{npr(preview.netPool)}</b>
               </p>
-              <p className="mt-1 text-white/80">
-                Per Kill: <b className="text-neon">{npr(preview.perKillReward)}</b> · Booyah: <b className="text-neon-cyan">{npr(preview.booyahPrize)}</b>
-              </p>
-              <p className="mt-1 text-xs text-white/50">{preview.exampleEarning} • {preview.scalingNote}</p>
+              {(form.mode === "CS_4V4" || form.mode === "LW_1V1" || form.mode === "LW_2V2") ? (
+                <p className="mt-1 text-white/80">
+                  <b className="text-yellow-300">Winner Takes All:</b> Winning team splits {npr(preview.netPool)} equally
+                  {preview.actualPlayers > 0 && (
+                    <span> = <b className="text-yellow-300">{npr(Math.floor(preview.netPool / (preview.actualPlayers / 2)))}</b> per winning player</span>
+                  )}
+                </p>
+              ) : (
+                <p className="mt-1 text-white/80">
+                  Per Kill: <b className="text-neon">{npr(preview.perKillReward)}</b> · Booyah: <b className="text-neon-cyan">{npr(preview.booyahPrize)}</b>
+                </p>
+              )}
+              <p className="mt-1 text-xs text-white/50">{preview.scalingNote}</p>
             </div>
           )}
 

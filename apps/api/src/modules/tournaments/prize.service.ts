@@ -25,6 +25,8 @@ export interface PrizeStructureV2 {
   platformNote: string;
   scalingNote: string;
   exampleEarning: string;
+  isWinnerTakesAll?: boolean;
+  prizePerWinner?: number;
 }
 
 @Injectable()
@@ -92,14 +94,80 @@ export class PrizeService {
     return actualPlayers * perPlayer;
   }
 
+  /**
+   * Determines if a tournament uses winner-takes-all prize model (CS/LW modes).
+   * In these modes, the entire pool (minus platform fee) goes to the winning team,
+   * and entry fees are per team (not per player).
+   */
+  isWinnerTakesAllMode(mode?: string): boolean {
+    if (!mode) return false;
+    return mode === "CS_4V4" || mode === "LW_1V1" || mode === "LW_2V2";
+  }
+
+  /**
+   * For winner-takes-all modes, calculates prize per winning team member.
+   * Formula: (entryFee × actualTeams - platform10%) ÷ winningTeamSize
+   * Example: 2 teams × 50 NPR = 100 → 10 NPR fee → 90 NPR for winners ÷ 4 = 22.5 per player
+   */
+  calculateWinnerTakesAllPrize(
+    entryFeePerTeam: number,
+    actualTeamsJoined: number,
+    winningTeamSize: number,
+  ): number {
+    if (actualTeamsJoined <= 0 || winningTeamSize <= 0) return 0;
+    const sysFee = this.config.getNumber("SYSTEM_FEE_PERCENT");
+    const gross = entryFeePerTeam * actualTeamsJoined;
+    const cut = Math.floor((gross * sysFee) / 100);
+    const netPool = gross - cut;
+    const prizePerWinner = Math.floor(netPool / winningTeamSize);
+    return prizePerWinner;
+  }
+
   calculatePrizeStructure(
     tournament: { entryFeeNpr: number; maxSlots: number; type?: string; mode?: string },
     actualPlayers: number,
   ): PrizeStructureV2 {
     const entryFee = tournament.entryFeeNpr;
     const maxPlayers = tournament.maxSlots;
-    const players = Math.max(1, actualPlayers);
     const sysFee = this.config.getNumber("SYSTEM_FEE_PERCENT");
+
+    // Check if this is a winner-takes-all mode (CS/LW)
+    if (this.isWinnerTakesAllMode(tournament.mode)) {
+      // For team modes: entryFee is PER TEAM, actualPlayers includes all players
+      // actualTeamsJoined = actualPlayers / teamSize
+      let teamSize = 4; // CS_4V4 default
+      if (tournament.mode === "LW_1V1") teamSize = 1;
+      else if (tournament.mode === "LW_2V2") teamSize = 2;
+
+      const actualTeamsJoined = Math.max(1, Math.floor(actualPlayers / teamSize));
+      const gross = entryFee * actualTeamsJoined;
+      const cut = Math.floor((gross * sysFee) / 100);
+      const net = gross - cut;
+      const prizePerWinner = Math.floor(net / teamSize);
+
+      return {
+        entryFee,
+        maxPlayers,
+        actualPlayers,
+        grossPool: gross,
+        platformCut: cut,
+        netPool: net,
+        killPool: 0,
+        perKillReward: 0,
+        booyahPrize: 0,
+        systemFeePercent: sysFee,
+        killRewardPercent: 0,
+        booyahNote: "",
+        platformNote: `Rs ${cut} platform fee (${sysFee}%)`,
+        scalingNote: `${actualTeamsJoined} teams × Rs${entryFee} = Rs${gross}`,
+        exampleEarning: `Winner gets Rs ${prizePerWinner} per player`,
+        isWinnerTakesAll: true,
+        prizePerWinner,
+      };
+    }
+
+    // For BR/solo modes: standard per-kill model
+    const players = Math.max(1, actualPlayers);
     const killPct = this.config.getNumber("KILL_REWARD_PERCENT");
 
     const { gross, cut, net } = this.calculateNetPool(entryFee, players);
@@ -128,6 +196,7 @@ export class PrizeService {
           ? `Pool scaled to ${actualPlayers}/${maxPlayers} players`
           : "Full lobby — maximum prize pool",
       exampleEarning: `3 kills + Booyah = Rs ${3 * perKillReward + booyahPrize}`,
+      isWinnerTakesAll: false,
     };
   }
 
@@ -167,13 +236,18 @@ export class PrizeService {
       },
     });
 
+    // Notify participants with appropriate message based on prize model
+    const notificationBody = structure.isWinnerTakesAll
+      ? `${actualPlayers} players confirmed. Winner takes all: Rs ${structure.prizePerWinner} per winning player.`
+      : `${actualPlayers} players confirmed. Per kill: Rs ${structure.perKillReward}, Booyah: Rs ${structure.booyahPrize}.`;
+
     for (const p of t.participants) {
       await this.prisma.notification.create({
         data: {
           userId: p.userId,
           type: "TOURNAMENT",
           title: `${t.title} — Room locked`,
-          body: `${actualPlayers} players confirmed. Per kill: Rs ${structure.perKillReward}, Booyah: Rs ${structure.booyahPrize}.`,
+          body: notificationBody,
         },
       });
     }

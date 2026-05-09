@@ -118,7 +118,7 @@ export default function TournamentDetailClient() {
   };
 
   return (
-    <div className="space-y-4 pb-24 -mx-4">
+    <div className="space-y-4 pb-36 -mx-4">
       {/* Banner */}
       <div className="relative">
         {t.coverUrl ? (
@@ -201,7 +201,7 @@ export default function TournamentDetailClient() {
 
       {/* Sticky Join Button */}
       <div
-        className="fixed bottom-0 left-0 right-0 z-40 p-4"
+        className="fixed bottom-0 left-0 right-0 z-50 p-4"
         style={{
           background: 'rgba(11,11,20,0.95)',
           backdropFilter: 'blur(12px)',
