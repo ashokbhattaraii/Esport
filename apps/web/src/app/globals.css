@@ -52,3 +52,38 @@ body {
     @apply border-t border-[rgba(255,255,255,0.07)] px-4 py-3 align-middle;
   }
 }
+
+/* ── RESPONSIVE FIXES ── */
+body { overflow-x: hidden }
+img { max-width: 100%; height: auto }
+
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch }
+table { min-width: max-content }
+
+.stat-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.stat-card { min-width: 0 }
+
+@media (max-width: 480px) {
+  .tournament-grid { grid-template-columns: 1fr !important }
+  .challenge-grid  { grid-template-columns: 1fr !important }
+  .admin-stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important }
+}
+
+@media (max-width: 768px) {
+  .admin-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+input[type="text"],
+input[type="number"],
+input[type="email"],
+input[type="password"],
+textarea,
+select {
+  font-size: 16px !important;
+}
+
+.page-content {
+  padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+}

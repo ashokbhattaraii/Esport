@@ -59,7 +59,14 @@ export default function TournamentsListPage() {
       ) : filtered.length === 0 ? (
         <p className="py-12 text-center text-white/50">No matches in this tab</p>
       ) : (
-        <div className="space-y-4">
+        <div
+          className="tournament-grid"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 340px), 1fr))",
+            gap: 12,
+          }}
+        >
           {filtered.map((t) => (
             <TournamentRow
               key={t.id}

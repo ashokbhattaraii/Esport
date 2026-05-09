@@ -11,7 +11,7 @@ interface AdminUser {
   email: string;
   name?: string | null;
   avatarUrl?: string | null;
-  role: "PLAYER" | "ADMIN";
+  role: "PLAYER" | "ADMIN" | "SUPER_ADMIN";
   roleId: string | null;
   roleRef?: { id: string; name: string; isSystem: boolean } | null;
   isBanned: boolean;

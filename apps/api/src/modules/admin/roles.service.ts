@@ -28,7 +28,7 @@ interface CachedPermissionOverride extends CachedPermission {
 
 interface CachedPermissionProfile {
   exists: boolean;
-  role: "PLAYER" | "ADMIN";
+  role: "PLAYER" | "ADMIN" | "SUPER_ADMIN";
   roleName: string | null;
   rolePermissions: CachedPermission[];
   permissionOverrides: CachedPermissionOverride[];
@@ -131,6 +131,7 @@ export class RolesService {
   async hasPermission(userId: string, resource: string, action: string): Promise<boolean> {
     const user = await this.getPermissionProfile(userId);
     if (!user.exists) return false;
+    if (user.role === "SUPER_ADMIN") return true;
 
     // Per-user overrides win over role permissions; explicit DENY beats ALLOW.
     const overrides = user.permissionOverrides ?? [];

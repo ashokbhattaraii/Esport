@@ -5,28 +5,23 @@ import { useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { ViewportToggle } from "@/components/ViewportToggle";
 import { PageLoading } from "@/components/ui";
-import {
-  LayoutDashboard, Trophy, CreditCard, BarChart3, Users, Image,
-  Settings, Calendar, Shield, FileText, Bot, HeadphonesIcon,
-  Smartphone, TestTube, Menu, X, Wallet,
-} from "lucide-react";
 
 const NAV = [
-  { href: "/admin", label: "Overview", icon: LayoutDashboard },
-  { href: "/admin/tournaments", label: "Tournaments", icon: Trophy },
-  { href: "/admin/payments", label: "Payments", icon: CreditCard },
-  { href: "/admin/results", label: "Results", icon: BarChart3 },
-  { href: "/admin/withdrawals", label: "Withdrawals", icon: Wallet },
-  { href: "/admin/users", label: "Users", icon: Users },
-  { href: "/admin/banners", label: "Banners", icon: Image },
-  { href: "/admin/config", label: "System Config", icon: Settings },
-  { href: "/admin/schedule", label: "Free Daily Schedule", icon: Calendar },
-  { href: "/admin/roles", label: "Roles & Permissions", icon: Shield },
-  { href: "/admin/logs", label: "Audit Logs", icon: FileText },
-  { href: "/admin/bot", label: "Bot Control", icon: Bot },
-  { href: "/admin/support", label: "Support", icon: HeadphonesIcon },
-  { href: "/admin/app-releases", label: "App Releases", icon: Smartphone },
-  { href: "/admin/apk-test", label: "APK Testing", icon: TestTube },
+  { href: "/admin", label: "Overview", icon: "📊" },
+  { href: "/admin/tournaments", label: "Tournaments", icon: "🏆" },
+  { href: "/admin/payments", label: "Payments", icon: "💳" },
+  { href: "/admin/results", label: "Results", icon: "📋" },
+  { href: "/admin/withdrawals", label: "Withdrawals", icon: "💸" },
+  { href: "/admin/users", label: "Users", icon: "👥" },
+  { href: "/admin/banners", label: "Banners", icon: "🖼️" },
+  { href: "/admin/config", label: "System Config", icon: "⚙️" },
+  { href: "/admin/schedule", label: "Free Daily", icon: "📅" },
+  { href: "/admin/roles", label: "Roles & Perms", icon: "🔐" },
+  { href: "/admin/logs", label: "Audit Logs", icon: "📝" },
+  { href: "/admin/bot", label: "Bot Control", icon: "🤖" },
+  { href: "/admin/support", label: "Support", icon: "🎧" },
+  { href: "/admin/app-releases", label: "App Releases", icon: "📱" },
+  { href: "/admin/apk-test", label: "APK Testing", icon: "🧪" },
 ];
 
 export default function AdminLayout({
@@ -36,81 +31,137 @@ export default function AdminLayout({
 }) {
   const { user, loading } = useAuth();
   const pathname = usePathname();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   if (loading) return <PageLoading label="Checking admin access..." />;
-  if (!user || user.role !== "ADMIN")
-    return <p style={{ color: 'var(--fs-red)' }}>Admin access required.</p>;
+  if (!user || (user.role !== "ADMIN" && user.role !== "SUPER_ADMIN"))
+    return <p style={{ color: "var(--fs-red)" }}>Admin access required.</p>;
 
-  const sidebar = (
-    <div className="space-y-1">
-      {NAV.map((n) => {
-        const Icon = n.icon;
-        const active = pathname === n.href;
-        return (
-          <Link
-            key={n.href}
-            href={n.href}
-            onClick={() => setSidebarOpen(false)}
-            className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm transition"
-            style={{
-              background: active ? 'var(--fs-surface-2)' : 'transparent',
-              color: active ? 'var(--fs-red)' : 'var(--fs-text-2)',
-              borderLeft: active ? '3px solid var(--fs-red)' : '3px solid transparent',
-            }}
-          >
-            <Icon size={16} />
-            {n.label}
-          </Link>
-        );
-      })}
-    </div>
+  const SidebarContent = () => (
+    <>
+      <div style={{ padding: "16px 12px", borderBottom: "1px solid var(--fs-border)" }}>
+        <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1, color: "var(--fs-text-3)", textTransform: "uppercase" }}>
+          Admin Panel
+        </p>
+        <p style={{ fontSize: 13, fontWeight: 600, color: "var(--fs-text-1)", marginTop: 4 }}>
+          🔥 FireSlot Nepal
+        </p>
+      </div>
+
+      <nav style={{ padding: "8px 6px", flex: 1, overflowY: "auto" }}>
+        {NAV.map((item) => {
+          const active = pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href));
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={() => setMobileOpen(false)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "9px 10px",
+                borderRadius: 8,
+                marginBottom: 2,
+                textDecoration: "none",
+                background: active ? "rgba(229,57,53,0.12)" : "transparent",
+                borderLeft: active ? "3px solid #E53935" : "3px solid transparent",
+                color: active ? "#E53935" : "rgba(255,255,255,0.65)",
+                fontSize: 13,
+                fontWeight: active ? 700 : 500,
+                transition: "all .15s",
+              }}
+            >
+              <span>{item.icon}</span>
+              <span>{item.label}</span>
+            </Link>
+          );
+        })}
+      </nav>
+
+      <div style={{ padding: "12px", borderTop: "1px solid var(--fs-border)" }}>
+        <ViewportToggle />
+        <Link
+          href="/"
+          style={{ display: "block", marginTop: 8, fontSize: 12, color: "var(--fs-text-3)", textDecoration: "none" }}
+        >
+          ← Back to App
+        </Link>
+      </div>
+    </>
   );
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[240px_1fr]">
+    <div style={{ display: "flex", minHeight: "100vh", margin: "0 -16px" }}>
       {/* Desktop sidebar */}
       <aside
-        className="hidden lg:block h-fit sticky top-20 rounded-xl p-3 space-y-3"
-        style={{ background: 'var(--fs-surface-1)', border: '0.5px solid var(--fs-border)' }}
+        style={{
+          width: 230,
+          flexShrink: 0,
+          background: "var(--fs-surface-1)",
+          borderRight: "1px solid var(--fs-border)",
+          display: "flex",
+          flexDirection: "column",
+          position: "sticky",
+          top: 56,
+          height: "calc(100vh - 56px)",
+          overflowY: "auto",
+        }}
+        className="hidden lg:flex"
       >
-        <div className="flex items-center justify-between px-3 py-2">
-          <span className="text-xs font-bold uppercase" style={{ color: 'var(--fs-text-3)' }}>Admin Panel</span>
-          <ViewportToggle />
-        </div>
-        {sidebar}
+        <SidebarContent />
       </aside>
 
-      {/* Mobile header + drawer */}
-      <div className="lg:hidden fixed top-14 left-0 right-0 z-30 flex items-center justify-between px-4 py-2"
-        style={{ background: 'var(--fs-bg)', borderBottom: '0.5px solid var(--fs-border)' }}
-      >
-        <button onClick={() => setSidebarOpen(true)} className="flex items-center gap-2" style={{ color: 'var(--fs-text-1)' }}>
-          <Menu size={20} />
-          <span className="text-sm font-semibold">Admin Panel</span>
-        </button>
-        <ViewportToggle />
-      </div>
-
-      {sidebarOpen && (
-        <div className="lg:hidden fixed inset-0 z-50">
-          <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={() => setSidebarOpen(false)} />
+      {/* Mobile sidebar overlay */}
+      {mobileOpen && (
+        <div className="lg:hidden" style={{ position: "fixed", inset: 0, zIndex: 60 }}>
           <div
-            className="absolute top-0 left-0 bottom-0 w-64 p-4 overflow-y-auto"
-            style={{ background: 'var(--fs-surface-1)' }}
+            style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.6)" }}
+            onClick={() => setMobileOpen(false)}
+          />
+          <aside
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              bottom: 0,
+              width: 250,
+              background: "var(--fs-surface-1)",
+              display: "flex",
+              flexDirection: "column",
+              zIndex: 61,
+            }}
           >
-            <div className="flex items-center justify-between mb-4">
-              <span className="text-sm font-bold" style={{ color: 'var(--fs-text-1)' }}>Admin Panel</span>
-              <button onClick={() => setSidebarOpen(false)} style={{ color: 'var(--fs-text-3)' }}>
-                <X size={20} />
-              </button>
-            </div>
-            {sidebar}
-          </div>
+            <SidebarContent />
+          </aside>
         </div>
       )}
 
-      <section className="lg:col-start-2 pt-12 lg:pt-0">{children}</section>
+      {/* Main content */}
+      <main style={{ flex: 1, minWidth: 0, padding: 16 }}>
+        {/* Mobile top bar */}
+        <div
+          className="lg:hidden"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            marginBottom: 16,
+            paddingBottom: 12,
+            borderBottom: "1px solid var(--fs-border)",
+          }}
+        >
+          <button
+            onClick={() => setMobileOpen(true)}
+            style={{ fontSize: 22, background: "none", border: "none", color: "#fff", cursor: "pointer", padding: 4, minWidth: 44, minHeight: 44 }}
+          >
+            ☰
+          </button>
+          <span style={{ fontSize: 14, fontWeight: 700, color: "var(--fs-text-1)" }}>Admin Panel</span>
+        </div>
+
+        {children}
+      </main>
     </div>
   );
 }

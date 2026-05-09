@@ -16,87 +16,107 @@ export default function AdminOverview() {
       .catch((e: any) => setErr(e.message ?? "Could not load admin stats"));
   }, []);
 
-  if (err) return <p className="text-red-400">{err}</p>;
+  if (err) return <p style={{ color: "var(--fs-red)" }}>{err}</p>;
   if (!stats) return <PageLoading label="Loading admin overview..." />;
 
   const queue = [
-    {
-      label: "Payments",
-      value: stats.pendingPayments,
-      href: "/admin/payments",
-    },
-    {
-      label: "Withdrawals",
-      value: stats.pendingWithdrawals,
-      href: "/admin/withdrawals",
-    },
+    { label: "Payments", value: stats.pendingPayments, href: "/admin/payments" },
+    { label: "Withdrawals", value: stats.pendingWithdrawals, href: "/admin/withdrawals" },
     { label: "Results", value: stats.pendingResults, href: "/admin/results" },
   ];
 
   return (
-    <div className="space-y-8">
-      <header className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
+    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      {/* Header */}
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
         <div>
-          <p className="label">Admin Command Center</p>
-          <h1 className="font-display text-3xl neon-text">
+          <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1, color: "var(--fs-text-3)", textTransform: "uppercase" }}>
+            Admin Command Center
+          </p>
+          <h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 800, color: "var(--fs-text-1)", marginTop: 4 }}>
             Operations Overview
           </h1>
         </div>
-        <Link href="/admin/tournaments" className="btn-primary">
-          Create Tournament
+        <Link
+          href="/admin/tournaments"
+          className="fs-btn fs-btn-primary fs-btn-sm"
+        >
+          + Create Tournament
         </Link>
-      </header>
+      </div>
 
-      <section className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
-        <Stat
+      {/* Stats Grid */}
+      <div
+        className="admin-stats-grid"
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 150px), 1fr))",
+          gap: 12,
+        }}
+      >
+        <StatCard
           icon={<Users size={18} />}
           label="Users"
           value={stats.users}
           detail={`${stats.admins} admins · ${stats.bannedUsers} banned`}
         />
-        <Stat
+        <StatCard
           icon={<Trophy size={18} />}
           label="Tournaments"
           value={stats.tournaments}
           detail={`${stats.liveTournaments} live · ${stats.upcomingTournaments} upcoming`}
         />
-        <Stat
+        <StatCard
           icon={<Bell size={18} />}
           label="Queue"
           value={queue.reduce((sum, item) => sum + item.value, 0)}
           detail="Needs review"
           accent
         />
-        <Stat
+        <StatCard
           icon={<Banknote size={18} />}
           label="Revenue"
           value={npr(stats.approvedRevenueNpr)}
           detail="Approved payments"
         />
-        <Stat
+        <StatCard
           icon={<ShieldCheck size={18} />}
           label="Wallets"
           value={npr(stats.walletLiabilityNpr)}
           detail="Player balance"
         />
-      </section>
+      </div>
 
-      <section className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
-        <div className="card">
-          <h2 className="font-display text-xl">Review Queue</h2>
-          <div className="mt-4 space-y-3">
+      {/* Review Queue + Recent Payments */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 300px), 1fr))",
+          gap: 16,
+        }}
+      >
+        <div className="fs-card fs-card-body">
+          <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--fs-text-1)" }}>Review Queue</h2>
+          <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
             {queue.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
-                className="flex items-center justify-between rounded-md border border-border bg-surface px-4 py-3 hover:border-neon-cyan"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "10px 12px",
+                  borderRadius: 8,
+                  background: "var(--fs-surface-2)",
+                  border: "1px solid var(--fs-border)",
+                  textDecoration: "none",
+                  color: "var(--fs-text-1)",
+                  fontSize: 13,
+                }}
               >
                 <span>{item.label}</span>
-                <span
-                  className={
-                    item.value > 0 ? "text-neon-orange" : "text-neon-green"
-                  }
-                >
+                <span style={{ fontWeight: 700, color: item.value > 0 ? "var(--fs-amber)" : "var(--fs-green)" }}>
                   {item.value}
                 </span>
               </Link>
@@ -104,85 +124,101 @@ export default function AdminOverview() {
           </div>
         </div>
 
-        <div className="card overflow-x-auto">
-          <h2 className="font-display text-xl">Recent Payments</h2>
+        <div className="fs-card fs-card-body">
+          <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--fs-text-1)" }}>Recent Payments</h2>
           {stats.recentPayments.length === 0 ? (
-            <p className="mt-3 text-sm text-white/60">No payments yet.</p>
+            <p style={{ marginTop: 12, fontSize: 13, color: "var(--fs-text-3)" }}>No payments yet.</p>
           ) : (
-            <table className="mt-3 w-full text-sm">
-              <thead className="text-left text-white/60">
-                <tr>
-                  <th>User</th>
-                  <th>Tournament</th>
-                  <th>Amount</th>
-                  <th>Status</th>
-                  <th>Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {stats.recentPayments.map((p: any) => (
-                  <tr key={p.id} className="border-t border-border">
-                    <td className="py-2">
-                      {p.user.profile?.ign ?? p.user.email}
-                    </td>
-                    <td>{p.tournament?.title ?? "-"}</td>
-                    <td>{npr(p.amountNpr)}</td>
-                    <td
-                      className={
-                        p.status === "APPROVED"
-                          ? "text-neon-green"
-                          : p.status === "REJECTED"
-                            ? "text-red-400"
-                            : "text-neon-orange"
-                      }
-                    >
-                      {p.status}
-                    </td>
-                    <td>{fmtDate(p.createdAt)}</td>
+            <div style={{ overflowX: "auto", marginTop: 12 }}>
+              <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse", minWidth: 400 }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid var(--fs-border)" }}>
+                    <th style={{ textAlign: "left", padding: "6px 8px", color: "var(--fs-text-3)", fontWeight: 600 }}>User</th>
+                    <th style={{ textAlign: "left", padding: "6px 8px", color: "var(--fs-text-3)", fontWeight: 600 }}>Amount</th>
+                    <th style={{ textAlign: "left", padding: "6px 8px", color: "var(--fs-text-3)", fontWeight: 600 }}>Status</th>
+                    <th style={{ textAlign: "left", padding: "6px 8px", color: "var(--fs-text-3)", fontWeight: 600 }}>Date</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {stats.recentPayments.slice(0, 5).map((p: any) => (
+                    <tr key={p.id} style={{ borderBottom: "1px solid var(--fs-border)" }}>
+                      <td style={{ padding: "8px", color: "var(--fs-text-1)" }}>{p.user.profile?.ign ?? p.user.email}</td>
+                      <td style={{ padding: "8px", color: "var(--fs-text-1)" }}>{npr(p.amountNpr)}</td>
+                      <td style={{ padding: "8px", color: p.status === "APPROVED" ? "var(--fs-green)" : p.status === "REJECTED" ? "var(--fs-red)" : "var(--fs-amber)" }}>
+                        {p.status}
+                      </td>
+                      <td style={{ padding: "8px", color: "var(--fs-text-3)" }}>{fmtDate(p.createdAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
-      </section>
+      </div>
 
-      <section className="card overflow-x-auto">
-        <h2 className="font-display text-xl">Newest Players</h2>
-        <table className="mt-3 w-full text-sm">
-          <thead className="text-left text-white/60">
-            <tr>
-              <th>Email</th>
-              <th>IGN</th>
-              <th>Role</th>
-              <th>Joined</th>
-            </tr>
-          </thead>
-          <tbody>
-            {stats.recentUsers.map((u: any) => (
-              <tr key={u.id} className="border-t border-border">
-                <td className="py-2">{u.email}</td>
-                <td>{u.profile?.ign ?? "-"}</td>
-                <td>{u.role}</td>
-                <td>{fmtDate(u.createdAt)}</td>
+      {/* Newest Players */}
+      <div className="fs-card fs-card-body">
+        <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--fs-text-1)" }}>Newest Players</h2>
+        <div style={{ overflowX: "auto", marginTop: 12 }}>
+          <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse", minWidth: 400 }}>
+            <thead>
+              <tr style={{ borderBottom: "1px solid var(--fs-border)" }}>
+                <th style={{ textAlign: "left", padding: "6px 8px", color: "var(--fs-text-3)", fontWeight: 600 }}>Email</th>
+                <th style={{ textAlign: "left", padding: "6px 8px", color: "var(--fs-text-3)", fontWeight: 600 }}>IGN</th>
+                <th style={{ textAlign: "left", padding: "6px 8px", color: "var(--fs-text-3)", fontWeight: 600 }}>Role</th>
+                <th style={{ textAlign: "left", padding: "6px 8px", color: "var(--fs-text-3)", fontWeight: 600 }}>Joined</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
+            </thead>
+            <tbody>
+              {stats.recentUsers.map((u: any) => (
+                <tr key={u.id} style={{ borderBottom: "1px solid var(--fs-border)" }}>
+                  <td style={{ padding: "8px", color: "var(--fs-text-1)", maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.email}</td>
+                  <td style={{ padding: "8px", color: "var(--fs-text-1)" }}>{u.profile?.ign ?? "-"}</td>
+                  <td style={{ padding: "8px", color: "var(--fs-text-2)" }}>{u.role}</td>
+                  <td style={{ padding: "8px", color: "var(--fs-text-3)" }}>{fmtDate(u.createdAt)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }
 
-function Stat({ icon, label, value, detail, accent }: any) {
+function StatCard({ icon, label, value, detail, accent }: any) {
   return (
-    <div className={`card ${accent ? "shadow-neon" : ""}`}>
-      <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-md border border-border bg-surface text-neon-cyan">
+    <div
+      className="stat-card"
+      style={{
+        padding: 14,
+        borderRadius: 12,
+        background: "var(--fs-surface-1)",
+        border: accent ? "1px solid var(--fs-red)" : "1px solid var(--fs-border)",
+        minWidth: 0,
+      }}
+    >
+      <div
+        style={{
+          width: 32,
+          height: 32,
+          borderRadius: 8,
+          background: "var(--fs-surface-2)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "var(--fs-red)",
+          marginBottom: 10,
+        }}
+      >
         {icon}
       </div>
-      <p className="label">{label}</p>
-      <p className="mt-1 font-display text-2xl text-white">{value}</p>
-      <p className="mt-1 text-xs text-white/50">{detail}</p>
+      <p className="stat-label" style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.5, color: "var(--fs-text-3)", textTransform: "uppercase" }}>
+        {label}
+      </p>
+      <p style={{ fontSize: 20, fontWeight: 800, color: "var(--fs-text-1)", marginTop: 2 }}>{value}</p>
+      <p style={{ fontSize: 11, color: "var(--fs-text-3)", marginTop: 2 }}>{detail}</p>
     </div>
   );
 }

@@ -92,7 +92,7 @@ export function Navbar() {
               >
                 <LifeBuoy size={17} style={{ color: 'var(--fs-text-2)' }} />
               </Link>
-              {user.role === "ADMIN" && (
+              {(user.role === "ADMIN" || user.role === "SUPER_ADMIN") && (
                 <Link
                   href="/admin"
                   className="flex h-9 w-9 items-center justify-center rounded-lg"

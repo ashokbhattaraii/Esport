@@ -91,7 +91,14 @@ export default function ChallengesPage() {
       ) : items.length === 0 ? (
         <p className="py-12 text-center text-sm" style={{ color: 'var(--fs-text-3)' }}>No challenges in this filter</p>
       ) : (
-        <div className="space-y-3">
+        <div
+          className="challenge-grid"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 340px), 1fr))",
+            gap: 12,
+          }}
+        >
           {items.map((c) => {
             const ign = c.creator?.profile?.ign ?? c.creator?.name ?? c.creator?.email;
             const lvl = c.creator?.profile?.level;

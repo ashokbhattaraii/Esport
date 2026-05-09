@@ -7,7 +7,7 @@ dist
 uploads/
 *.log
 .DS_Store
-
+.env.capacitor
 # Capacitor / Android
 apps/web/out/
 apps/web/android/

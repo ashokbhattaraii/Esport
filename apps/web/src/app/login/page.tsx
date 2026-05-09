@@ -7,19 +7,21 @@ import { Flame } from 'lucide-react'
 
 export default function LoginPage() {
   const [clientId, setClientId] = useState(config.googleClientId)
+  const [ready, setReady] = useState(!!config.googleClientId)
 
   useEffect(() => {
-    if (clientId) return
-    let attempts = 0
-    const interval = setInterval(() => {
+    if (ready) return
+    let tries = 0
+    const check = () => {
       const id = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? ''
-      if (id) { setClientId(id); clearInterval(interval) }
-      if (++attempts >= 6) clearInterval(interval)
-    }, 500)
-    return () => clearInterval(interval)
-  }, [clientId])
+      if (id) { setClientId(id); setReady(true); return }
+      if (++tries < 5) setTimeout(check, 600)
+      else setReady(true)
+    }
+    check()
+  }, [ready])
 
-  if (!clientId) {
+  if (!ready) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
         <div className="text-center">
@@ -29,7 +31,7 @@ export default function LoginPage() {
           >
             <Flame size={24} style={{ color: 'var(--fs-red)' }} />
           </div>
-          <p className="mt-4 text-sm" style={{ color: 'var(--fs-text-3)' }}>Initializing...</p>
+          <p className="mt-4 text-sm" style={{ color: 'var(--fs-text-3)' }}>Loading...</p>
         </div>
       </div>
     )

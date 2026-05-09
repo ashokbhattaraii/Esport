@@ -9,7 +9,7 @@ import { useIsNativeApp } from '@/hooks/useIsNativeApp'
 export default function ApkTestPanel() {
   const isNative = useIsNativeApp()
   const { user } = useAuth()
-  const isAdmin = !!user && user.role === 'ADMIN'
+  const isAdmin = !!user && (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN')
   const [open, setOpen] = useState(false)
   const [session, setSession] = useState<any>(null)
   const [reporting, setReporting] = useState(false)

@@ -11,6 +11,7 @@ datasource db {
 enum Role {
   PLAYER
   ADMIN
+  SUPER_ADMIN
 }
 
 enum GameMode {
