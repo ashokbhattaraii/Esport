@@ -486,7 +486,9 @@ model Tournament {
   thirdPrize     Int              @default(0)
   fourthToTenthPrize Int           @default(0)
   maxSlots       Int
+  maxTeams       Int?
   filledSlots    Int              @default(0)
+  filledTeams    Int              @default(0)
   dateTime       DateTime
   roomId         String?
   roomPassword   String?

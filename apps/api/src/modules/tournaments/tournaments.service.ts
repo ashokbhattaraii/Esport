@@ -32,6 +32,7 @@ import {
   invalidateTournamentCaches,
   tournamentDetailCacheKey,
 } from "./tournament-cache.keys";
+import { GameModeTeamSize, GameModeMaxTeams } from "@fireslot/shared";
 
 const ROOM_CACHE_TTL_SECONDS = 30;
 const TOURNAMENT_LIST_SOFT_TTL_SECONDS = 15;
@@ -56,7 +57,9 @@ const TOURNAMENT_LIST_SELECT = {
   thirdPrize: true,
   fourthToTenthPrize: true,
   maxSlots: true,
+  maxTeams: true,
   filledSlots: true,
+  filledTeams: true,
   dateTime: true,
   status: true,
   killPrize: true,
@@ -269,10 +272,40 @@ export class TournamentsService implements OnModuleInit {
     const characterSkillOn = (dto as any).characterSkillOn ?? true;
     const gunAttributesOn = (dto as any).gunAttributesOn ?? false;
 
+    // Enforce mode-aware esports lobby sizing (players vs teams).
+    const teamSize = GameModeTeamSize[dto.mode];
+    const modeTeamCap = GameModeMaxTeams[dto.mode];
+    const isTeamBased = teamSize > 1;
+
+    let maxTeams: number | undefined;
+    let maxSlots: number;
+
+    if (isTeamBased) {
+      const requestedTeams = dto.maxTeams ?? Math.floor(dto.maxSlots / teamSize);
+      if (!requestedTeams || requestedTeams < 1) {
+        throw new BadRequestException(`Max teams must be at least 1 for ${dto.mode}`);
+      }
+      if (requestedTeams > modeTeamCap) {
+        throw new BadRequestException(
+          `${dto.mode} supports up to ${modeTeamCap} teams (${modeTeamCap * teamSize} players)`,
+        );
+      }
+      maxTeams = requestedTeams;
+      maxSlots = requestedTeams * teamSize;
+    } else {
+      const maxPlayersCap = modeTeamCap * teamSize;
+      if (dto.maxSlots > maxPlayersCap) {
+        throw new BadRequestException(
+          `${dto.mode} supports up to ${maxPlayersCap} players`,
+        );
+      }
+      maxSlots = dto.maxSlots;
+    }
+
     // Preview with full lobby (Nepali Adda model — actual values recomputed at room lock).
     const preview = this.prizes.calculatePrizeStructure(
-      { entryFeeNpr: entryFee, maxSlots: dto.maxSlots, type, mode: dto.mode },
-      dto.maxSlots,
+      { entryFeeNpr: entryFee, maxSlots, type, mode: dto.mode },
+      maxSlots,
     );
 
     const matchRules = this.buildMatchRules({
@@ -314,7 +347,8 @@ export class TournamentsService implements OnModuleInit {
         secondPrize: 0,
         thirdPrize: 0,
         fourthToTenthPrize: 0,
-        maxSlots: dto.maxSlots,
+        maxSlots,
+        maxTeams,
         dateTime: new Date(dto.dateTime),
         rules: dto.rules,
         roomId: dto.roomId,
@@ -507,8 +541,19 @@ export class TournamentsService implements OnModuleInit {
     if (!t) throw new NotFoundException("Tournament not found");
     if (t.status !== TournamentStatus.UPCOMING)
       throw new BadRequestException("Tournament not open");
-    if (t.filledSlots >= t.maxSlots)
-      throw new BadRequestException("Tournament is full");
+
+    const teamSize = GameModeTeamSize[t.mode];
+    const isTeamBased = teamSize > 1;
+
+    if (isTeamBased) {
+      if (t.filledSlots >= t.maxSlots) {
+        throw new BadRequestException("Tournament is full");
+      }
+    } else {
+      // For individual games, check player slots
+      if (t.filledSlots >= t.maxSlots)
+        throw new BadRequestException("Tournament is full");
+    }
 
     if (t.type !== "FREE_DAILY") {
       const elig = await this.checkEligibility(userId, tournamentId);
@@ -531,11 +576,78 @@ export class TournamentsService implements OnModuleInit {
     });
     if (existing) throw new ConflictException("Already joined");
 
+    // Handle team-based vs individual joining
+    let teamId: string | undefined;
+    let createdTeam = false;
+    if (isTeamBased) {
+      const teamSlots = t.maxTeams ?? Math.floor(t.maxSlots / teamSize);
+      const teamRows = await this.prisma.tournamentParticipant.findMany({
+        where: { tournamentId, teamId: { not: null } },
+        select: { teamId: true },
+        distinct: ["teamId"],
+      });
+      const teamIds = teamRows.map((r) => r.teamId).filter(Boolean) as string[];
+
+      const teams = teamIds.length
+        ? await this.prisma.team.findMany({
+            where: { id: { in: teamIds } },
+            include: {
+              _count: {
+                select: { members: true },
+              },
+            },
+          })
+        : [];
+
+      const availableTeam = teams.find((team) => team._count.members < teamSize);
+
+      if (availableTeam) {
+        // Join existing team
+        teamId = availableTeam.id;
+        await this.prisma.teamMember.create({
+          data: {
+            teamId,
+            userId,
+          },
+        });
+      } else {
+        if (teamIds.length >= teamSlots) {
+          throw new BadRequestException("Tournament is full (no more teams available)");
+        }
+        // Create new team
+        const newTeam = await this.prisma.team.create({
+          data: {
+            name: `Team ${Date.now().toString().slice(-6)}`,
+            captainId: userId,
+          },
+        });
+        await this.prisma.teamMember.create({
+          data: {
+            teamId: newTeam.id,
+            userId,
+            role: "captain",
+          },
+        });
+        teamId = newTeam.id;
+        createdTeam = true;
+      }
+    }
+
     const participant = await this.prisma.tournamentParticipant.create({
       data: {
         tournamentId,
         userId,
+        teamId,
         paid: t.type === "FREE_DAILY", // free entry is auto-paid
+      },
+    });
+
+    // Update occupancy counters.
+    await this.prisma.tournament.update({
+      where: { id: tournamentId },
+      data: {
+        filledSlots: { increment: 1 },
+        ...(createdTeam ? { filledTeams: { increment: 1 } } : {}),
       },
     });
 

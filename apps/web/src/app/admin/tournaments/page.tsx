@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
-import { GameModeLabels, GameModes } from "@fireslot/shared";
+import { GameModeLabels, GameModes, GameModeTeamSize } from "@fireslot/shared";
 import { fmtDate, npr } from "@/lib/utils";
 import { ButtonLoading, CardSkeleton, EmptyState, PageHeader, StatusBadge } from "@/components/ui";
 
@@ -17,6 +17,7 @@ const initialForm = {
   entryFeeNpr: 15,
   prizePoolNpr: 0,
   maxSlots: 48,
+  maxTeams: undefined as number | undefined,
   dateTime: "",
   rules: "",
   minLevel: 40,
@@ -71,6 +72,7 @@ export default function AdminTournaments() {
           entryFeeNpr: Number(form.entryFeeNpr),
           prizePoolNpr: preview?.grossPool ?? 0,
           maxSlots: Number(form.maxSlots),
+          maxTeams: form.maxTeams ? Number(form.maxTeams) : undefined,
           minLevel: Number(form.minLevel),
           maxHeadshotRate: Number(form.maxHeadshotRate),
           dateTime: new Date(form.dateTime).toISOString(),
@@ -226,7 +228,17 @@ export default function AdminTournaments() {
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <NumberInput label="Max Slots" value={form.maxSlots} onChange={(v) => setForm({ ...form, maxSlots: v })} min={2} step={1} />
+            {GameModeTeamSize[form.mode as keyof typeof GameModeTeamSize] > 1 ? (
+              <NumberInput
+                label={`Max Teams (${GameModeTeamSize[form.mode as keyof typeof GameModeTeamSize]}v${GameModeTeamSize[form.mode as keyof typeof GameModeTeamSize]})`}
+                value={form.maxTeams || Math.floor(form.maxSlots / GameModeTeamSize[form.mode as keyof typeof GameModeTeamSize])}
+                onChange={(v) => setForm({ ...form, maxTeams: v, maxSlots: v * GameModeTeamSize[form.mode as keyof typeof GameModeTeamSize] })}
+                min={1}
+                step={1}
+              />
+            ) : (
+              <NumberInput label="Max Players" value={form.maxSlots} onChange={(v) => setForm({ ...form, maxSlots: v })} min={2} step={1} />
+            )}
             <div>
               <label className="label">Date</label>
               <input
@@ -334,7 +346,13 @@ export default function AdminTournaments() {
                 <Mini label="Fee" value={npr(t.entryFeeNpr)} />
                 <Mini label="Per Kill" value={npr(t.perKillReward ?? 0)} />
                 <Mini label="Booyah" value={npr(t.booyahPrize ?? 0)} />
-                <Mini label="Slots" value={`${t.filledSlots}/${t.maxSlots}`} />
+                <Mini
+                  label={GameModeTeamSize[t.mode as keyof typeof GameModeTeamSize] > 1 ? "Teams" : "Players"}
+                  value={GameModeTeamSize[t.mode as keyof typeof GameModeTeamSize] > 1
+                    ? `${Math.floor(t.filledSlots / GameModeTeamSize[t.mode as keyof typeof GameModeTeamSize])}/${t.maxTeams || Math.floor(t.maxSlots / GameModeTeamSize[t.mode as keyof typeof GameModeTeamSize])}`
+                    : `${t.filledSlots}/${t.maxSlots}`
+                  }
+                />
               </div>
               <div className="mt-3 flex gap-2 flex-wrap">
                 <button

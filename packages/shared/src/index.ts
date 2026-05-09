@@ -91,6 +91,26 @@ export const GameModeLabels: Record<GameMode, string> = {
   CRAFTLAND: "Custom / Craftland",
 };
 
+export const GameModeTeamSize: Record<GameMode, number> = {
+  BR_SOLO: 1,
+  BR_DUO: 2,
+  BR_SQUAD: 4,
+  CS_4V4: 4, // 4v4 means teams of 4
+  LW_1V1: 1,
+  LW_2V2: 2,
+  CRAFTLAND: 1, // Default to 1 for custom
+};
+
+export const GameModeMaxTeams: Record<GameMode, number> = {
+  BR_SOLO: 48, // 48 individual players
+  BR_DUO: 24,  // 24 pairs = 48 players
+  BR_SQUAD: 12, // 12 squads = 48 players
+  CS_4V4: 2,   // 2 teams of 4 = 8 players
+  LW_1V1: 2,   // 2 players
+  LW_2V2: 2,   // 2 teams of 2 = 4 players
+  CRAFTLAND: 50,
+};
+
 export const registerSchema = z.object({
   email: z.string().email(),
   phone: z.string().min(7).optional(),
