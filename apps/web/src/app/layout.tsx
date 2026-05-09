@@ -27,6 +27,9 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
         {apiUrl && <link rel="preconnect" href={new URL(apiUrl).origin} crossOrigin="" />}
         {supaUrl && <link rel="preconnect" href={supaUrl} crossOrigin="" />}
         {supaUrl && <link rel="dns-prefetch" href={supaUrl} />}
@@ -47,7 +50,7 @@ export default function RootLayout({
           <AppShell>
             <Navbar />
             <RootClient>
-              <main className="min-h-[calc(100vh-132px)] px-4 pb-28 pt-4">
+              <main className="fs-page fs-pb-safe">
                 {children}
               </main>
             </RootClient>

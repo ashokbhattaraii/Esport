@@ -2,18 +2,18 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Home, Trophy, Wallet, Bell, UserCircle } from "lucide-react";
+import { Home, Trophy, Wallet, Swords, UserCircle } from "lucide-react";
 import { useIsNativeApp } from "@/hooks/useIsNativeApp";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
 import { useUserRealtime } from "@/hooks/useUserRealtime";
 
 const TABS = [
-  { href: "/", label: "Home", icon: Home },
-  { href: "/tournaments", label: "Tournaments", icon: Trophy },
-  { href: "/wallet", label: "Wallet", icon: Wallet },
-  { href: "/notifications", label: "Alerts", icon: Bell, key: "notif" },
-  { href: "/dashboard", label: "Profile", icon: UserCircle },
+  { href: "/", label: "Home", Icon: Home },
+  { href: "/tournaments", label: "Tournaments", Icon: Trophy },
+  { href: "/wallet", label: "Wallet", Icon: Wallet },
+  { href: "/challenges", label: "Challenges", Icon: Swords },
+  { href: "/dashboard", label: "Profile", Icon: UserCircle },
 ];
 
 export function MobileBottomNav() {
@@ -23,46 +23,52 @@ export function MobileBottomNav() {
   const [unread, setUnread] = useState(0);
 
   useEffect(() => {
-    if (!isNative || !user) return;
+    if (!user) return;
     api<any[]>("/notifications")
       .then((items) => setUnread(items.filter((n: any) => !n.read).length))
       .catch(() => {});
-  }, [isNative, user, pathname]);
+  }, [user, pathname]);
 
   useUserRealtime({
     onNotification: () => setUnread((n) => n + 1),
   });
 
-  if (!isNative) return null;
+  if (pathname.startsWith('/admin')) return null;
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-50 grid grid-cols-5 border-t border-border bg-bg/95 backdrop-blur"
+      className="fixed bottom-0 left-0 right-0 z-50 grid grid-cols-5"
       style={{
-        paddingBottom: "env(safe-area-inset-bottom)",
-        height: "calc(64px + env(safe-area-inset-bottom))",
+        background: 'rgba(11,11,20,0.97)',
+        backdropFilter: 'blur(12px)',
+        borderTop: '0.5px solid var(--fs-border)',
+        paddingBottom: isNative ? 'env(safe-area-inset-bottom, 16px)' : '4px',
+        height: isNative ? 'calc(60px + env(safe-area-inset-bottom, 16px))' : '64px',
       }}
     >
       {TABS.map((t) => {
-        const Icon = t.icon;
+        const { Icon } = t;
         const active = t.href === "/" ? pathname === "/" : pathname.startsWith(t.href);
         return (
           <Link
             key={t.href}
             href={t.href}
-            className={`relative flex flex-col items-center justify-center gap-0.5 text-[10px] ${
-              active ? "text-neon-cyan" : "text-white/55"
-            }`}
+            className="relative flex flex-col items-center justify-center gap-0.5"
+            style={{ minHeight: '44px' }}
           >
-            <div className="relative">
-              <Icon size={20} />
-              {t.key === "notif" && unread > 0 && (
-                <span className="absolute -right-2 -top-1 min-w-[16px] rounded-full bg-red-500 px-1 text-[9px] font-bold text-white text-center">
-                  {unread > 9 ? "9+" : unread}
-                </span>
-              )}
-            </div>
-            {t.label}
+            {active && (
+              <span
+                className="absolute top-0 left-1/2 -translate-x-1/2 h-[3px] w-5 rounded-full"
+                style={{ background: 'var(--fs-red)' }}
+              />
+            )}
+            <Icon size={20} style={{ color: active ? 'var(--fs-red)' : 'var(--fs-text-3)' }} />
+            <span
+              className="text-[10px] font-medium"
+              style={{ color: active ? 'var(--fs-red)' : 'var(--fs-text-3)' }}
+            >
+              {t.label}
+            </span>
           </Link>
         );
       })}

@@ -1,5 +1,4 @@
 "use client";
-import { motion } from "framer-motion";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
@@ -11,8 +10,7 @@ import {
 import { fmtDate, npr } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
-import { Trophy, Users, Calendar, Skull, Gift } from "lucide-react";
-import { StatusBadge } from "./ui";
+import { Gift } from "lucide-react";
 
 export function TournamentCard({ t }: { t: any }) {
   const full = t.filledSlots >= t.maxSlots;
@@ -20,8 +18,8 @@ export function TournamentCard({ t }: { t: any }) {
   const type = (t.type ?? "SOLO_1ST") as TournamentType;
   const perKill = t.killPrize ?? t.perKillPrizeNpr ?? calculateKillPrize(playerFee);
   const isFree = type === "FREE_DAILY";
-  const isKillRace = type === "KILL_RACE";
   const topPrize = t.firstPrize || t.prizePoolNpr;
+  const modeLabel = GameModeLabels[t.mode as keyof typeof GameModeLabels] ?? t.mode;
 
   const { user } = useAuth();
   const [nextAt, setNextAt] = useState<string | null>(null);
@@ -38,11 +36,7 @@ export function TournamentCard({ t }: { t: any }) {
     if (!nextAt) return;
     const tick = () => {
       const ms = new Date(nextAt).getTime() - Date.now();
-      if (ms <= 0) {
-        setNextAt(null);
-        setCountdown("");
-        return;
-      }
+      if (ms <= 0) { setNextAt(null); setCountdown(""); return; }
       const h = Math.floor(ms / 3_600_000);
       const m = Math.floor((ms % 3_600_000) / 60_000);
       const s = Math.floor((ms % 60_000) / 1000);
@@ -53,113 +47,95 @@ export function TournamentCard({ t }: { t: any }) {
     return () => clearInterval(id);
   }, [nextAt]);
 
+  const modeBadgeClass = t.mode?.startsWith("BR_") ? "fs-badge fs-badge-red"
+    : t.mode?.startsWith("CS_") ? "fs-badge fs-badge-gold"
+    : "fs-badge fs-badge-green";
+
   return (
-    <motion.div
-      whileHover={{ y: -4 }}
-      className="card relative overflow-hidden hover:shadow-neon transition"
-    >
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="label">
-            {GameModeLabels[t.mode as keyof typeof GameModeLabels]}
-          </p>
-          <h3 className="font-display text-lg text-white">{t.title}</h3>
-          <span className="mt-1 inline-block rounded-md border border-neon-cyan/40 bg-neon-cyan/10 px-2 py-0.5 text-[10px] text-neon-cyan">
-            {TournamentTypeLabels[type]}
-          </span>
+    <div className="fs-card">
+      {t.coverUrl ? (
+        <div className="relative">
+          <img
+            src={t.coverUrl}
+            alt=""
+            className="w-full object-cover"
+            style={{ height: '140px' }}
+          />
+          {t.status === "ONGOING" && (
+            <span className="absolute top-3 right-3 fs-badge fs-badge-green flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-[var(--fs-green)] animate-pulse" />
+              LIVE
+            </span>
+          )}
+          {t.status === "COMPLETED" && (
+            <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+              <span className="fs-badge fs-badge-gray text-sm">ENDED</span>
+            </div>
+          )}
         </div>
-        <div className="flex flex-col items-end gap-1">
-          <StatusBadge status={t.status} />
-          {isFree && (
-            <span className="inline-flex items-center gap-1 rounded-md border border-neon-green/40 bg-neon-green/10 px-2 py-0.5 text-[10px] text-neon-green">
-              <Gift size={10} /> FREE • 1/24h
+      ) : (
+        <div className="relative w-full flex items-center justify-center" style={{ height: '140px', background: 'linear-gradient(135deg, var(--fs-surface-2), var(--fs-surface-3))' }}>
+          <span className="text-4xl opacity-30">🎮</span>
+          {t.status === "ONGOING" && (
+            <span className="absolute top-3 right-3 fs-badge fs-badge-green flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-[var(--fs-green)] animate-pulse" />
+              LIVE
             </span>
           )}
         </div>
-      </div>
-
-      <div className="mt-4 grid grid-cols-3 gap-3 text-sm">
-        <Stat
-          icon={isKillRace ? <Skull size={14} /> : <Trophy size={14} />}
-          label={isKillRace ? "Per Kill" : "Top Prize"}
-          value={isKillRace ? npr(perKill) : npr(topPrize)}
-          accent="neon"
-        />
-        <Stat
-          icon={<Skull size={14} />}
-          label="Kill"
-          value={npr(perKill)}
-          accent="cyan"
-        />
-        <Stat
-          icon={<Users size={14} />}
-          label="Fee"
-          value={isFree ? "FREE" : npr(playerFee)}
-          accent="purple"
-        />
-      </div>
-      <div className="mt-3 grid grid-cols-3 gap-3 text-sm">
-        <Stat
-          icon={<Trophy size={14} />}
-          label="Pool"
-          value={npr(t.prizePoolNpr)}
-          accent="neon"
-        />
-        <Stat
-          icon={<Users size={14} />}
-          label="Slots"
-          value={`${t.filledSlots}/${t.maxSlots}`}
-          accent="cyan"
-        />
-        <Stat
-          icon={<Calendar size={14} />}
-          label="Date"
-          value={fmtDate(t.dateTime)}
-          accent="purple"
-        />
-      </div>
-
-      {isFree && nextAt && (
-        <div className="mt-3 rounded-md border border-yellow-400/40 bg-yellow-400/10 px-3 py-2 text-xs text-yellow-300">
-          Next free slot in {countdown}
-        </div>
       )}
 
-      <div className="mt-5 flex items-center justify-between gap-3">
-        <span className="text-sm text-white/70">
-          {isFree
-            ? "No payment required"
-            : `Includes reg ${npr(t.registrationFeeNpr ?? 10)}`}
-        </span>
-        <Link
-          href={`/tournaments/${t.id}`}
-          className={
-            full || (isFree && nextAt)
-              ? "btn-outline opacity-60 pointer-events-none"
-              : "btn-primary"
-          }
-        >
-          {full ? "Full" : isFree && nextAt ? "Used" : "Join Now"}
-        </Link>
-      </div>
-    </motion.div>
-  );
-}
+      <div className="fs-card-body">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className={modeBadgeClass}>{modeLabel}</span>
+          <span className="fs-badge fs-badge-gray">{t.map ?? TournamentTypeLabels[type]}</span>
+          {isFree && (
+            <span className="fs-badge fs-badge-green flex items-center gap-1">
+              <Gift size={10} /> FREE
+            </span>
+          )}
+        </div>
 
-function Stat({ icon, label, value, accent }: any) {
-  const c =
-    accent === "neon"
-      ? "text-neon"
-      : accent === "cyan"
-        ? "text-neon-cyan"
-        : "text-neon-purple";
-  return (
-    <div>
-      <div className={`flex items-center gap-1 ${c}`}>
-        {icon}
-        <span className="label">{label}</span>
+        <h3 className="mt-2 text-[15px] font-bold" style={{ color: 'var(--fs-text-1)' }}>
+          💣 {t.title}
+        </h3>
+
+        <div className="mt-3 grid grid-cols-3 text-center" style={{ borderTop: '0.5px solid var(--fs-border)', borderBottom: '0.5px solid var(--fs-border)', padding: '10px 0' }}>
+          <div style={{ borderRight: '0.5px solid var(--fs-border)' }}>
+            <p className="text-[9px] uppercase font-semibold" style={{ color: 'var(--fs-text-3)' }}>Date</p>
+            <p className="text-[13px] font-bold mt-0.5" style={{ color: 'var(--fs-text-1)' }}>{fmtDate(t.dateTime)}</p>
+          </div>
+          <div style={{ borderRight: '0.5px solid var(--fs-border)' }}>
+            <p className="text-[9px] uppercase font-semibold" style={{ color: 'var(--fs-text-3)' }}>Prize Pool</p>
+            <p className="text-[13px] font-bold mt-0.5" style={{ color: 'var(--fs-text-1)' }}>Rs {topPrize}</p>
+          </div>
+          <div>
+            <p className="text-[9px] uppercase font-semibold" style={{ color: 'var(--fs-text-3)' }}>Per Kill</p>
+            <p className="text-[13px] font-bold mt-0.5" style={{ color: 'var(--fs-text-1)' }}>Rs {perKill}</p>
+          </div>
+        </div>
+
+        {isFree && nextAt && (
+          <div className="mt-2 rounded-md px-3 py-2 text-xs font-medium" style={{ background: 'var(--fs-amber-dim)', color: 'var(--fs-amber)' }}>
+            Next free slot in {countdown}
+          </div>
+        )}
+
+        <div className="mt-3 flex items-center justify-between">
+          <span className="text-xs" style={{ color: 'var(--fs-text-3)' }}>
+            Total Players: {t.filledSlots}/{t.maxSlots}
+          </span>
+          <Link
+            href={`/tournaments/${t.id}`}
+            className={`fs-btn fs-btn-sm ${
+              full || (isFree && nextAt) ? 'fs-btn-outline opacity-50 pointer-events-none' : 'fs-btn-primary'
+            }`}
+          >
+            {!isFree && <span>🪙 Rs {playerFee}</span>}
+            {full ? "Full" : isFree && nextAt ? "Used" : isFree ? "JOIN →" : "JOIN →"}
+          </Link>
+        </div>
       </div>
-      <div className="text-white text-sm font-medium truncate">{value}</div>
     </div>
   );
 }

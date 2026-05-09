@@ -106,174 +106,150 @@ export default function HomePage() {
     [categories],
   );
 
-  const profileSection = (
-    <section className="card">
-      {user ? (
-        <>
-          <div className="flex items-center gap-3">
-            {user.avatarUrl ? (
-              <img
-                src={user.avatarUrl}
-                alt=""
-                className="h-12 w-12 rounded-lg border border-border"
-              />
-            ) : (
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-surface text-neon-cyan">
-                <Wallet />
-              </div>
-            )}
-            <div className="min-w-0">
-              <p className="label">Profile Balance</p>
-              <p className="truncate font-semibold text-white">
-                {user.profile?.ign ?? user.name ?? user.email}
-              </p>
-            </div>
-          </div>
-          <p className="mt-4 font-display text-3xl text-white">
-            {npr(wallet?.wallet?.balanceNpr ?? user.wallet?.balanceNpr ?? 0)}
-          </p>
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            <Link href="/wallet?tab=deposit" className="btn-primary">
-              <Plus size={16} /> Deposit
-            </Link>
-            <Link href="/wallet?tab=withdraw" className="btn-outline">
-              Withdraw
-            </Link>
-          </div>
-        </>
-      ) : (
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <p className="label">Profile</p>
-            <p className="font-semibold text-white">
-              Google sign-in required
-            </p>
-            <p className="mt-1 text-sm text-white/60">
-              Create your player wallet instantly.
-            </p>
-          </div>
-          <Link href="/login" className="btn-primary whitespace-nowrap">
-            Sign in
-          </Link>
-        </div>
-      )}
-    </section>
-  );
+  const activeCount = tournaments.filter((t) => t.status === "ONGOING" || t.status === "UPCOMING").length;
+  const totalPrize = tournaments.reduce((sum, t) => sum + (t.prizePoolNpr ?? 0), 0);
 
   return (
     <>
       <div className="-mx-4 -mt-4">
         <HeroSlider />
       </div>
-      <div className="mt-5 space-y-5">
-      <section>
-        <div className="mb-3 flex items-center justify-between">
-          <div>
-            <p className="label">Choose Your Game</p>
-            <h2 className="font-display text-xl text-white">Games</h2>
+
+      <div className="mt-4 space-y-5">
+        {/* Quick Stats Bar */}
+        <div
+          className="flex items-center justify-center gap-4 rounded-full px-4 py-2.5 mx-auto w-fit"
+          style={{ background: 'var(--fs-surface-1)', border: '0.5px solid var(--fs-border)' }}
+        >
+          <div className="flex items-center gap-1.5 text-xs">
+            <span className="h-2 w-2 rounded-full" style={{ background: 'var(--fs-green)' }} />
+            <span className="font-semibold" style={{ color: 'var(--fs-text-1)' }}>{activeCount}</span>
+            <span style={{ color: 'var(--fs-text-3)' }}>Live</span>
+          </div>
+          <div className="h-3 w-px" style={{ background: 'var(--fs-border-md)' }} />
+          <div className="flex items-center gap-1.5 text-xs">
+            <span style={{ color: 'var(--fs-text-3)' }}>👥</span>
+            <span className="font-semibold" style={{ color: 'var(--fs-text-1)' }}>{tournaments.length * 3}</span>
+            <span style={{ color: 'var(--fs-text-3)' }}>Players</span>
+          </div>
+          <div className="h-3 w-px" style={{ background: 'var(--fs-border-md)' }} />
+          <div className="flex items-center gap-1.5 text-xs">
+            <span style={{ color: 'var(--fs-text-3)' }}>🏆</span>
+            <span className="font-semibold" style={{ color: 'var(--fs-gold)' }}>Rs {totalPrize}</span>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          {loading ? (
-            <>
-              <CardSkeleton lines={2} />
-              <CardSkeleton lines={2} />
-              <CardSkeleton lines={2} />
-            </>
-          ) : (
-            <>
-              {gameChoices.map((game) => {
-                const liveCount = liveCounts[game.slug] ?? 0;
-                return (
-                  <Link
+
+        {/* Game Modes */}
+        <section>
+          <div className="fs-section-header">
+            <span className="fs-section-title">Game Modes</span>
+          </div>
+          <div className="fs-hscroll">
+            {loading ? (
+              <>
+                <div className="fs-skeleton" style={{ width: '120px', height: '60px', flexShrink: 0 }} />
+                <div className="fs-skeleton" style={{ width: '120px', height: '60px', flexShrink: 0 }} />
+                <div className="fs-skeleton" style={{ width: '120px', height: '60px', flexShrink: 0 }} />
+              </>
+            ) : (
+              <>
+                {gameChoices.map((game) => {
+                  const liveCount = liveCounts[game.slug] ?? 0;
+                  return (
+                    <Link
+                      key={game.id}
+                      href={`/tournaments?category=${game.slug}`}
+                      className="relative flex-shrink-0 rounded-xl px-4 py-3 text-left transition"
+                      style={{
+                        background: 'var(--fs-surface-1)',
+                        border: '0.5px solid var(--fs-border)',
+                        minWidth: '120px',
+                      }}
+                    >
+                      {liveCount > 0 && (
+                        <span className="absolute right-2 top-2 fs-badge fs-badge-green" style={{ fontSize: '8px' }}>
+                          {liveCount} LIVE
+                        </span>
+                      )}
+                      <Flame size={16} style={{ color: 'var(--fs-red)' }} />
+                      <p className="mt-2 text-xs font-semibold" style={{ color: 'var(--fs-text-1)' }}>{game.name}</p>
+                      {game.parentName && (
+                        <p className="text-[10px]" style={{ color: 'var(--fs-text-3)' }}>{game.parentName}</p>
+                      )}
+                    </Link>
+                  );
+                })}
+                {comingSoonGames.map((game) => (
+                  <div
                     key={game.id}
-                    href={`/tournaments?category=${game.slug}`}
-                    className="relative min-h-[112px] rounded-lg border border-border bg-card/80 p-4 text-left transition hover:border-neon-cyan/50 hover:bg-neon-cyan/10"
+                    className="relative flex-shrink-0 rounded-xl px-4 py-3 opacity-60"
+                    style={{
+                      background: 'var(--fs-surface-1)',
+                      border: '0.5px solid var(--fs-border)',
+                      minWidth: '120px',
+                    }}
                   >
-                    {liveCount > 0 && (
-                      <span className="absolute right-2 top-2 rounded-md bg-neon-cyan/20 px-1.5 py-0.5 text-[9px] font-semibold text-neon-cyan">
-                        {liveCount} LIVE
-                      </span>
-                    )}
-                    <Flame className="text-neon" size={20} />
-                    <p className="mt-3 font-semibold text-white text-sm">{game.name}</p>
-                    {game.parentName && (
-                      <p className="mt-1 text-[11px] text-white/45">{game.parentName}</p>
-                    )}
-                  </Link>
-                );
-              })}
-              {comingSoonGames.map((game) => (
-                <div
-                  key={game.id}
-                  className="relative min-h-[112px] rounded-lg border border-border bg-card/80 p-4 opacity-60"
-                >
-                  <span className="absolute right-2 top-2 rounded-md bg-neon-orange/20 px-2 py-0.5 text-[9px] font-semibold text-neon-orange">
-                    Coming Soon
-                  </span>
-                  <Gamepad2 className="text-white/40" size={20} />
-                  <p className="mt-3 font-semibold text-white/70 text-sm">{game.name}</p>
-                </div>
-              ))}
-            </>
+                    <span className="absolute right-2 top-2 fs-badge fs-badge-amber" style={{ fontSize: '8px' }}>
+                      Soon
+                    </span>
+                    <Gamepad2 size={16} style={{ color: 'var(--fs-text-3)' }} />
+                    <p className="mt-2 text-xs font-semibold" style={{ color: 'var(--fs-text-2)' }}>{game.name}</p>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+          {!loading && gameChoices.length === 0 && comingSoonGames.length === 0 && (
+            <EmptyState
+              title="No games available"
+              description="Active game categories will appear here."
+            />
           )}
-        </div>
-        {!loading && gameChoices.length === 0 && comingSoonGames.length === 0 && (
-          <EmptyState
-            title="No games available"
-            description="Active game categories will appear here."
-          />
-        )}
-      </section>
+        </section>
 
-      <section>
-        <div className="mb-3 flex items-center justify-between">
-          <div>
-            <p className="label">Available Matches</p>
-            <h2 className="font-display text-xl text-white">Tournaments</h2>
+        {/* Upcoming Matches */}
+        <section>
+          <div className="fs-section-header">
+            <span className="fs-section-title">Upcoming Matches</span>
+            <Link href="/tournaments" className="fs-section-link">View all</Link>
           </div>
-          <Link href="/tournaments" className="text-sm text-neon-cyan">
-            View all
+          {loading ? (
+            <LoadingState label="Loading tournaments..." />
+          ) : tournaments.length === 0 ? (
+            <EmptyState
+              title="No tournaments yet"
+              description="Admin-created rooms will appear here first."
+            />
+          ) : (
+            <div className="space-y-4">
+              {tournaments.slice(0, 5).map((t) => (
+                <TournamentCard key={t.id} t={t} />
+              ))}
+            </div>
+          )}
+        </section>
+
+        <DownloadBanner />
+
+        {/* Quick Links */}
+        <section className="fs-grid-2">
+          <Link
+            href="/challenges"
+            className="fs-card fs-card-body"
+          >
+            <Trophy size={20} style={{ color: 'var(--fs-red)' }} />
+            <p className="mt-2 text-sm font-semibold" style={{ color: 'var(--fs-text-1)' }}>Challenges</p>
+            <p className="text-[11px]" style={{ color: 'var(--fs-text-3)' }}>Public custom rooms</p>
           </Link>
-        </div>
-        {loading ? (
-          <LoadingState label="Loading tournaments..." />
-        ) : tournaments.length === 0 ? (
-          <EmptyState
-            title="No tournaments yet"
-            description="Admin-created rooms will appear here first."
-          />
-        ) : (
-          <div className="space-y-4">
-            {tournaments.slice(0, 5).map((t) => (
-              <TournamentCard key={t.id} t={t} />
-            ))}
-          </div>
-        )}
-      </section>
-
-      <DownloadBanner />
-
-      {profileSection}
-
-      <section className="grid grid-cols-2 gap-3">
-        <Link
-          href="/challenges"
-          className="rounded-lg border border-border bg-card/80 p-4"
-        >
-          <Trophy className="text-neon-cyan" />
-          <p className="mt-3 font-semibold text-white">Challenges</p>
-          <p className="text-xs text-white/50">Public custom rooms</p>
-        </Link>
-        <Link
-          href="/leaderboard"
-          className="rounded-lg border border-border bg-card/80 p-4"
-        >
-          <Flame className="text-neon" />
-          <p className="mt-3 font-semibold text-white">Leaderboard</p>
-          <p className="text-xs text-white/50">Top prize winners</p>
-        </Link>
-      </section>
+          <Link
+            href="/leaderboard"
+            className="fs-card fs-card-body"
+          >
+            <Flame size={20} style={{ color: 'var(--fs-gold)' }} />
+            <p className="mt-2 text-sm font-semibold" style={{ color: 'var(--fs-text-1)' }}>Leaderboard</p>
+            <p className="text-[11px]" style={{ color: 'var(--fs-text-3)' }}>Top prize winners</p>
+          </Link>
+        </section>
       </div>
     </>
   );

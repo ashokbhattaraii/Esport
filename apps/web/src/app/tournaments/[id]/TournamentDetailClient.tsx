@@ -8,7 +8,7 @@ import { useToast, handleJoinError } from "@/lib/toast";
 import { useTournamentRealtime } from "@/hooks/useTournamentRealtime";
 import { ButtonLoading, PageLoading } from "@/components/ui";
 import {
-  Trophy, AlertTriangle, Settings, BookOpen, ShieldCheck, X,
+  Trophy, AlertTriangle, Settings, BookOpen, ShieldCheck, X, ArrowLeft,
 } from "lucide-react";
 
 interface MatchRules {
@@ -96,89 +96,117 @@ export default function TournamentDetailClient() {
   };
 
   return (
-    <div className="space-y-4 pb-24">
-      {t.coverUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={t.coverUrl} alt="" className="w-full h-44 object-cover rounded-lg" />
-      ) : (
-        <div className="w-full h-32 rounded-lg bg-gradient-to-r from-neon/30 via-neon-purple/20 to-neon-cyan/30 flex items-center justify-center">
-          <Trophy className="text-white/40" size={48} />
+    <div className="space-y-4 pb-24 -mx-4">
+      {/* Banner */}
+      <div className="relative">
+        {t.coverUrl ? (
+          <img src={t.coverUrl} alt="" className="w-full object-cover" style={{ height: '200px' }} />
+        ) : (
+          <div className="w-full flex items-center justify-center" style={{ height: '200px', background: 'linear-gradient(135deg, var(--fs-surface-2), var(--fs-surface-3))' }}>
+            <Trophy size={48} style={{ color: 'var(--fs-text-3)' }} />
+          </div>
+        )}
+        <div className="absolute top-0 left-0 right-0 flex items-center justify-between p-4" style={{ paddingTop: 'calc(var(--fs-safe-top) + 12px)' }}>
+          <button
+            onClick={() => router.back()}
+            className="flex h-9 w-9 items-center justify-center rounded-full"
+            style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)' }}
+          >
+            <ArrowLeft size={18} style={{ color: 'var(--fs-text-1)' }} />
+          </button>
+          <span className={`fs-badge ${t.status === 'ONGOING' ? 'fs-badge-green' : t.status === 'COMPLETED' ? 'fs-badge-gray' : 'fs-badge-amber'}`}>
+            {t.status}
+          </span>
         </div>
-      )}
-
-      <div className="text-center">
-        <p className="text-[10px] uppercase tracking-widest text-white/50">DESCRIPTION</p>
-        <h1 className="font-display text-2xl text-white mt-1">{t.title}</h1>
-        <p className="text-xs text-white/60 mt-1">{fmtDate(t.dateTime)}</p>
       </div>
 
-      <Section title="MATCH DETAILS" icon={<BookOpen size={14} />}>
-        <Detail label="Entry Fee" value={`Rs ${rules.entryFee}`} />
-        <Detail label="Per Kill Reward" value={`Rs ${rules.perKillReward}`} accent />
-        <Detail
-          label="Booyah Prize"
-          value={`Rs ${rules.booyahPrize}`}
-          accent
-          note={rules.booyahNote}
-        />
-      </Section>
+      <div className="px-4">
+        <div className="text-center">
+          <h1 className="fs-h1">{t.title}</h1>
+          <p className="fs-caption mt-1">{fmtDate(t.dateTime)}</p>
+        </div>
 
-      <Section title="✅ ELIGIBILITY" icon={<ShieldCheck size={14} />}>
-        <Bullet>Minimum Level {rules.eligibility.minLevel} required</Bullet>
-        <Bullet>Headshot rate below {rules.eligibility.maxHeadshotRate}% (BR Career)</Bullet>
-        {rules.eligibility.noEmulator && <Bullet>Emulator / PC players not allowed</Bullet>}
-      </Section>
+        {/* Match Info Chips */}
+        <div className="mt-4 grid grid-cols-4 gap-2">
+          <InfoChip label="Entry" value={`Rs ${rules.entryFee}`} />
+          <InfoChip label="Per Kill" value={`Rs ${rules.perKillReward}`} />
+          <InfoChip label="Booyah" value={`Rs ${rules.booyahPrize}`} />
+          <InfoChip label="Players" value={`${t.filledSlots}/${t.maxSlots}`} />
+        </div>
 
-      {rules.strictlyProhibited?.length > 0 && (
-        <Section title="STRICTLY PROHIBITED" icon={<AlertTriangle size={14} className="text-red-400" />}>
-          {rules.strictlyProhibited.map((line, i) => <Bullet key={i}>{line}</Bullet>)}
-          <p className="mt-2 rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs font-bold text-red-400">
-            🚫 Violation = {rules.violation}
-          </p>
+        {/* Rules Sections */}
+        <Section title="ELIGIBILITY" accent="var(--fs-green)" icon={<ShieldCheck size={14} />}>
+          <Bullet>Minimum Level {rules.eligibility.minLevel} required</Bullet>
+          <Bullet>Headshot rate below {rules.eligibility.maxHeadshotRate}% (BR Career)</Bullet>
+          {rules.eligibility.noEmulator && <Bullet>Emulator / PC players not allowed</Bullet>}
         </Section>
-      )}
 
-      <Section title="⚙️ ROOM SETTINGS" icon={<Settings size={14} />}>
-        <Detail label="Character Skill" value={rules.roomSettings.characterSkill ? "ON" : "OFF"} />
-        <Detail label="Gun Attributes" value={rules.roomSettings.gunAttributes ? "ON" : "OFF"} />
-        <Detail
-          label="Banned Guns"
-          value={rules.roomSettings.bannedGuns?.length ? rules.roomSettings.bannedGuns.join(", ") : "None"}
-        />
-      </Section>
-
-      {rules.importantInstructions?.length > 0 && (
-        <Section title="IMPORTANT INSTRUCTIONS" icon={<BookOpen size={14} />}>
-          {rules.importantInstructions.map((line, i) => <Bullet key={i}>{line}</Bullet>)}
-        </Section>
-      )}
-
-      {rules.importantNotes?.length > 0 && (
-        <Section title="⚠️ IMPORTANT NOTES" icon={<AlertTriangle size={14} className="text-yellow-300" />}>
-          {rules.importantNotes.map((line, i) => (
-            <p key={i} className="text-xs text-white/70 flex items-start gap-2">
-              <span className="text-yellow-300">⚠️</span> {line}
+        {rules.strictlyProhibited?.length > 0 && (
+          <Section title="STRICTLY PROHIBITED" accent="var(--fs-red)" icon={<AlertTriangle size={14} />}>
+            {rules.strictlyProhibited.map((line, i) => <Bullet key={i}>{line}</Bullet>)}
+            <p className="mt-2 rounded-md px-3 py-2 text-xs font-bold" style={{ background: 'var(--fs-red-glow)', color: 'var(--fs-red)' }}>
+              🚫 Violation = {rules.violation}
             </p>
-          ))}
-          <p className="mt-3 text-xs font-bold text-white">{rules.disclaimer}</p>
-        </Section>
-      )}
+          </Section>
+        )}
 
-      <div className="fixed bottom-0 left-0 right-0 z-40 mx-auto max-w-md border-t border-border bg-bg/95 p-3 backdrop-blur">
+        <Section title="ROOM SETTINGS" accent="var(--fs-amber)" icon={<Settings size={14} />}>
+          <Detail label="Character Skill" value={rules.roomSettings.characterSkill ? "ON" : "OFF"} />
+          <Detail label="Gun Attributes" value={rules.roomSettings.gunAttributes ? "ON" : "OFF"} />
+          <Detail
+            label="Banned Guns"
+            value={rules.roomSettings.bannedGuns?.length ? rules.roomSettings.bannedGuns.join(", ") : "None"}
+          />
+        </Section>
+
+        {rules.importantInstructions?.length > 0 && (
+          <Section title="IMPORTANT INSTRUCTIONS" accent="var(--fs-gold)" icon={<BookOpen size={14} />}>
+            {rules.importantInstructions.map((line, i) => <Bullet key={i}>{line}</Bullet>)}
+          </Section>
+        )}
+
+        {rules.importantNotes?.length > 0 && (
+          <Section title="IMPORTANT NOTES" accent="var(--fs-gold)" icon={<AlertTriangle size={14} />}>
+            {rules.importantNotes.map((line, i) => (
+              <p key={i} className="text-xs flex items-start gap-2" style={{ color: 'var(--fs-text-2)' }}>
+                <span style={{ color: 'var(--fs-amber)' }}>⚠️</span> {line}
+              </p>
+            ))}
+            <p className="mt-3 text-xs font-bold" style={{ color: 'var(--fs-text-1)' }}>{rules.disclaimer}</p>
+          </Section>
+        )}
+      </div>
+
+      {/* Sticky Join Button */}
+      <div
+        className="fixed bottom-0 left-0 right-0 z-40 p-4"
+        style={{
+          background: 'rgba(11,11,20,0.95)',
+          backdropFilter: 'blur(12px)',
+          borderTop: '0.5px solid var(--fs-border)',
+          paddingBottom: 'calc(16px + var(--fs-safe-bottom))',
+        }}
+      >
         <button
           onClick={join}
           disabled={joining || t.status !== "UPCOMING" || alreadyJoined}
-          className="w-full rounded-lg bg-gradient-to-r from-rose-500 to-pink-500 py-3 font-display text-base text-white shadow-lg disabled:opacity-50"
+          className="fs-btn fs-btn-primary fs-btn-full"
+          style={{
+            height: '50px',
+            fontSize: '15px',
+            background: alreadyJoined ? 'var(--fs-green)' : undefined,
+            opacity: (t.status !== "UPCOMING" && !alreadyJoined) ? 0.5 : 1,
+          }}
         >
           <ButtonLoading loading={joining} loadingText="Joining...">
             {alreadyJoined
-              ? "Already Joined"
+              ? "Already Joined ✓"
               : t.status !== "UPCOMING"
                 ? t.status
                 : `JOIN NOW · Rs ${t.entryFeeNpr}`}
           </ButtonLoading>
         </button>
-        {msg && <p className="mt-2 text-center text-xs text-white/70">{msg}</p>}
+        {msg && <p className="mt-2 text-center text-xs" style={{ color: 'var(--fs-text-3)' }}>{msg}</p>}
       </div>
 
       {showFail && eligibility && !eligibility.eligible && (
@@ -188,7 +216,7 @@ export default function TournamentDetailClient() {
           onView={() => {
             setShowFail(false);
             document
-              .querySelector("[data-section='✅ ELIGIBILITY']")
+              .querySelector("[data-section='ELIGIBILITY']")
               ?.scrollIntoView({ behavior: "smooth" });
           }}
         />
@@ -197,35 +225,45 @@ export default function TournamentDetailClient() {
   );
 }
 
-function Section({
-  title, icon, children,
-}: { title: string; icon?: React.ReactNode; children: React.ReactNode }) {
+function InfoChip({ label, value }: { label: string; value: string }) {
   return (
-    <section className="card">
-      <h2 className="font-display text-sm text-white/90 flex items-center gap-2" data-section={title}>
-        {icon} {title}
-      </h2>
-      <div className="mt-2 space-y-1">{children}</div>
+    <div className="text-center rounded-lg p-2" style={{ background: 'var(--fs-surface-1)', border: '0.5px solid var(--fs-border)' }}>
+      <p className="text-[9px] uppercase font-semibold" style={{ color: 'var(--fs-text-3)' }}>{label}</p>
+      <p className="text-xs font-bold mt-0.5" style={{ color: 'var(--fs-text-1)' }}>{value}</p>
+    </div>
+  );
+}
+
+function Section({
+  title, accent, icon, children,
+}: { title: string; accent: string; icon?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <section className="fs-card mt-4 overflow-visible">
+      <div className="flex" style={{ borderLeft: `3px solid ${accent}` }}>
+        <div className="p-4 w-full">
+          <h2 className="text-xs font-bold flex items-center gap-2" style={{ color: 'var(--fs-text-2)' }} data-section={title}>
+            {icon} {title}
+          </h2>
+          <div className="mt-2 space-y-1.5">{children}</div>
+        </div>
+      </div>
     </section>
   );
 }
 
-function Detail({ label, value, accent, note }: { label: string; value: any; accent?: boolean; note?: string }) {
+function Detail({ label, value }: { label: string; value: any }) {
   return (
-    <div className="flex items-center justify-between border-b border-border/40 py-1.5 last:border-0">
-      <span className="text-xs text-white/60">{label}</span>
-      <div className="text-right">
-        <span className={`text-sm font-semibold ${accent ? "text-neon" : "text-white"}`}>{value}</span>
-        {note && <p className="text-[10px] text-white/40">{note}</p>}
-      </div>
+    <div className="flex items-center justify-between py-1.5" style={{ borderBottom: '0.5px solid var(--fs-border)' }}>
+      <span className="text-xs" style={{ color: 'var(--fs-text-3)' }}>{label}</span>
+      <span className="text-sm font-semibold" style={{ color: 'var(--fs-text-1)' }}>{value}</span>
     </div>
   );
 }
 
 function Bullet({ children }: { children: React.ReactNode }) {
   return (
-    <p className="text-xs text-white/75 flex gap-2">
-      <span className="text-neon-cyan mt-0.5">•</span>
+    <p className="text-xs flex gap-2" style={{ color: 'var(--fs-text-2)' }}>
+      <span style={{ color: 'var(--fs-green)' }}>•</span>
       <span>{children}</span>
     </p>
   );
@@ -233,17 +271,17 @@ function Bullet({ children }: { children: React.ReactNode }) {
 
 function FailModal({ message, onClose, onView }: { message: string; onClose: () => void; onView: () => void }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="card relative w-full max-w-sm text-center">
-        <button onClick={onClose} className="absolute right-3 top-3 text-white/60">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }}>
+      <div className="fs-card fs-card-body relative w-full text-center" style={{ maxWidth: '340px' }}>
+        <button onClick={onClose} className="absolute right-3 top-3" style={{ color: 'var(--fs-text-3)' }}>
           <X size={18} />
         </button>
-        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-red-500/20 text-red-400">
-          <X size={24} />
+        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full" style={{ background: 'var(--fs-red-glow)' }}>
+          <X size={24} style={{ color: 'var(--fs-red)' }} />
         </div>
-        <h3 className="font-display text-lg text-white">Not Eligible</h3>
-        <p className="mt-2 text-sm text-white/70">{message}</p>
-        <button onClick={onView} className="btn-outline mt-4 w-full">
+        <h3 className="fs-h3">Not Eligible</h3>
+        <p className="mt-2 text-sm" style={{ color: 'var(--fs-text-2)' }}>{message}</p>
+        <button onClick={onView} className="fs-btn fs-btn-outline fs-btn-full mt-4">
           View Requirements
         </button>
       </div>

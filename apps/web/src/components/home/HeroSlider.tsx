@@ -178,13 +178,13 @@ export function HeroSlider() {
 
       <style jsx global>{`
         .hero-slider-shell {
-          height: 170px;
+          height: 140px;
           width: 100%;
         }
         @media (min-width: 768px) {
           .hero-slider-shell {
             aspect-ratio: 16 / 4.5;
-            height: min(320px, 28vw);
+            height: min(240px, 28vw);
           }
         }
         .hero-slider-overlay {

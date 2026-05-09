@@ -6,6 +6,7 @@ import { withdrawalSchema } from "@fireslot/shared";
 import { ButtonLoading, EmptyState, LoadingState, StatusBadge } from "@/components/ui";
 import { useAuth } from "@/lib/auth-context";
 import { GoogleAuthPanel } from "@/components/GoogleAuthPanel";
+import { ArrowUpRight, Plus } from "lucide-react";
 
 export default function WalletPage() {
   const { user, loading } = useAuth();
@@ -114,227 +115,234 @@ export default function WalletPage() {
   if (!data || dataLoading) return <LoadingState label="Loading wallet..." />;
 
   return (
-    <div>
-      <div className="space-y-4">
-        <div className="rounded-lg border border-border bg-card/90 p-5">
-          <p className="label">Available Balance</p>
-          <p className="mt-2 font-display text-4xl text-white">
+    <div className="space-y-4">
+      {/* Balance Card */}
+      <div className="fs-card overflow-hidden">
+        <div style={{ height: '3px', background: 'var(--fs-red)' }} />
+        <div className="p-5 text-center">
+          <p className="fs-caption">YOUR BALANCE</p>
+          <p className="mt-2 text-5xl font-bold" style={{ color: 'var(--fs-text-1)' }}>
             {npr(data.wallet.balanceNpr)}
           </p>
-          <div className="mt-4 grid grid-cols-2 gap-3">
+          <div className="mt-5 grid grid-cols-2 gap-3">
             <button
               onClick={() => setTab("deposit")}
-              className={tab === "deposit" ? "btn-primary" : "btn-outline"}
+              className={`fs-btn fs-btn-full ${tab === "deposit" ? "fs-btn-primary" : "fs-btn-outline"}`}
             >
-              Deposit
+              <Plus size={16} /> Deposit
             </button>
             <button
               onClick={() => setTab("withdraw")}
-              className={tab === "withdraw" ? "btn-primary" : "btn-outline"}
+              className={`fs-btn fs-btn-full ${tab === "withdraw" ? "fs-btn-primary" : "fs-btn-outline"}`}
             >
-              Withdraw
+              <ArrowUpRight size={16} /> Withdraw
             </button>
           </div>
         </div>
+      </div>
 
-        {tab === "deposit" ? (
-          <form onSubmit={submitDeposit} className="card space-y-3">
-            <h3 className="font-display text-lg">Deposit Balance</h3>
-            <div className="card">
-              <p className="label">Payment targets</p>
-              <p className="mt-1 text-sm text-white/70">
-                Pay with eSewa, Khalti, or bank, then upload screenshot proof.
-              </p>
-            </div>
-            <div>
-              <label className="label">Amount (NPR)</label>
-              <input
-                type="number"
-                min={50}
-                className="input"
-                value={deposit.amountNpr}
-                onChange={(e) =>
-                  setDeposit({ ...deposit, amountNpr: Number(e.target.value) })
-                }
-              />
-            </div>
-            <div>
-              <label className="label">Method</label>
-              <select
-                className="input"
-                value={deposit.method}
-                onChange={(e) =>
-                  setDeposit({ ...deposit, method: e.target.value })
-                }
-              >
-                <option value="esewa">eSewa</option>
-                <option value="khalti">Khalti</option>
-                <option value="bank">Bank</option>
-              </select>
-            </div>
-            <div>
-              <label className="label">Reference / Tx ID</label>
-              <input
-                className="input"
-                value={deposit.reference}
-                onChange={(e) =>
-                  setDeposit({ ...deposit, reference: e.target.value })
-                }
-              />
-            </div>
-            <div>
-              <label className="label">Payment Proof</label>
-              <input
-                type="file"
-                accept="image/*"
-                className="text-sm"
-                onChange={(e) => setProof(e.target.files?.[0] ?? null)}
-                required
-              />
-            </div>
-            <button className="btn-primary w-full" disabled={depositing}>
-              <ButtonLoading loading={depositing} loadingText="Submitting deposit...">
-                Submit Deposit
-              </ButtonLoading>
-            </button>
-          </form>
-        ) : (
-          <form onSubmit={withdraw} className="card space-y-3">
-            <h3 className="font-display text-lg">Request Withdrawal</h3>
-            <div>
-              <label className="label">Amount (NPR)</label>
-              <input
-                type="number"
-                min={100}
-                className="input"
-                value={form.amountNpr}
-                onChange={(e) =>
-                  setForm({ ...form, amountNpr: Number(e.target.value) })
-                }
-              />
-            </div>
-            <div>
-              <label className="label">Method</label>
-              <select
-                className="input"
-                value={form.method}
-                onChange={(e) =>
-                  setForm({ ...form, method: e.target.value as any })
-                }
-              >
-                <option value="esewa">eSewa</option>
-                <option value="khalti">Khalti</option>
-                <option value="bank">Bank</option>
-              </select>
-            </div>
-            <div>
-              <label className="label">Account Number / ID</label>
-              <input
-                className="input"
-                value={form.account}
-                onChange={(e) => setForm({ ...form, account: e.target.value })}
-                required
-              />
-            </div>
-            <button className="btn-primary w-full" disabled={withdrawing}>
-              <ButtonLoading loading={withdrawing} loadingText="Submitting request...">
-                Submit Request
-              </ButtonLoading>
-            </button>
-          </form>
-        )}
+      {tab === "deposit" ? (
+        <form onSubmit={submitDeposit} className="fs-card fs-card-body space-y-4">
+          <h3 className="fs-h3">Deposit Balance</h3>
+          <div className="fs-card fs-card-body">
+            <p className="fs-caption">Payment targets</p>
+            <p className="mt-1 text-sm" style={{ color: 'var(--fs-text-2)' }}>
+              Pay with eSewa, Khalti, or bank, then upload screenshot proof.
+            </p>
+          </div>
+          <div>
+            <label className="fs-label">Amount (NPR)</label>
+            <input
+              type="number"
+              min={50}
+              className="fs-input"
+              value={deposit.amountNpr}
+              onChange={(e) =>
+                setDeposit({ ...deposit, amountNpr: Number(e.target.value) })
+              }
+            />
+          </div>
+          <div>
+            <label className="fs-label">Method</label>
+            <select
+              className="fs-input"
+              value={deposit.method}
+              onChange={(e) =>
+                setDeposit({ ...deposit, method: e.target.value })
+              }
+            >
+              <option value="esewa">eSewa</option>
+              <option value="khalti">Khalti</option>
+              <option value="bank">Bank</option>
+            </select>
+          </div>
+          <div>
+            <label className="fs-label">Reference / Tx ID</label>
+            <input
+              className="fs-input"
+              value={deposit.reference}
+              onChange={(e) =>
+                setDeposit({ ...deposit, reference: e.target.value })
+              }
+            />
+          </div>
+          <div>
+            <label className="fs-label">Payment Proof</label>
+            <input
+              type="file"
+              accept="image/*"
+              className="text-sm" style={{ color: 'var(--fs-text-2)' }}
+              onChange={(e) => setProof(e.target.files?.[0] ?? null)}
+              required
+            />
+          </div>
+          <button className="fs-btn fs-btn-primary fs-btn-full" disabled={depositing}>
+            <ButtonLoading loading={depositing} loadingText="Submitting deposit...">
+              Submit Deposit
+            </ButtonLoading>
+          </button>
+        </form>
+      ) : (
+        <form onSubmit={withdraw} className="fs-card fs-card-body space-y-4">
+          <h3 className="fs-h3">Request Withdrawal</h3>
+          <div>
+            <label className="fs-label">Amount (NPR)</label>
+            <input
+              type="number"
+              min={100}
+              className="fs-input"
+              value={form.amountNpr}
+              onChange={(e) =>
+                setForm({ ...form, amountNpr: Number(e.target.value) })
+              }
+            />
+          </div>
+          <div>
+            <label className="fs-label">Method</label>
+            <select
+              className="fs-input"
+              value={form.method}
+              onChange={(e) =>
+                setForm({ ...form, method: e.target.value as any })
+              }
+            >
+              <option value="esewa">eSewa</option>
+              <option value="khalti">Khalti</option>
+              <option value="bank">Bank</option>
+            </select>
+          </div>
+          <div>
+            <label className="fs-label">Account Number / ID</label>
+            <input
+              className="fs-input"
+              value={form.account}
+              onChange={(e) => setForm({ ...form, account: e.target.value })}
+              required
+            />
+          </div>
+          <button className="fs-btn fs-btn-primary fs-btn-full" disabled={withdrawing}>
+            <ButtonLoading loading={withdrawing} loadingText="Submitting request...">
+              Submit Request
+            </ButtonLoading>
+          </button>
+        </form>
+      )}
 
-        {msg && (
-          <p className="rounded-lg border border-border bg-surface p-3 text-sm text-white/70">
-            {msg}
-          </p>
-        )}
+      {msg && (
+        <p className="rounded-lg p-3 text-sm" style={{ background: 'var(--fs-surface-2)', border: '0.5px solid var(--fs-border)', color: 'var(--fs-text-2)' }}>
+          {msg}
+        </p>
+      )}
 
-        <div className="space-y-4">
-          <div className="card">
-            <h3 className="font-display text-lg mb-3">
-              Deposit & Payment History
-            </h3>
-            {payments.length === 0 ? (
-              <EmptyState title="No payments yet" />
-            ) : (
-              <div className="space-y-3">
-                {payments.slice(0, 8).map((p: any) => (
-                  <div
-                    key={p.id}
-                    className="rounded-lg border border-border bg-surface/70 p-3 text-sm"
-                  >
-                    <div className="flex justify-between gap-3">
-                      <span>{p.tournament?.title ?? "Wallet deposit"}</span>
-                      <span>{npr(p.amountNpr)}</span>
-                    </div>
-                    <div className="mt-2 flex justify-between text-xs text-white/50">
-                      <span>{fmtDate(p.createdAt)}</span>
-                      <StatusBadge status={p.status} />
-                    </div>
+      {/* Transaction History */}
+      <div className="space-y-4">
+        <div className="fs-card fs-card-body">
+          <h3 className="fs-h3 mb-3">Deposit & Payment History</h3>
+          {payments.length === 0 ? (
+            <EmptyState title="No payments yet" />
+          ) : (
+            <div className="space-y-0">
+              {payments.slice(0, 8).map((p: any) => (
+                <div
+                  key={p.id}
+                  className="flex items-center justify-between py-3"
+                  style={{ borderBottom: '0.5px solid var(--fs-border)' }}
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm truncate" style={{ color: 'var(--fs-text-1)' }}>
+                      {p.tournament?.title ?? "Wallet deposit"}
+                    </p>
+                    <p className="text-[11px]" style={{ color: 'var(--fs-text-3)' }}>
+                      {fmtDate(p.createdAt)}
+                    </p>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-          <div className="card">
-            <h3 className="font-display text-lg mb-3">Recent Transactions</h3>
-            {data.wallet.transactions.length === 0 ? (
-              <EmptyState title="No transactions yet" />
-            ) : (
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Type</th>
-                    <th>Reason</th>
-                    <th>Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.wallet.transactions.map((t: any) => (
-                    <tr key={t.id}>
-                      <td>{fmtDate(t.createdAt)}</td>
-                      <td>
-                        <StatusBadge status={t.type} />
-                      </td>
-                      <td>{t.reason}</td>
-                      <td>{npr(t.amountNpr)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-          <div className="card">
-            <h3 className="font-display text-lg mb-3">Withdrawal Requests</h3>
-            {data.withdrawals.length === 0 ? (
-              <EmptyState title="No withdrawal requests" />
-            ) : (
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Method</th>
-                    <th>Amount</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.withdrawals.map((w: any) => (
-                    <tr key={w.id}>
-                      <td>{fmtDate(w.createdAt)}</td>
-                      <td>{w.method}</td>
-                      <td>{npr(w.amountNpr)}</td>
-                      <td>
-                        <StatusBadge status={w.status} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
+                  <div className="text-right flex items-center gap-2">
+                    <span className="text-sm font-semibold" style={{ color: 'var(--fs-text-1)' }}>
+                      {npr(p.amountNpr)}
+                    </span>
+                    <StatusBadge status={p.status} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="fs-card fs-card-body">
+          <h3 className="fs-h3 mb-3">Recent Transactions</h3>
+          {data.wallet.transactions.length === 0 ? (
+            <EmptyState title="No transactions yet" />
+          ) : (
+            <div className="space-y-0">
+              {data.wallet.transactions.map((t: any) => (
+                <div
+                  key={t.id}
+                  className="flex items-center justify-between py-3"
+                  style={{ borderBottom: '0.5px solid var(--fs-border)' }}
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="h-2 w-2 rounded-full"
+                        style={{ background: t.type === 'CREDIT' ? 'var(--fs-green)' : 'var(--fs-red)' }}
+                      />
+                      <span className="text-sm" style={{ color: 'var(--fs-text-1)' }}>{t.reason}</span>
+                    </div>
+                    <p className="text-[11px] ml-4" style={{ color: 'var(--fs-text-3)' }}>{fmtDate(t.createdAt)}</p>
+                  </div>
+                  <span
+                    className="text-sm font-semibold"
+                    style={{ color: t.type === 'CREDIT' ? 'var(--fs-green)' : 'var(--fs-red)' }}
+                  >
+                    {t.type === 'CREDIT' ? '+' : '-'}{npr(t.amountNpr)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="fs-card fs-card-body">
+          <h3 className="fs-h3 mb-3">Withdrawal Requests</h3>
+          {data.withdrawals.length === 0 ? (
+            <EmptyState title="No withdrawal requests" />
+          ) : (
+            <div className="space-y-0">
+              {data.withdrawals.map((w: any) => (
+                <div
+                  key={w.id}
+                  className="flex items-center justify-between py-3"
+                  style={{ borderBottom: '0.5px solid var(--fs-border)' }}
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm" style={{ color: 'var(--fs-text-1)' }}>{w.method} • {npr(w.amountNpr)}</p>
+                    <p className="text-[11px]" style={{ color: 'var(--fs-text-3)' }}>{fmtDate(w.createdAt)}</p>
+                  </div>
+                  <StatusBadge status={w.status} />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

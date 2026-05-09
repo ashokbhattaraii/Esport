@@ -47,7 +47,6 @@ export default function CreateChallengePage() {
   const [title, setTitle] = useState("");
   const [isPrivate, setIsPrivate] = useState(false);
 
-  // CS state
   const [csTeamMode, setCsTeamMode] = useState("1v1");
   const [csThrowable, setCsThrowable] = useState(true);
   const [characterSkill, setCharacterSkill] = useState(true);
@@ -59,14 +58,12 @@ export default function CreateChallengePage() {
   const [csCompulsoryWeapon, setCsCompulsoryWeapon] = useState("NONE");
   const [csCompulsoryArmour, setCsCompulsoryArmour] = useState("NONE");
 
-  // BR state
   const [brMap, setBrMap] = useState("BERMUDA");
   const [brTeamMode, setBrTeamMode] = useState("SOLO");
   const [brWinCondition, setBrWinCondition] = useState("KILLS");
   const [brTargetKills, setBrTargetKills] = useState(5);
   const [brBannedGuns, setBrBannedGuns] = useState<string[]>([]);
 
-  // Eligibility / anti-cheat
   const [showElig, setShowElig] = useState(false);
   const [showAntiCheat, setShowAntiCheat] = useState(false);
   const [minLevel, setMinLevel] = useState(0);
@@ -136,16 +133,25 @@ export default function CreateChallengePage() {
   }
 
   return (
-    <div className="space-y-4 pb-32 -mx-4 px-4 bg-[#1a0a3c] text-white min-h-screen">
-      {/* Top: in-game name */}
-      <div className="rounded-xl bg-gradient-to-r from-purple-700 to-purple-900 p-3 flex items-center gap-2 shadow-lg">
-        <Gamepad2 size={18} />
-        <span className="font-display text-sm">{igName}</span>
+    <div className="space-y-4 pb-32 -mx-4 px-4" style={{ background: 'var(--fs-bg)', minHeight: '100vh' }}>
+      {/* Step Indicator */}
+      <div className="flex items-center justify-center gap-2 py-3">
+        <StepDot active />
+        <div className="h-px w-8" style={{ background: 'var(--fs-border-md)' }} />
+        <StepDot active={gameMode !== undefined} />
+        <div className="h-px w-8" style={{ background: 'var(--fs-border-md)' }} />
+        <StepDot active={entryFee > 0} />
+      </div>
+
+      {/* IGN bar */}
+      <div className="fs-card fs-card-body flex items-center gap-2">
+        <Gamepad2 size={18} style={{ color: 'var(--fs-red)' }} />
+        <span className="text-sm font-semibold" style={{ color: 'var(--fs-text-1)' }}>{igName}</span>
       </div>
 
       {/* Entry fee */}
-      <Card>
-        <Label icon={<Coins size={14} />}>Entry Fee</Label>
+      <div className="fs-card fs-card-body">
+        <label className="fs-label flex items-center gap-1"><Coins size={12} /> Entry Fee</label>
         <input
           type="range"
           min={10}
@@ -153,145 +159,149 @@ export default function CreateChallengePage() {
           step={5}
           value={entryFee}
           onChange={(e) => setEntryFee(Number(e.target.value))}
-          className="w-full accent-yellow-400"
+          className="w-full mt-2"
+          style={{ accentColor: 'var(--fs-gold)' }}
         />
-        <div className="mt-1 flex items-center justify-between text-xs text-white/70">
-          <span>Rs {entryFee}</span>
-          <span>Winner gets <b className="text-yellow-300">Rs {prizeToWinner}</b></span>
+        <div className="mt-2 flex items-center justify-between text-xs">
+          <span style={{ color: 'var(--fs-text-2)' }}>Rs {entryFee}</span>
+          <span style={{ color: 'var(--fs-gold)' }}>Winner gets <b>Rs {prizeToWinner}</b></span>
         </div>
-      </Card>
+      </div>
+
+      {/* Prize preview card */}
+      <div className="rounded-xl p-4 text-center" style={{ background: 'var(--fs-gold-dim)', border: '1px solid rgba(255,215,0,0.2)' }}>
+        <p className="text-lg font-bold" style={{ color: 'var(--fs-gold)' }}>Winner gets Rs {prizeToWinner}</p>
+        <p className="text-[11px] mt-1" style={{ color: 'var(--fs-text-3)' }}>Platform fee: Rs {Math.floor(entryFee * 2 * 0.2)}</p>
+      </div>
 
       {/* Game mode tabs */}
-      <Card>
-        <Label>Game Mode</Label>
-        <div className="grid grid-cols-2 gap-2">
-          <ModeTab active={gameMode === "BR"} onClick={() => setGameMode("BR")}>Battle Royale</ModeTab>
-          <ModeTab active={gameMode === "CS"} onClick={() => setGameMode("CS")}>Clash Squad</ModeTab>
+      <div className="fs-card fs-card-body">
+        <label className="fs-label">Game Mode</label>
+        <div className="grid grid-cols-2 gap-2 mt-2">
+          <button
+            type="button"
+            onClick={() => setGameMode("BR")}
+            className={`fs-opt ${gameMode === "BR" ? "active" : ""}`}
+          >
+            Battle Royale
+          </button>
+          <button
+            type="button"
+            onClick={() => setGameMode("CS")}
+            className={`fs-opt ${gameMode === "CS" ? "active" : ""}`}
+          >
+            Clash Squad
+          </button>
         </div>
-      </Card>
+      </div>
 
       {gameMode === "CS" ? (
         <>
-          <Card>
-            <Label>Team Mode</Label>
-            <Grid cols={4}>
+          <OptSection label="Team Mode">
+            <div className="fs-opt-grid">
               {CS_TEAM_MODES.map((m) => (
-                <Pill key={m} active={csTeamMode === m} onClick={() => setCsTeamMode(m)}>{m}</Pill>
+                <button key={m} type="button" className={`fs-opt ${csTeamMode === m ? "active" : ""}`} onClick={() => setCsTeamMode(m)}>{m}</button>
               ))}
-            </Grid>
-          </Card>
+            </div>
+          </OptSection>
 
           <YesNo label="Throwable Limit" value={csThrowable} onChange={setCsThrowable} />
           <YesNo label="Character Skill" value={characterSkill} onChange={setCharacterSkill} />
           <YesNo label="Gun Attribute" value={gunAttribute} onChange={setGunAttribute} />
           <YesNo label="Headshot Only" value={headshotOnly} onChange={setHeadshotOnly} reversed />
 
-          <Card>
-            <Label>Rounds</Label>
-            <Grid cols={2}>
-              <Pill active={csRounds === 7} onClick={() => setCsRounds(7)}>7</Pill>
-              <Pill active={csRounds === 13} onClick={() => setCsRounds(13)}>13</Pill>
-            </Grid>
-          </Card>
+          <OptSection label="Rounds">
+            <div className="fs-opt-grid">
+              <button type="button" className={`fs-opt ${csRounds === 7 ? "active" : ""}`} onClick={() => setCsRounds(7)}>7</button>
+              <button type="button" className={`fs-opt ${csRounds === 13 ? "active" : ""}`} onClick={() => setCsRounds(13)}>13</button>
+            </div>
+          </OptSection>
 
-          <Card>
-            <Label>Coins</Label>
-            <Grid cols={2}>
-              <Pill active={csCoins === "DEFAULT"} onClick={() => setCsCoins("DEFAULT")}>Default</Pill>
-              <Pill active={csCoins === "9980"} onClick={() => setCsCoins("9980")}>9980</Pill>
-            </Grid>
-          </Card>
+          <OptSection label="Coins">
+            <div className="fs-opt-grid">
+              <button type="button" className={`fs-opt ${csCoins === "DEFAULT" ? "active" : ""}`} onClick={() => setCsCoins("DEFAULT")}>Default</button>
+              <button type="button" className={`fs-opt ${csCoins === "9980" ? "active" : ""}`} onClick={() => setCsCoins("9980")}>9980</button>
+            </div>
+          </OptSection>
 
           <YesNo label="Loadout" value={csLoadout} onChange={setCsLoadout} />
 
-          <Card>
-            <Label>Compulsory Weapon</Label>
-            <Grid cols={4}>
+          <OptSection label="Compulsory Weapon">
+            <div className="fs-opt-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))' }}>
               {CS_WEAPONS.map((w) => (
-                <Pill
-                  key={w}
-                  active={csCompulsoryWeapon === w}
-                  onClick={() => setCsCompulsoryWeapon(w)}
-                >
+                <button key={w} type="button" className={`fs-opt ${csCompulsoryWeapon === w ? "active" : ""}`} onClick={() => setCsCompulsoryWeapon(w)}>
                   {w === "NONE" ? "None" : w}
-                </Pill>
+                </button>
               ))}
-            </Grid>
-          </Card>
+            </div>
+          </OptSection>
 
-          <Card>
-            <Label>Compulsory Armour</Label>
-            <Grid cols={3}>
+          <OptSection label="Compulsory Armour">
+            <div className="fs-opt-grid" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
               {CS_ARMOURS.map((a) => (
-                <Pill
-                  key={a.val}
-                  active={csCompulsoryArmour === a.val}
-                  onClick={() => setCsCompulsoryArmour(a.val)}
-                >
+                <button key={a.val} type="button" className={`fs-opt ${csCompulsoryArmour === a.val ? "active" : ""}`} onClick={() => setCsCompulsoryArmour(a.val)}>
                   {a.label}
-                </Pill>
+                </button>
               ))}
-            </Grid>
-          </Card>
+            </div>
+          </OptSection>
         </>
       ) : (
         <>
-          <Card>
-            <Label>Map</Label>
-            <Grid cols={4}>
+          <OptSection label="Map">
+            <div className="fs-opt-grid">
               {BR_MAPS.map((m) => (
-                <Pill key={m} active={brMap === m} onClick={() => setBrMap(m)}>
+                <button key={m} type="button" className={`fs-opt ${brMap === m ? "active" : ""}`} onClick={() => setBrMap(m)}>
                   {m.charAt(0) + m.slice(1).toLowerCase()}
-                </Pill>
+                </button>
               ))}
-            </Grid>
-          </Card>
+            </div>
+          </OptSection>
 
-          <Card>
-            <Label>Team Mode</Label>
-            <Grid cols={3}>
+          <OptSection label="Team Mode">
+            <div className="fs-opt-grid" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
               {BR_TEAM_MODES.map((m) => (
-                <Pill key={m} active={brTeamMode === m} onClick={() => setBrTeamMode(m)}>
+                <button key={m} type="button" className={`fs-opt ${brTeamMode === m ? "active" : ""}`} onClick={() => setBrTeamMode(m)}>
                   {m.charAt(0) + m.slice(1).toLowerCase()}
-                </Pill>
+                </button>
               ))}
-            </Grid>
-          </Card>
+            </div>
+          </OptSection>
 
-          <Card>
-            <Label>Win Condition</Label>
-            <Grid cols={2}>
+          <OptSection label="Win Condition">
+            <div className="fs-opt-grid" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
               {BR_WIN_CONDITIONS.map((w) => (
-                <Pill key={w.val} active={brWinCondition === w.val} onClick={() => setBrWinCondition(w.val)}>
+                <button key={w.val} type="button" className={`fs-opt ${brWinCondition === w.val ? "active" : ""}`} onClick={() => setBrWinCondition(w.val)}>
                   {w.label}
-                </Pill>
+                </button>
               ))}
-            </Grid>
+            </div>
             {brWinCondition === "FIRST_TO_N_KILLS" && (
               <div className="mt-2 flex items-center gap-2">
-                <span className="text-xs text-white/70">Target:</span>
+                <span className="text-xs" style={{ color: 'var(--fs-text-3)' }}>Target:</span>
                 <input
                   type="number"
                   min={1}
                   max={50}
                   value={brTargetKills}
                   onChange={(e) => setBrTargetKills(Number(e.target.value))}
-                  className="w-20 rounded-md border border-white/20 bg-black/40 px-2 py-1 text-white text-xs"
+                  className="fs-input"
+                  style={{ width: '80px', height: '36px' }}
                 />
-                <span className="text-xs text-white/50">kills</span>
+                <span className="text-xs" style={{ color: 'var(--fs-text-3)' }}>kills</span>
               </div>
             )}
-          </Card>
+          </OptSection>
 
-          <Card>
-            <Label>Banned Guns (multi-select)</Label>
-            <Grid cols={2}>
+          <OptSection label="Banned Guns (multi-select)">
+            <div className="fs-opt-grid" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
               {BR_BANNED_OPTS.map((g) => {
                 const active = brBannedGuns.includes(g);
                 return (
-                  <Pill
+                  <button
                     key={g}
-                    active={active}
+                    type="button"
+                    className={`fs-opt ${active ? "active" : ""}`}
                     onClick={() =>
                       setBrBannedGuns((arr) =>
                         active ? arr.filter((x) => x !== g) : [...arr, g],
@@ -299,104 +309,111 @@ export default function CreateChallengePage() {
                     }
                   >
                     {g}
-                  </Pill>
+                  </button>
                 );
               })}
-            </Grid>
-          </Card>
+            </div>
+          </OptSection>
         </>
       )}
 
       {/* Eligibility (collapsible) */}
-      <Card>
+      <div className="fs-card fs-card-body">
         <button
           onClick={() => setShowElig(!showElig)}
           className="flex w-full items-center justify-between text-left"
         >
-          <Label>Eligibility</Label>
-          {showElig ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          <span className="fs-label" style={{ marginBottom: 0 }}>Eligibility</span>
+          {showElig ? <ChevronUp size={14} style={{ color: 'var(--fs-text-3)' }} /> : <ChevronDown size={14} style={{ color: 'var(--fs-text-3)' }} />}
         </button>
         {showElig && (
           <div className="mt-3 space-y-3">
             <div>
-              <p className="text-xs text-white/70 mb-1">Min Level</p>
-              <Grid cols={6}>
+              <p className="text-xs mb-2" style={{ color: 'var(--fs-text-3)' }}>Min Level</p>
+              <div className="fs-opt-grid" style={{ gridTemplateColumns: 'repeat(6, minmax(0, 1fr))' }}>
                 {[0, 20, 30, 40, 50, 60].map((v) => (
-                  <Pill key={v} active={minLevel === v} onClick={() => setMinLevel(v)}>
+                  <button key={v} type="button" className={`fs-opt ${minLevel === v ? "active" : ""}`} onClick={() => setMinLevel(v)}>
                     {v === 0 ? "Any" : v}
-                  </Pill>
+                  </button>
                 ))}
-              </Grid>
+              </div>
             </div>
             <YesNo label="No Emulator" value={noEmulator} onChange={setNoEmulator} />
           </div>
         )}
-      </Card>
+      </div>
 
       {/* Anti-cheat (collapsible) */}
-      <Card>
+      <div className="fs-card fs-card-body">
         <button
           onClick={() => setShowAntiCheat(!showAntiCheat)}
           className="flex w-full items-center justify-between text-left"
         >
-          <Label>Anti-cheat</Label>
-          {showAntiCheat ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          <span className="fs-label" style={{ marginBottom: 0 }}>Anti-cheat</span>
+          {showAntiCheat ? <ChevronUp size={14} style={{ color: 'var(--fs-text-3)' }} /> : <ChevronDown size={14} style={{ color: 'var(--fs-text-3)' }} />}
         </button>
         {showAntiCheat && (
           <div className="mt-3 space-y-3">
             <YesNo label="POV Required" value={povRequired} onChange={setPovRequired} />
             <YesNo label="Screenshot Required" value={screenshotRequired} onChange={setScreenshotRequired} />
             <div>
-              <p className="text-xs text-white/70 mb-1">Report Window</p>
-              <Grid cols={3}>
+              <p className="text-xs mb-2" style={{ color: 'var(--fs-text-3)' }}>Report Window</p>
+              <div className="fs-opt-grid" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
                 {[30, 60, 120].map((v) => (
-                  <Pill key={v} active={reportWindowMins === v} onClick={() => setReportWindowMins(v)}>
+                  <button key={v} type="button" className={`fs-opt ${reportWindowMins === v ? "active" : ""}`} onClick={() => setReportWindowMins(v)}>
                     {v === 60 ? "1 hour" : v === 120 ? "2 hours" : `${v} min`}
-                  </Pill>
+                  </button>
                 ))}
-              </Grid>
+              </div>
             </div>
           </div>
         )}
-      </Card>
+      </div>
 
       {/* Private toggle */}
-      <Card>
+      <div className="fs-card fs-card-body">
         <label className="flex items-center justify-between text-sm">
-          <span className="text-white/80">Private (invite only)</span>
+          <span style={{ color: 'var(--fs-text-2)' }}>Private (invite only)</span>
           <input
             type="checkbox"
             checked={isPrivate}
             onChange={(e) => setIsPrivate(e.target.checked)}
-            className="h-4 w-4 accent-yellow-400"
+            className="h-5 w-5"
+            style={{ accentColor: 'var(--fs-gold)' }}
           />
         </label>
-      </Card>
+      </div>
 
       {/* Title */}
-      <Card>
-        <Label>Title (optional)</Label>
+      <div className="fs-card fs-card-body">
+        <label className="fs-label">Title (optional)</label>
         <input
           type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder={`${igName}'s ${gameMode} Match`}
-          className="w-full rounded-md border border-white/20 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-white/30"
+          className="fs-input"
         />
-      </Card>
+      </div>
 
-      {/* Bottom warning + create button */}
-      <div className="text-center text-xs text-white/60">
+      {/* Bottom */}
+      <div className="text-center text-xs" style={{ color: 'var(--fs-text-3)' }}>
         Make sure you have entered correct information
       </div>
-      <p className="text-center text-xs text-yellow-300">
+      <p className="text-center text-xs" style={{ color: 'var(--fs-amber)' }}>
         Rs {entryFee} will be deducted from your wallet
       </p>
 
       <button
         onClick={submit}
         disabled={submitting}
-        className="fixed bottom-0 left-0 right-0 z-40 mx-auto block w-full max-w-md rounded-t-lg bg-[#E53935] py-4 font-display text-base font-bold text-white shadow-2xl disabled:opacity-50"
+        className="fs-btn fs-btn-primary fs-btn-full fixed bottom-0 left-0 right-0 z-40"
+        style={{
+          borderRadius: '14px 14px 0 0',
+          height: '56px',
+          fontSize: '15px',
+          paddingBottom: 'calc(8px + var(--fs-safe-bottom))',
+        }}
       >
         <ButtonLoading loading={submitting} loadingText="Creating contest...">
           CREATE CONTEST
@@ -406,65 +423,21 @@ export default function CreateChallengePage() {
   );
 }
 
-// ----------- UI primitives -----------
-function Card({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="rounded-xl border border-white/10 bg-[#0f0628] p-3">{children}</div>
-  );
-}
-
-function Label({ children, icon }: { children: React.ReactNode; icon?: React.ReactNode }) {
-  return (
-    <p className="mb-2 flex items-center gap-1 text-sm font-bold text-white">
-      {icon} {children}
-    </p>
-  );
-}
-
-function Grid({ cols, children }: { cols: number; children: React.ReactNode }) {
+function StepDot({ active }: { active: boolean }) {
   return (
     <div
-      className="grid gap-2"
-      style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
-    >
-      {children}
+      className="h-3 w-3 rounded-full"
+      style={{ background: active ? 'var(--fs-red)' : 'var(--fs-surface-3)' }}
+    />
+  );
+}
+
+function OptSection({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="fs-card fs-card-body">
+      <label className="fs-label">{label}</label>
+      <div className="mt-2">{children}</div>
     </div>
-  );
-}
-
-function Pill({
-  active, onClick, children,
-}: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`rounded-md border px-2 py-2 text-xs font-semibold transition ${
-        active
-          ? "border-yellow-400 text-yellow-300 bg-yellow-400/10"
-          : "border-white/20 text-white/70 bg-black/30"
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
-
-function ModeTab({
-  active, onClick, children,
-}: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`rounded-lg px-3 py-3 font-display text-sm transition ${
-        active
-          ? "bg-yellow-400 text-black"
-          : "bg-black/30 text-white/70 border border-white/20"
-      }`}
-    >
-      {children}
-    </button>
   );
 }
 
@@ -472,21 +445,21 @@ function YesNo({
   label, value, onChange, reversed = false,
 }: { label: string; value: boolean; onChange: (v: boolean) => void; reversed?: boolean }) {
   return (
-    <Card>
-      <Label>{label}</Label>
-      <Grid cols={2}>
+    <div className="fs-card fs-card-body">
+      <label className="fs-label">{label}</label>
+      <div className="grid grid-cols-2 gap-2 mt-2">
         {reversed ? (
           <>
-            <Pill active={!value} onClick={() => onChange(false)}>No</Pill>
-            <Pill active={value} onClick={() => onChange(true)}>Yes</Pill>
+            <button type="button" className={`fs-opt ${!value ? "active" : ""}`} onClick={() => onChange(false)}>No</button>
+            <button type="button" className={`fs-opt ${value ? "active" : ""}`} onClick={() => onChange(true)}>Yes</button>
           </>
         ) : (
           <>
-            <Pill active={value} onClick={() => onChange(true)}>Yes</Pill>
-            <Pill active={!value} onClick={() => onChange(false)}>No</Pill>
+            <button type="button" className={`fs-opt ${value ? "active" : ""}`} onClick={() => onChange(true)}>Yes</button>
+            <button type="button" className={`fs-opt ${!value ? "active" : ""}`} onClick={() => onChange(false)}>No</button>
           </>
         )}
-      </Grid>
-    </Card>
+      </div>
+    </div>
   );
 }
