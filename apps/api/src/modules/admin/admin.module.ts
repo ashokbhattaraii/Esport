@@ -147,6 +147,8 @@ import { AdminActionLogService } from "./admin-action-log.service";
 import { AdminActionLogController } from "./admin-action-log.controller";
 import { ApkTestService } from "./apk-test.service";
 import { ApkTestController } from "./apk-test.controller";
+import { AppConfigService } from "./app-config.service";
+import { AppConfigController } from "./app-config.controller";
 import { PermissionsGuard } from "../../common/guards/permissions.guard";
 
 @Module({
@@ -157,6 +159,7 @@ import { PermissionsGuard } from "../../common/guards/permissions.guard";
     RolesController,
     AdminActionLogController,
     ApkTestController,
+    AppConfigController,
   ],
   providers: [
     SystemConfigService,
@@ -164,6 +167,7 @@ import { PermissionsGuard } from "../../common/guards/permissions.guard";
     RolesService,
     AdminActionLogService,
     ApkTestService,
+    AppConfigService,
     PermissionsGuard,
   ],
   exports: [
@@ -171,6 +175,7 @@ import { PermissionsGuard } from "../../common/guards/permissions.guard";
     FreeDailyWindowService,
     RolesService,
     AdminActionLogService,
+    AppConfigService,
     PermissionsGuard,
   ],
 })

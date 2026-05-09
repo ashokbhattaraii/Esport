@@ -29,6 +29,14 @@ export class PublicBannersController {
   getActive() {
     return this.svc.getActiveBanners();
   }
+
+  @Get('splash')
+  @Header("Cache-Control", "public, s-maxage=300, stale-while-revalidate=600")
+  async getSplash() {
+    const items = await this.svc.getActiveBanners();
+    const splash = items.find((b) => b.isSplash) || null;
+    return splash;
+  }
 }
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)

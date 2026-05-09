@@ -7,6 +7,7 @@ import { AppShell } from "@/components/AppShell";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { NativeBootstrap } from "@/components/NativeBootstrap";
 import dynamic from 'next/dynamic'
+import { RootClient } from '@/components/RootClient'
 
 const ApkTestPanel = dynamic(() => import('@/components/admin/ApkTestPanel'), { ssr: false })
 
@@ -45,9 +46,11 @@ export default function RootLayout({
           <NativeBootstrap />
           <AppShell>
             <Navbar />
-            <main className="min-h-[calc(100vh-132px)] px-4 pb-28 pt-4">
-              {children}
-            </main>
+            <RootClient>
+              <main className="min-h-[calc(100vh-132px)] px-4 pb-28 pt-4">
+                {children}
+              </main>
+            </RootClient>
             <MobileBottomNav />
             <ApkTestPanel />
           </AppShell>

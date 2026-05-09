@@ -22,15 +22,19 @@ const config: CapacitorConfig = {
 
   plugins: {
     SplashScreen: {
-      launchShowDuration: 2000,
+      launchShowDuration: 500,
       backgroundColor: '#0f0f0f',
       showSpinner: false,
-      androidScaleType: 'CENTER_CROP',
+      autoHide: true,
     },
     StatusBar: {
       style: 'DARK',
       backgroundColor: '#0f0f0f',
       overlaysWebView: false,
+    },
+    LocalNotifications: {
+      smallIcon: 'ic_stat_icon_config_sample',
+      iconColor: '#E53935',
     },
   },
 }

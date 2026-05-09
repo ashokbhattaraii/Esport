@@ -309,6 +309,7 @@ model HeroBanner {
   title          String
   subtitle       String?
   imageUrl       String
+  isSplash       Boolean  @default(false)
   mobileImageUrl String?
   ctaText        String?
   ctaLink        String?
@@ -396,6 +397,14 @@ model AppRelease {
   @@index([isLatest])
   @@index([buildStatus])
   @@index([testStatus])
+}
+
+model AppConfig {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+  updatedBy String?
 }
 
 model AppTestSession {
