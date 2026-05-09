@@ -156,6 +156,15 @@ export default function AdminBannersPage() {
 
   function chooseFile(file: File | null, variant: UploadVariant) {
     if (!file) return;
+    const maxBytes = variant === "desktop" ? 2 * 1024 * 1024 : 1 * 1024 * 1024;
+    if (file.size > maxBytes) {
+      toast.error(
+        `File too large. ${variant === "desktop" ? "Desktop" : "Mobile"} image must be under ${
+          maxBytes / 1024 / 1024
+        }MB`,
+      );
+      return;
+    }
     const preview = URL.createObjectURL(file);
     if (variant === "desktop") {
       setDesktopFile(file);
@@ -473,12 +482,12 @@ function BannerPanel({
           <div>
             <p className="label mb-2">Live Preview</p>
             <div className="overflow-hidden rounded-lg border border-border">
-              <div
-                className="relative aspect-[16/5] origin-top-left overflow-hidden bg-cover bg-center"
-                style={{
-                  backgroundImage: `linear-gradient(to right, rgba(0,0,0,.75), rgba(0,0,0,.25), transparent), url(${previewImage})`,
-                }}
-              >
+                    <div
+                      className="relative aspect-[3/1] md:aspect-[16/5] origin-top-left overflow-hidden bg-cover bg-center"
+                      style={{
+                        backgroundImage: `linear-gradient(to right, rgba(0,0,0,.75), rgba(0,0,0,.25), transparent), url(${previewImage})`,
+                      }}
+                    >
                 <div className="absolute bottom-4 left-5 max-w-xs">
                   {draft.badgeText && (
                     <span
@@ -540,7 +549,7 @@ function UploadBox({
         </div>
         {busy ? <span className="text-xs text-neon-cyan">Uploading...</span> : <Upload size={16} className="text-white/50" />}
       </div>
-      <div className="relative aspect-[3/1] overflow-hidden rounded-md border border-border bg-card">
+      <div className="relative aspect-[3/1] md:aspect-[16/5] overflow-hidden rounded-md border border-border bg-card">
         {preview ? (
           <img src={preview} alt="" className="h-full w-full object-cover" />
         ) : (

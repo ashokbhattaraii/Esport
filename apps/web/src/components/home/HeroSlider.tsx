@@ -178,14 +178,14 @@ export function HeroSlider() {
 
       <style jsx global>{`
         .hero-slider-shell {
-          height: 286px;
+            height: 220px;
           width: 100%;
         }
         @media (min-width: 768px) {
-          .hero-slider-shell {
-            aspect-ratio: 16 / 6;
-            height: min(430px, 34vw);
-          }
+            .hero-slider-shell {
+              aspect-ratio: 16 / 6;
+              height: min(430px, 34vw);
+            }
         }
         .hero-slider-overlay {
           background: linear-gradient(
@@ -340,7 +340,7 @@ function ImageBannerSlide({ slide }: { slide: BannerSlide }) {
         <img
           src={bannerUrl(slide.imageUrl)}
           alt={slide.title}
-          className="h-full w-full object-cover"
+          className="h-full w-full object-cover object-center"
         />
       </picture>
       <div className="hero-slider-overlay absolute inset-0" />
