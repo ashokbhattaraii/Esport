@@ -1,33 +1,32 @@
 #!/bin/bash
 set -e
-WEB_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-REPO_ROOT="$(cd "$WEB_DIR/../.." && pwd)"
-API_URL="${NEXT_PUBLIC_API_URL:-https://esport-api-steel.vercel.app/api}"
-WEB_URL="${NEXT_PUBLIC_APP_URL:-https://esport-web-rho.vercel.app}"
-VERSION_NAME="${APP_VERSION_NAME:-1.0.0}"
-VERSION_CODE="${APP_VERSION_CODE:-1}"
 
-if [ -z "${JAVA_HOME:-}" ] && [ -d "/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home" ]; then
-  export JAVA_HOME="/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home"
-fi
+echo "=== FireSlot Nepal APK Build ==="
 
-cd "$WEB_DIR"
-echo "Removing stale APKs from bundled web assets..."
-rm -f public/downloads/*.apk out/downloads/*.apk android/app/src/main/assets/public/downloads/*.apk 2>/dev/null || true
+# Step 1: Clean previous build
+rm -rf apps/web/out
+echo "✓ Cleaned old build"
 
-echo "Building Next.js static export..."
-CAPACITOR_BUILD=true \
-NEXT_PUBLIC_IS_NATIVE=true \
-NEXT_PUBLIC_API_URL="$API_URL" \
-NEXT_PUBLIC_APP_URL="$WEB_URL" \
-pnpm build
+# Step 2: Build with capacitor flag
+cd apps/web
+BUILD_TARGET=capacitor NEXT_PUBLIC_APP_URL=https://fireslot.vercel.app pnpm build
+echo "✓ Next.js static build complete"
 
-echo "Syncing Capacitor..."
-pnpm exec cap sync android
-rm -f android/app/src/main/assets/public/downloads/*.apk 2>/dev/null || true
+# Step 3: Sync to Android
+npx cap sync android
+echo "✓ Capacitor synced"
 
-if grep -q '"url"' android/app/src/main/assets/capacitor.config.json; then
-  echo "Refusing to build: capacitor.config.json still contains server.url"
+# Step 4: Build APK
+cd android
+./gradlew assembleRelease
+echo "✓ APK built"
+
+# Step 5: Copy APK
+APK="app/build/outputs/apk/release/app-release-unsigned.apk"
+mkdir -p ../../public/downloads
+cp $APK ../../public/downloads/fireslot-nepal.apk
+echo "✓ APK copied to public/downloads/fireslot-nepal.apk"
+echo "=== Build complete ==="
   cat android/app/src/main/assets/capacitor.config.json
   exit 1
 fi

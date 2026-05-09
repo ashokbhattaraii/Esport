@@ -3,13 +3,16 @@ import { CapacitorConfig } from '@capacitor/cli'
 const config: CapacitorConfig = {
   appId: 'com.fireslot.nepal',
   appName: 'FireSlot Nepal',
-  webDir: 'out',   // used as offline fallback only
+  webDir: 'public',   // ← changed from 'out' to 'public'
+  // 'public' folder has no index.html — forces Capacitor to use server.url ALWAYS
+  // Never falls back to file:// because there is no index.html in /public
 
   server: {
     // App loads live website — NO file:// routing issues
     url: process.env.CAPACITOR_SERVER_URL || 'https://fireslot.vercel.app',
     cleartext: false,
     androidScheme: 'https',
+    hostname: 'fireslot.vercel.app',
     // Allow navigation to any path on this domain
     allowNavigation: [
       'fireslot.vercel.app',

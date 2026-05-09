@@ -1,101 +1,124 @@
-"use client";
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { useIsNativeApp } from "./useIsNativeApp";
-import { api } from "@/lib/api";
-
-interface State {
-  isRegistered: boolean;
-  token: string | null;
-}
+'use client'
+import { useEffect, useRef } from 'react'
+import { Capacitor } from '@capacitor/core'
 
 export function usePushNotifications() {
-  const isNative = useIsNativeApp();
-  const router = useRouter();
-  const [state, setState] = useState<State>({ isRegistered: false, token: null });
-
-  async function requestPermission() {
-    if (!isNative) return;
-    try {
-      const { PushNotifications } = await import("@capacitor/push-notifications");
-      const perm = await PushNotifications.requestPermissions();
-      if (perm.receive !== "granted") return;
-      await PushNotifications.register();
-    } catch (e) {
-      console.warn("Push permission failed", e);
-    }
-  }
+  const mounted = useRef(true)
 
   useEffect(() => {
-    if (!isNative) return;
-    let cleanup: (() => void) | undefined;
+    mounted.current = true
+    // Guard 1: only run on native Android/iOS
+    if (!Capacitor.isNativePlatform()) return
 
-    (async () => {
+    let removeRegistration: (() => void) | null = null
+    let removeError: (() => void) | null = null
+    let removeReceived: (() => void) | null = null
+    let removeAction: (() => void) | null = null
+
+    // Lazy import — only import plugin when actually on native
+    // This prevents the module-level crash on web
+    const init = async () => {
       try {
-        const { PushNotifications } = await import("@capacitor/push-notifications");
-        const { LocalNotifications } = await import("@capacitor/local-notifications");
+        const { PushNotifications } = await import('@capacitor/push-notifications')
 
-        const perm = await PushNotifications.checkPermissions();
-        if (perm.receive !== "granted") {
-          const req = await PushNotifications.requestPermissions();
-          if (req.receive !== "granted") return;
+        // Check permission first before registering
+        const permResult = await PushNotifications.checkPermissions()
+
+        if (permResult.receive === 'prompt') {
+          const reqResult = await PushNotifications.requestPermissions()
+          // User denied — exit gracefully, do NOT register
+          if (reqResult.receive !== 'granted') return
         }
-        await PushNotifications.register();
 
-        const regHandle = await PushNotifications.addListener("registration", async (t) => {
-          setState({ isRegistered: true, token: t.value });
-          try {
-            await api("/users/push-token", {
-              method: "POST",
-              body: JSON.stringify({ token: t.value, platform: "android" }),
-            });
-          } catch (e) {
-            console.warn("Push token save failed", e);
+        if (permResult.receive === 'denied') return
+
+        // Only register if mounted
+        if (!mounted.current) return
+        await PushNotifications.register()
+
+        // Use addListener with stored cleanup refs
+        const regListener = await PushNotifications.addListener(
+          'registration',
+          async (token) => {
+            if (!mounted.current) return
+            try {
+              // POST token to backend — non-blocking, never crash on failure
+              const { api } = await import('@/lib/api')
+              await api('/users/push-token', {
+                method: 'POST',
+                body: JSON.stringify({
+                  token: token.value,
+                  platform: Capacitor.getPlatform(),
+                }),
+              }).catch(() => {}) // silent fail
+            } catch {}
           }
-        });
+        )
 
-        const errHandle = await PushNotifications.addListener("registrationError", (e) => {
-          console.warn("Push registration error", e);
-        });
+        const errListener = await PushNotifications.addListener(
+          'registrationError',
+          () => {} // silent — do not crash on registration failure
+        )
 
-        const recvHandle = await PushNotifications.addListener("pushNotificationReceived", async (n) => {
-          try {
-            await LocalNotifications.schedule({
-              notifications: [
-                {
-                  id: Math.floor(Math.random() * 100000),
-                  title: n.title ?? "FireSlot",
-                  body: n.body ?? "",
-                  extra: n.data,
-                },
-              ],
-            });
-          } catch (e) {
-            console.warn("Local notification fallback failed", e);
+        const rcvListener = await PushNotifications.addListener(
+          'pushNotificationReceived',
+          async (notification) => {
+            if (!mounted.current) return
+            try {
+              const { LocalNotifications } = await import('@capacitor/local-notifications')
+              await LocalNotifications.schedule({
+                notifications: [{
+                  id: Date.now(),
+                  title: notification.title || 'FireSlot Nepal',
+                  body: notification.body || '',
+                  schedule: { at: new Date(Date.now() + 100) },
+                }]
+              }).catch(() => {})
+            } catch {}
           }
-        });
+        )
 
-        const tapHandle = await PushNotifications.addListener("pushNotificationActionPerformed", (a) => {
-          const data = a.notification.data ?? {};
-          const route = routeFor(data);
-          if (route) router.push(route);
-        });
+        const actListener = await PushNotifications.addListener(
+          'pushNotificationActionPerformed',
+          (action) => {
+            if (!mounted.current) return
+            try {
+              const data = action.notification.data
+              if (!data?.type) return
+              const routes: Record<string, string> = {
+                PAYMENT_APPROVED: '/tournaments',
+                PRIZE_CREDITED: '/wallet',
+                ROOM_DETAILS: `/tournaments/${data.tournamentId || ''}`,
+                SUPPORT_REPLY: '/support',
+                TOURNAMENT_STARTING: `/tournaments/${data.tournamentId || ''}`,
+              }
+              const route = routes[data.type]
+              if (route) window.location.href = route // use window.location not router — safer post-permission-grant
+            } catch {}
+          }
+        )
 
-        cleanup = () => {
-          regHandle.remove();
-          errHandle.remove();
-          recvHandle.remove();
-          tapHandle.remove();
-        };
+        removeRegistration = () => regListener.remove()
+        removeError = () => errListener.remove()
+        removeReceived = () => rcvListener.remove()
+        removeAction = () => actListener.remove()
+
       } catch (e) {
-        console.warn("Push setup failed", e);
+        // Any import or plugin error → silent fail, never crash the app
+        console.warn('Push notifications unavailable:', e)
       }
-    })();
+    }
 
-    return () => cleanup?.();
-  }, [isNative, router]);
+    init()
 
-  return { ...state, requestPermission };
+    return () => {
+      mounted.current = false
+      removeRegistration?.()
+      removeError?.()
+      removeReceived?.()
+      removeAction?.()
+    }
+  }, [])
 }
 
 function routeFor(data: any): string | null {
