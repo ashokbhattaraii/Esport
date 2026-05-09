@@ -38,9 +38,25 @@ export default function RootLayout({
         <Script id="sw-register" strategy="afterInteractive">
           {`
             var isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+            var isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+            var isProdWeb = !isLocalhost && window.location.protocol === 'https:';
             if (!isNative && 'serviceWorker' in navigator) {
               window.addEventListener('load', function () {
-                navigator.serviceWorker.register('/sw.js').catch(function () {});
+                if (isProdWeb) {
+                  navigator.serviceWorker.register('/sw.js').catch(function () {});
+                  return;
+                }
+
+                // Dev safety: clear old SW/caches so Next dev chunks are never served stale.
+                navigator.serviceWorker.getRegistrations().then(function (regs) {
+                  regs.forEach(function (reg) { reg.unregister(); });
+                }).catch(function () {});
+
+                if ('caches' in window) {
+                  caches.keys().then(function (keys) {
+                    keys.forEach(function (key) { caches.delete(key); });
+                  }).catch(function () {});
+                }
               });
             }
           `}

@@ -27,11 +27,16 @@ export function GoogleAuthPanel({
     setErr(null);
     setLoading(true);
     try {
-      const res = await api<{ token: string }>("/auth/google", {
+      const res = await api<any>("/auth/google", {
         method: "POST",
         body: JSON.stringify({ credential }),
       });
-      auth.setToken(res.token);
+      const nextToken =
+        res?.token ?? res?.accessToken ?? res?.jwt ?? res?.data?.token;
+      if (!nextToken) {
+        throw new Error("Google sign-in succeeded but no auth token was returned");
+      }
+      auth.setToken(nextToken);
       await refresh();
       router.push(next);
     } catch (e: any) {
