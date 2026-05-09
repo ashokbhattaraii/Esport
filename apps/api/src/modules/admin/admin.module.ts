@@ -150,8 +150,12 @@ import { ApkTestController } from "./apk-test.controller";
 import { AppConfigService } from "./app-config.service";
 import { AppConfigController } from "./app-config.controller";
 import { PermissionsGuard } from "../../common/guards/permissions.guard";
+import { StorageModule } from "../../common/storage/storage.module";
+import { MulterModule } from "@nestjs/platform-express";
+import { memoryStorage } from "multer";
 
 @Module({
+  imports: [StorageModule, MulterModule.register({ storage: memoryStorage() })],
   controllers: [
     AdminController,
     SystemConfigController,

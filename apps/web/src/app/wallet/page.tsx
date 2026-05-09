@@ -98,7 +98,7 @@ export default function WalletPage() {
   if (!user) return <div className="pt-6"><GoogleAuthPanel title="Sign in to use your wallet" /></div>;
   if (!data || dataLoading) return <LoadingState label="Loading wallet..." />;
 
-  const qrImage = paymentConfig?.deposit_qr_url || null;
+  const qrImage = paymentConfig?.[`deposit_qr_${deposit.method}`] || paymentConfig?.deposit_qr_url || null;
   const paymentId = paymentConfig?.deposit_account_id || "";
   const paymentName = paymentConfig?.deposit_account_name || "FireSlot Nepal";
   const depositNote = paymentConfig?.deposit_instructions || "Send the exact amount to the account shown above. Then upload a screenshot of the payment confirmation.";
