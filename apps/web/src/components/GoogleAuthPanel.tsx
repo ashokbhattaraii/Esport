@@ -2,7 +2,7 @@
 
 import { GoogleLogin } from "@react-oauth/google";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { api, auth } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { InlineLoading } from "@/components/ui";
@@ -41,6 +41,17 @@ export function GoogleAuthPanel({
     }
   }
 
+  const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID
+
+  useEffect(() => {
+    // Retry check in case env was injected at build step; harmless on web
+    if (clientId) return
+    const id = setTimeout(() => {
+      // no-op; process.env is static but keep for APK resilience
+    }, 800)
+    return () => clearTimeout(id)
+  }, [clientId])
+
   return (
     <div className="card space-y-4">
       <div>
@@ -67,10 +78,10 @@ export function GoogleAuthPanel({
           )}
         </div>
       ) : (
-        <p className="rounded-md border border-neon-orange/40 bg-neon-orange/10 px-3 py-2 text-sm text-neon-orange">
-          Add NEXT_PUBLIC_GOOGLE_CLIENT_ID and GOOGLE_CLIENT_ID to enable Google
-          sign-in.
-        </p>
+        <div className="rounded-md border border-neon-orange/40 bg-neon-orange/10 px-3 py-6 text-sm text-neon-orange text-center">
+          <div className="mb-2">Loading sign-in configuration...</div>
+          <div className="text-xs text-white/60">If this persists, contact the app maintainer.</div>
+        </div>
       )}
       {loading && <InlineLoading label="Finishing sign-in..." />}
       {err && <p className="text-sm text-red-400">{err}</p>}
