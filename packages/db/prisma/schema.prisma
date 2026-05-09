@@ -55,6 +55,7 @@ enum ChallengeStatus {
 enum ChallengGameMode {
   BR
   CS
+  LW
 }
 
 enum DisputeReason {
@@ -600,6 +601,7 @@ model Challenge {
   csLoadout       Boolean          @default(false)
   csCompulsoryWeapon String?
   csCompulsoryArmour String?
+  lwTeamMode      String?
 
   // Shared
   characterSkill  Boolean          @default(true)

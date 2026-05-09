@@ -28,6 +28,11 @@ export class PublicAppReleasesController {
     return this.svc.getLatest();
   }
 
+  @Get("stats")
+  stats() {
+    return this.svc.getPublicStats();
+  }
+
   @Get("config")
   config(@Req() req: any) {
     return this.svc.getPublicConfig(req);

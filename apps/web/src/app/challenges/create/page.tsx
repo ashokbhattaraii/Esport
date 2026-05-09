@@ -7,9 +7,10 @@ import { useAuth } from "@/lib/auth-context";
 import { useToast, handleJoinError } from "@/lib/toast";
 import { ButtonLoading } from "@/components/ui";
 
-type GameMode = "BR" | "CS";
+type GameMode = "BR" | "CS" | "LW";
 
 const CS_TEAM_MODES = ["1v1", "2v2", "3v3", "4v4"];
+const LW_TEAM_MODES = ["1v1", "2v2"];
 const CS_WEAPONS = [
   "NONE", "MP40", "UMP", "MP5", "BIZON", "VECTOR", "M1014", "M1887",
   "MAG7", "M590", "AWM", "XM8", "D-EAGLE", "WOODPECKER",
@@ -57,6 +58,7 @@ export default function CreateChallengePage() {
   const [csLoadout, setCsLoadout] = useState(false);
   const [csCompulsoryWeapon, setCsCompulsoryWeapon] = useState("NONE");
   const [csCompulsoryArmour, setCsCompulsoryArmour] = useState("NONE");
+  const [lwTeamMode, setLwTeamMode] = useState("1v1");
 
   const [brMap, setBrMap] = useState("BERMUDA");
   const [brTeamMode, setBrTeamMode] = useState("SOLO");
@@ -109,6 +111,10 @@ export default function CreateChallengePage() {
           csCompulsoryWeapon,
           csCompulsoryArmour,
         });
+      } else if (gameMode === "LW") {
+        Object.assign(payload, {
+          lwTeamMode,
+        });
       } else {
         Object.assign(payload, {
           brMap,
@@ -154,7 +160,7 @@ export default function CreateChallengePage() {
         <label className="fs-label flex items-center gap-1"><Coins size={12} /> Entry Fee</label>
         <input
           type="range"
-          min={10}
+          min={20}
           max={50}
           step={5}
           value={entryFee}
@@ -191,6 +197,13 @@ export default function CreateChallengePage() {
             className={`fs-opt ${gameMode === "CS" ? "active" : ""}`}
           >
             Clash Squad
+          </button>
+          <button
+            type="button"
+            onClick={() => setGameMode("LW")}
+            className={`fs-opt ${gameMode === "LW" ? "active" : ""}`}
+          >
+            Lone Wolf
           </button>
         </div>
       </div>
@@ -245,6 +258,17 @@ export default function CreateChallengePage() {
               ))}
             </div>
           </OptSection>
+        </>
+      ) : gameMode === "LW" ? (
+        <>
+          <OptSection label="Team Mode">
+            <div className="fs-opt-grid">
+              {LW_TEAM_MODES.map((m) => (
+                <button key={m} type="button" className={`fs-opt ${lwTeamMode === m ? "active" : ""}`} onClick={() => setLwTeamMode(m)}>{m}</button>
+              ))}
+            </div>
+          </OptSection>
+          <p className="text-[11px] text-white/60">Lone Wolf matches are 1v1 or 2v2 solo-style matches with headshot rules enabled.</p>
         </>
       ) : (
         <>

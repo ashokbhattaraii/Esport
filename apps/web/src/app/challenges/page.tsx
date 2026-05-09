@@ -7,7 +7,7 @@ import { useToast, handleJoinError } from "@/lib/toast";
 import { useAuth } from "@/lib/auth-context";
 import { ButtonLoading, CardSkeleton, LoadingState } from "@/components/ui";
 
-type GameMode = "BR" | "CS" | "ALL";
+type GameMode = "BR" | "CS" | "LW" | "ALL";
 type Status = "OPEN" | "MATCHED" | "COMPLETED" | "ALL";
 
 export default function ChallengesPage() {
@@ -68,7 +68,7 @@ export default function ChallengesPage() {
       <div className="fs-card fs-card-body">
         <div className="flex flex-wrap gap-2">
           <FilterPills
-            options={["ALL", "BR", "CS"]}
+            options={["ALL", "BR", "CS", "LW"]}
             value={gameMode}
             onChange={(v) => setGameMode(v as GameMode)}
           />
@@ -115,11 +115,13 @@ export default function ChallengesPage() {
                     <span className="fs-badge" style={{ background: 'rgba(156,39,176,0.15)', color: '#CE93D8' }}>
                       CH-{c.challengeNumber}
                     </span>
-                    <span className={`fs-badge ${c.gameMode === "BR" ? "fs-badge-red" : "fs-badge-gold"}`}>
+                    <span className={`fs-badge ${c.gameMode === "BR" ? "fs-badge-red" : c.gameMode === "CS" ? "fs-badge-gold" : "fs-badge-gray"}`}>
                       {c.gameMode}
                     </span>
                     {c.gameMode === "CS" ? (
                       <span className="fs-badge fs-badge-gray">{c.csTeamMode}</span>
+                    ) : c.gameMode === "LW" ? (
+                      <span className="fs-badge fs-badge-gray">{c.lwTeamMode}</span>
                     ) : (
                       <span className="fs-badge fs-badge-gray">{c.brMap}</span>
                     )}

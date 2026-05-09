@@ -68,7 +68,9 @@ export class SystemConfigService implements OnModuleInit {
   > = {
     MAX_ENTRY_FEE: { value: "50", type: "NUMBER", category: "PRICING", label: "Max Entry Fee (NPR)" },
     MIN_ENTRY_FEE: { value: "10", type: "NUMBER", category: "PRICING", label: "Min Entry Fee (NPR)" },
-    SYSTEM_FEE_PERCENT: { value: "20", type: "NUMBER", category: "PRICING", label: "Platform Cut %" },
+    SYSTEM_FEE_PERCENT: { value: "20", type: "NUMBER", category: "PRICING", label: "Tournaments Platform Cut %" },
+    CHALLENGE_FEE_PERCENT: { value: "20", type: "NUMBER", category: "PRICING", label: "Challenges Platform Cut %" },
+    WITHDRAWAL_FEE_PERCENT: { value: "0", type: "NUMBER", category: "PRICING", label: "Withdrawal Fee %" },
     MIN_SYSTEM_FEE: { value: "5", type: "NUMBER", category: "PRICING", label: "Min Platform Fee" },
     KILL_REWARD_PERCENT: { value: "80", type: "NUMBER", category: "PRICING", label: "Kill+Booyah Pool %" },
     BOOYAH_COINS_PER_PLAYER: { value: "1", type: "NUMBER", category: "PRICING", label: "Booyah Coins / Player" },

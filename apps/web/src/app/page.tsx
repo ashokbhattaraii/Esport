@@ -18,6 +18,7 @@ interface CategoryChild {
   slug: string;
   gameMode?: string | null;
   description?: string | null;
+  coverUrl?: string | null;
 }
 interface Category {
   id: string;
@@ -43,12 +44,14 @@ export default function HomePage() {
   const [tournaments, setTournaments] = useState<any[]>([]);
   const [wallet, setWallet] = useState<any>(null);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [stats, setStats] = useState<{ activeUsers: number; totalDownloads: number } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     Promise.all([
       api("/tournaments").then(setTournaments),
       api("/categories").then(setCategories).catch(() => setCategories([])),
+      api("/app/stats").then(setStats).catch(() => null),
       user
         ? api("/wallet")
             .then(setWallet)
@@ -78,6 +81,7 @@ export default function HomePage() {
         slug: child.slug,
         parentName: category.name,
         description: child.description,
+        coverUrl: child.coverUrl ?? category.coverUrl,
       })),
     );
 
@@ -90,6 +94,7 @@ export default function HomePage() {
         name: category.name,
         slug: category.slug,
         description: null,
+        coverUrl: category.coverUrl,
       }));
   }, [categories]);
 
@@ -129,8 +134,14 @@ export default function HomePage() {
           <div className="h-3 w-px" style={{ background: 'var(--fs-border-md)' }} />
           <div className="flex items-center gap-1.5 text-xs">
             <span style={{ color: 'var(--fs-text-3)' }}>👥</span>
-            <span className="font-semibold" style={{ color: 'var(--fs-text-1)' }}>{tournaments.length * 3}</span>
-            <span style={{ color: 'var(--fs-text-3)' }}>Players</span>
+            <span className="font-semibold" style={{ color: 'var(--fs-text-1)' }}>{stats?.activeUsers ?? tournaments.length * 3}</span>
+            <span style={{ color: 'var(--fs-text-3)' }}>Active Users</span>
+          </div>
+          <div className="h-3 w-px" style={{ background: 'var(--fs-border-md)' }} />
+          <div className="flex items-center gap-1.5 text-xs">
+            <span style={{ color: 'var(--fs-text-3)' }}>⬇️</span>
+            <span className="font-semibold" style={{ color: 'var(--fs-text-1)' }}>{stats?.totalDownloads ?? '—'}</span>
+            <span style={{ color: 'var(--fs-text-3)' }}>Downloads</span>
           </div>
           <div className="h-3 w-px" style={{ background: 'var(--fs-border-md)' }} />
           <div className="flex items-center gap-1.5 text-xs">
@@ -161,21 +172,31 @@ export default function HomePage() {
                       href={`/tournaments?category=${game.slug}`}
                       className="relative flex-shrink-0 rounded-xl px-4 py-3 text-left transition"
                       style={{
-                        background: 'var(--fs-surface-1)',
+                        backgroundColor: 'var(--fs-surface-1)',
+                        backgroundImage: game.coverUrl ? `url("${game.coverUrl}")` : undefined,
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center',
+                        backgroundRepeat: 'no-repeat',
                         border: '0.5px solid var(--fs-border)',
                         minWidth: '120px',
+                        color: game.coverUrl ? 'white' : undefined,
                       }}
                     >
-                      {liveCount > 0 && (
-                        <span className="absolute right-2 top-2 fs-badge fs-badge-green" style={{ fontSize: '8px' }}>
-                          {liveCount} LIVE
-                        </span>
+                      {game.coverUrl && (
+                        <div className="absolute inset-0 rounded-xl bg-black/35" />
                       )}
-                      <Flame size={16} style={{ color: 'var(--fs-red)' }} />
-                      <p className="mt-2 text-xs font-semibold" style={{ color: 'var(--fs-text-1)' }}>{game.name}</p>
-                      {game.parentName && (
-                        <p className="text-[10px]" style={{ color: 'var(--fs-text-3)' }}>{game.parentName}</p>
-                      )}
+                      <div className="relative z-10">
+                        {liveCount > 0 && (
+                          <span className="absolute right-2 top-2 fs-badge fs-badge-green" style={{ fontSize: '8px' }}>
+                            {liveCount} LIVE
+                          </span>
+                        )}
+                        <Flame size={16} style={{ color: 'var(--fs-red)' }} />
+                        <p className="mt-2 text-xs font-semibold" style={{ color: game.coverUrl ? 'white' : 'var(--fs-text-1)' }}>{game.name}</p>
+                        {game.parentName && (
+                          <p className="text-[10px]" style={{ color: game.coverUrl ? 'rgba(255,255,255,0.8)' : 'var(--fs-text-3)' }}>{game.parentName}</p>
+                        )}
+                      </div>
                     </Link>
                   );
                 })}

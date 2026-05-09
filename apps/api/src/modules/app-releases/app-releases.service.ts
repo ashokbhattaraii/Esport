@@ -104,6 +104,23 @@ export class AppReleasesService {
     };
   }
 
+  async getPublicStats() {
+    const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const activeUsers = await this.prisma.user.count({
+      where: {
+        OR: [
+          { lastLoginAt: { gte: cutoff } },
+          { lastLoginAt: null, createdAt: { gte: cutoff } },
+        ],
+      },
+    });
+    const downloads = await this.prisma.appRelease.aggregate({ _sum: { downloadCount: true } });
+    return {
+      activeUsers,
+      totalDownloads: downloads._sum.downloadCount ?? 0,
+    };
+  }
+
   async incrementDownload(id: string) {
     return this.prisma.appRelease
       .update({ where: { id }, data: { downloadCount: { increment: 1 } } })

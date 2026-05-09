@@ -271,7 +271,7 @@ export class TournamentsService implements OnModuleInit {
 
     // Preview with full lobby (Nepali Adda model — actual values recomputed at room lock).
     const preview = this.prizes.calculatePrizeStructure(
-      { entryFeeNpr: entryFee, maxSlots: dto.maxSlots, type },
+      { entryFeeNpr: entryFee, maxSlots: dto.maxSlots, type, mode: dto.mode },
       dto.maxSlots,
     );
 
@@ -577,7 +577,9 @@ export class TournamentsService implements OnModuleInit {
   private validateFeePlan(dto: CreateTournamentDto) {
     const type = (dto.type ?? "SOLO_1ST") as TournamentType;
 
-    const maxFee = this.config.getNumber("MAX_ENTRY_FEE");
+    const maxFee = 50; // User requested minimum starting price from 20 max 50
+    const minFee = 20;
+
     const freePool = this.config.getNumber("FREE_DAILY_PRIZE_POOL");
 
     if (type === "FREE_DAILY") {
@@ -592,8 +594,8 @@ export class TournamentsService implements OnModuleInit {
     if (dto.entryFeeNpr > maxFee) {
       throw new BadRequestException(`Entry fee cannot exceed NPR ${maxFee}`);
     }
-    if (dto.entryFeeNpr < 10) {
-      throw new BadRequestException("Entry fee must be at least NPR 10");
+    if (dto.entryFeeNpr < minFee) {
+      throw new BadRequestException(`Entry fee must be at least NPR ${minFee}`);
     }
     if ((dto.registrationFeeNpr ?? 10) > dto.entryFeeNpr) {
       throw new BadRequestException(

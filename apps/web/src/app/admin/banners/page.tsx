@@ -237,7 +237,7 @@ export default function AdminBannersPage() {
 
       <div className="table-wrap">
         {isLoading ? (
-          <TableLoading columns={7} rows={5} />
+          <TableLoading columns={8} rows={5} />
         ) : (
           <table className="data-table">
             <thead>
@@ -245,6 +245,7 @@ export default function AdminBannersPage() {
                 <th></th>
                 <th>Image</th>
                 <th>Title</th>
+                <th>Link</th>
                 <th>Badge</th>
                 <th>Active</th>
                 <th>Order</th>
@@ -276,6 +277,15 @@ export default function AdminBannersPage() {
                     <p className="max-w-[320px] truncate text-xs text-white/45">
                       {banner.subtitle || "No subtitle"}
                     </p>
+                  </td>
+                  <td className="max-w-[200px] truncate text-xs text-white/60">
+                    {banner.ctaLink ? (
+                      <a href={banner.ctaLink} target="_blank" rel="noreferrer" className="underline hover:text-white">
+                        {banner.ctaLink}
+                      </a>
+                    ) : (
+                      <span className="text-white/30">No link</span>
+                    )}
                   </td>
                   <td>
                     {banner.badgeText ? (
@@ -311,7 +321,7 @@ export default function AdminBannersPage() {
               ))}
               {!sorted.length && (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-white/40">
+                  <td colSpan={8} className="py-8 text-center text-white/40">
                     No banners yet
                   </td>
                 </tr>

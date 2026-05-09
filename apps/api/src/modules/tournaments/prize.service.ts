@@ -59,13 +59,30 @@ export class PrizeService {
     return { gross, cut, net: gross - cut };
   }
 
-  calculatePerKillReward(entryFee: number, playerCount: number): number {
+  calculatePerKillReward(entryFee: number, playerCount: number, mode?: string): number {
     if (playerCount <= 0 || entryFee <= 0) return 0;
-    const killPct = this.config.getNumber("KILL_REWARD_PERCENT");
-    const { net } = this.calculateNetPool(entryFee, playerCount);
-    const killPool = Math.floor((net * killPct) / 100);
-    const avgExpectedKills = playerCount <= 12 ? 2.0 : 2.5;
-    const perKill = Math.floor(killPool / Math.max(1, playerCount * avgExpectedKills));
+    
+    // As per user request: "if user joins a game of 15, then per kill 12 rs, (profit to system rs 3)"
+    // This translates to killReward = entryFee - systemProfit.
+    const sysFee = this.config.getNumber("SYSTEM_FEE_PERCENT") || 20;
+    
+    // We base the kill pool strictly on the requested margin 
+    const basePerKill = Math.floor(entryFee * (1 - sysFee / 100)); // entry 15 -> 12
+
+    // In Battle Royale (BR), the total number of kills across all players is always strictly 
+    // less than the lobby size (playerCount - 1). Therefore, dividing the kill pool 1:1 
+    // is safe and guarantees system profit.
+    // However, in Clash Squad (CS) and Lone Wolf (LW), players respawn, so average rounds must be considered
+    // to prevent going negative! 
+    let avgExpectedKills = 1.0; 
+    
+    if (mode?.startsWith("CS_")) {
+      avgExpectedKills = 3.5; // average kills per player in a 7 round match
+    } else if (mode?.startsWith("LW_")) {
+      avgExpectedKills = 2.5; 
+    } 
+
+    const perKill = Math.floor(basePerKill / avgExpectedKills);
     return Math.max(perKill, 1);
   }
 
@@ -76,7 +93,7 @@ export class PrizeService {
   }
 
   calculatePrizeStructure(
-    tournament: { entryFeeNpr: number; maxSlots: number; type?: string },
+    tournament: { entryFeeNpr: number; maxSlots: number; type?: string; mode?: string },
     actualPlayers: number,
   ): PrizeStructureV2 {
     const entryFee = tournament.entryFeeNpr;
@@ -87,7 +104,7 @@ export class PrizeService {
 
     const { gross, cut, net } = this.calculateNetPool(entryFee, players);
     const killPool = Math.floor((net * killPct) / 100);
-    const perKillReward = this.calculatePerKillReward(entryFee, players);
+    const perKillReward = this.calculatePerKillReward(entryFee, players, tournament.mode);
     const booyahPrize = this.calculateBooyahPrize(players);
 
     return {
@@ -131,7 +148,7 @@ export class PrizeService {
       );
 
     const structure = this.calculatePrizeStructure(
-      { entryFeeNpr: t.entryFeeNpr, maxSlots: t.maxSlots, type: t.type },
+      { entryFeeNpr: t.entryFeeNpr, maxSlots: t.maxSlots, type: t.type, mode: t.mode },
       actualPlayers,
     );
 

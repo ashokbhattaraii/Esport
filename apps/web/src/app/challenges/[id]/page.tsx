@@ -177,6 +177,11 @@ export default function ChallengeDetailPage() {
               <Badge>{c.csTeamMode}</Badge>
               <Badge>R{c.csRounds}</Badge>
             </>
+          ) : c.gameMode === "LW" ? (
+            <>
+              <Badge>{c.lwTeamMode}</Badge>
+              <Badge>Lone Wolf</Badge>
+            </>
           ) : (
             <>
               <Badge>{c.brMap}</Badge>
@@ -445,6 +450,12 @@ function RulesSection({ challenge: c }: { challenge: any }) {
             {c.csCompulsoryArmour && c.csCompulsoryArmour !== "NONE" && (
               <Row label="Compulsory Armour" value={c.csCompulsoryArmour} accent />
             )}
+          </>
+        ) : c.gameMode === "LW" ? (
+          <>
+            <Row label="Mode" value="Lone Wolf" />
+            <Row label="Team Mode" value={c.lwTeamMode} />
+            <Row label="Headshot Only" value={c.headshotOnly ? "Yes" : "No"} />
           </>
         ) : (
           <>

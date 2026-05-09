@@ -195,7 +195,7 @@ export default function AdminTournaments() {
             </p>
             <input
               type="range"
-              min={10}
+              min={20}
               max={50}
               step={5}
               value={form.entryFeeNpr}

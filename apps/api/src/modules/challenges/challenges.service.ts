@@ -36,6 +36,7 @@ const BR_TEAM_MODES = ["SOLO", "DUO", "SQUAD"];
 const BR_WIN_CONDITIONS = [
   "KILLS", "BOOYAH", "HEADSHOTS_ONLY", "MOST_DAMAGE", "SURVIVAL_TIME", "FIRST_TO_N_KILLS",
 ];
+const LW_TEAM_MODES = ["1v1", "2v2"];
 
 const PLAYER_SELECT = {
   id: true,
@@ -74,6 +75,7 @@ const CHALLENGE_LIST_SELECT = {
   csLoadout: true,
   csCompulsoryWeapon: true,
   csCompulsoryArmour: true,
+  lwTeamMode: true,
   characterSkill: true,
   gunAttribute: true,
   headshotOnly: true,
@@ -120,6 +122,7 @@ export interface CreateChallengeDto {
   csLoadout?: boolean;
   csCompulsoryWeapon?: string;
   csCompulsoryArmour?: string;
+  lwTeamMode?: string;
   characterSkill?: boolean;
   gunAttribute?: boolean;
   headshotOnly?: boolean;
@@ -154,6 +157,9 @@ export class ChallengesService {
         lines.push(`Compulsory Weapon: ${c.csCompulsoryWeapon}`);
       if (c.csCompulsoryArmour && c.csCompulsoryArmour !== "NONE")
         lines.push(`Compulsory Armour: ${c.csCompulsoryArmour}`);
+    } else if (c.gameMode === "LW") {
+      lines.push(`Mode: Lone Wolf | Team: ${c.lwTeamMode ?? "—"}`);
+      lines.push(`Headshot Only: ${c.headshotOnly ? "Yes" : "No"}`);
     } else {
       lines.push(
         `Map: ${c.brMap ?? "—"} | Mode: ${c.brTeamMode ?? "—"} | Win: ${c.brWinCondition ?? "—"}`,
@@ -193,6 +199,9 @@ export class ChallengesService {
         throw new BadRequestException("Invalid csCompulsoryWeapon");
       if (dto.csCompulsoryArmour && !CS_ARMOURS.includes(dto.csCompulsoryArmour))
         throw new BadRequestException("Invalid csCompulsoryArmour");
+    } else if (dto.gameMode === "LW") {
+      if (!dto.lwTeamMode || !LW_TEAM_MODES.includes(dto.lwTeamMode))
+        throw new BadRequestException("lwTeamMode required: 1v1/2v2");
     } else {
       if (!dto.brMap || !BR_MAPS.includes(dto.brMap))
         throw new BadRequestException("brMap required");
@@ -209,7 +218,8 @@ export class ChallengesService {
       throw new BadRequestException("Insufficient wallet balance");
 
     const totalPool = dto.entryFee * 2;
-    const platformFee = Math.floor(totalPool * 0.2);
+    const feePercent = this.config.getNumber("CHALLENGE_FEE_PERCENT") / 100;
+    const platformFee = Math.floor(totalPool * feePercent);
     const prizeToWinner = totalPool - platformFee;
 
     const count = await this.prisma.challenge.count();
@@ -267,6 +277,7 @@ export class ChallengesService {
           csLoadout: dto.csLoadout ?? false,
           csCompulsoryWeapon: dto.csCompulsoryWeapon,
           csCompulsoryArmour: dto.csCompulsoryArmour,
+          lwTeamMode: dto.lwTeamMode,
           characterSkill: dto.characterSkill ?? true,
           gunAttribute: dto.gunAttribute ?? false,
           headshotOnly: dto.headshotOnly ?? false,

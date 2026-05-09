@@ -52,6 +52,7 @@ export class CategoriesService {
               slug: c.slug,
               gameMode: c.gameMode,
               description: c.description,
+              coverUrl: c.coverUrl,
               sortOrder: c.sortOrder,
             }))
         : [],

@@ -8,6 +8,7 @@ import { IsInt, IsString, Min } from "class-validator";
 import { PrismaClient, WithdrawalStatus } from "@fireslot/db";
 import { PRISMA } from "../../prisma/prisma.module";
 import { RealtimeService } from "../../common/realtime/realtime.service";
+import { SystemConfigService } from "../admin/system-config.service";
 
 export class WithdrawDto {
   @IsInt() @Min(100) amountNpr!: number;
@@ -20,6 +21,7 @@ export class WalletService {
   constructor(
     @Inject(PRISMA) private prisma: PrismaClient,
     private realtime: RealtimeService,
+    private config: SystemConfigService,
   ) {}
 
   async getMine(userId: string) {
@@ -58,25 +60,33 @@ export class WalletService {
     return this.prisma.$transaction(async (tx: any) => {
       const wallet = await tx.wallet.findUnique({ where: { userId } });
       if (!wallet) throw new NotFoundException("Wallet not found");
-      if (wallet.balanceNpr < dto.amountNpr)
+
+      const withdrawalFeePercent = this.config.getNumber("WITHDRAWAL_FEE_PERCENT") || 0;
+      const feeAmount = Math.floor(dto.amountNpr * (withdrawalFeePercent / 100));
+      const amountToDeduct = dto.amountNpr;
+      const amountToReceive = dto.amountNpr - feeAmount;
+
+      if (wallet.balanceNpr < amountToDeduct)
         throw new BadRequestException("Insufficient balance");
       await tx.wallet.update({
         where: { userId },
-        data: { balanceNpr: { decrement: dto.amountNpr } },
+        data: { balanceNpr: { decrement: amountToDeduct } },
       });
       await tx.walletTransaction.create({
         data: {
           walletId: wallet.id,
           type: "DEBIT",
           reason: "WITHDRAWAL",
-          amountNpr: dto.amountNpr,
-          note: `Withdrawal request via ${dto.method}`,
+          amountNpr: amountToDeduct,
+          note: withdrawalFeePercent > 0 
+            ? `Withdrawal of Rs ${amountToDeduct} (Fee: Rs ${feeAmount})`
+            : `Withdrawal request via ${dto.method}`,
         },
       });
       const req = await tx.withdrawalRequest.create({
         data: {
           userId,
-          amountNpr: dto.amountNpr,
+          amountNpr: amountToReceive,
           method: dto.method,
           account: dto.account,
         },

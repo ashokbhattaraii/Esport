@@ -26,14 +26,26 @@ export default function ConfigPage() {
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState<string | null>(null);
 
+  const [sysDrafts, setSysDrafts] = useState<Record<string, string>>({});
+  const [sysItems, setSysItems] = useState<Record<string, { key: string; value: string; label: string; type: string }[]>>({});
+  const [savingSysKey, setSavingSysKey] = useState<string | null>(null);
+
   async function load() {
     setLoading(true);
     try {
-      const data = await api<ConfigItem[]>("/admin/app-config");
+      const [data, sysData] = await Promise.all([
+        api<ConfigItem[]>("/admin/app-config"),
+        api<Record<string, { key: string, value: string, label: string, type: string }[]>>("/admin/config")
+      ]);
       setItems(data);
       const d: Record<string, string> = {};
       data.forEach((c) => (d[c.key] = c.value));
       setDrafts(d);
+
+      setSysItems(sysData);
+      const sysD: Record<string, string> = {};
+      Object.values(sysData).flat().forEach(c => sysD[c.key] = c.value);
+      setSysDrafts(sysD);
     } finally { setLoading(false); }
   }
 
@@ -65,6 +77,20 @@ export default function ConfigPage() {
       await load();
     } catch (e: any) { setMsg(e.message); }
     finally { setUploading(null); }
+  }
+
+  async function saveSys(key: string) {
+    setSavingSysKey(key);
+    setMsg(null);
+    try {
+      await api(`/admin/config/${key}`, {
+        method: "PUT",
+        body: JSON.stringify({ value: sysDrafts[key] }),
+      });
+      setMsg("Saved successfully");
+      await load();
+    } catch (e: any) { setMsg(e.message); }
+    finally { setSavingSysKey(null); }
   }
 
   const otherConfigs = items.filter(i => !i.key.startsWith("deposit_qr_") && !["deposit_account_id", "deposit_account_name", "deposit_instructions"].includes(i.key));
@@ -182,6 +208,31 @@ export default function ConfigPage() {
               />
             </div>
           </div>
+
+          {/* System Fee Settings */}
+          {Object.values(sysItems).flat().filter((config) => ["SYSTEM_FEE_PERCENT", "CHALLENGE_FEE_PERCENT", "WITHDRAWAL_FEE_PERCENT"].includes(config.key)).length > 0 && (
+            <div style={{ background: "var(--fs-surface-1)", borderRadius: 14, border: "0.5px solid var(--fs-border)", overflow: "hidden" }}>
+              <div style={{ padding: "14px 16px", borderBottom: "0.5px solid var(--fs-border)", background: "var(--fs-surface-2)" }}>
+                <p style={{ fontSize: 14, fontWeight: 700, color: "var(--fs-text-1)" }}>System Fee Settings</p>
+                <p style={{ fontSize: 11, color: "var(--fs-text-3)", marginTop: 2 }}>Configure the platform service cuts for tournaments, challenges, and withdrawals.</p>
+              </div>
+              <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 16 }}>
+                {Object.values(sysItems).flat().filter((config) => ["SYSTEM_FEE_PERCENT", "CHALLENGE_FEE_PERCENT", "WITHDRAWAL_FEE_PERCENT"].includes(config.key)).map((config) => (
+                  <ConfigField
+                    key={config.key}
+                    label={config.label}
+                    description={config.key === "WITHDRAWAL_FEE_PERCENT" ? "Withdrawal fee is deducted from the requested amount." : "Percent of entry fee collected by the platform."}
+                    value={sysDrafts[config.key] ?? ""}
+                    onChange={(v) => setSysDrafts((d) => ({ ...d, [config.key]: v }))}
+                    onSave={() => saveSys(config.key)}
+                    saving={savingSysKey === config.key}
+                    changed={(sysDrafts[config.key] ?? "") !== config.value}
+                    mono
+                  />
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Other Settings */}
           {otherConfigs.length > 0 && (
