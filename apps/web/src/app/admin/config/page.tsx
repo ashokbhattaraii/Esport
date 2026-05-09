@@ -1,20 +1,26 @@
 "use client";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { ButtonLoading, CardSkeleton } from "@/components/ui";
+import { ButtonLoading } from "@/components/ui";
+import { Save, Upload } from "lucide-react";
 
 interface ConfigItem {
   id: string;
   key: string;
   value: string;
-  type: "STRING" | "NUMBER" | "BOOLEAN" | "JSON";
-  category: string;
-  label: string;
   updatedAt: string;
+  updatedBy: string | null;
 }
 
+const LABELS: Record<string, { label: string; description: string; type: "text" | "url" | "textarea" | "image" }> = {
+  deposit_qr_url: { label: "Payment QR Code URL", description: "Direct image URL of the QR code shown on deposit page", type: "image" },
+  deposit_account_id: { label: "Payment Account Number", description: "eSewa/Khalti number or bank account shown to users", type: "text" },
+  deposit_account_name: { label: "Payment Account Name", description: "Name shown next to the payment account", type: "text" },
+  deposit_instructions: { label: "Deposit Instructions", description: "Guidance text shown to users when making a deposit", type: "textarea" },
+};
+
 export default function ConfigPage() {
-  const [groups, setGroups] = useState<Record<string, ConfigItem[]>>({});
+  const [items, setItems] = useState<ConfigItem[]>([]);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -23,106 +29,139 @@ export default function ConfigPage() {
   async function load() {
     setLoading(true);
     try {
-      const data = await api<Record<string, ConfigItem[]>>("/admin/config");
-      setGroups(data);
+      const data = await api<ConfigItem[]>("/admin/app-config");
+      setItems(data);
       const d: Record<string, string> = {};
-      Object.values(data).flat().forEach((c) => (d[c.key] = c.value));
+      data.forEach((c) => (d[c.key] = c.value));
       setDrafts(d);
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   }
 
-  useEffect(() => {
-    load().catch((e) => setMsg(e.message));
-  }, []);
+  useEffect(() => { load().catch((e) => setMsg(e.message)); }, []);
 
   async function save(key: string) {
     setSavingKey(key);
     setMsg(null);
     try {
-      await api(`/admin/config/${key}`, {
-        method: "PUT",
-        body: JSON.stringify({ value: drafts[key] }),
-      });
-      setMsg(`Saved ${key}`);
+      await api(`/admin/app-config/${key}`, { method: "PUT", body: JSON.stringify({ value: drafts[key] }) });
+      setMsg(`Saved "${LABELS[key]?.label ?? key}" successfully`);
       await load();
-    } catch (e: any) {
-      setMsg(e.message);
-    } finally {
-      setSavingKey(null);
-    }
+    } catch (e: any) { setMsg(e.message); }
+    finally { setSavingKey(null); }
   }
 
+  const paymentConfigs = items.filter(i => i.key.startsWith("deposit_"));
+  const otherConfigs = items.filter(i => !i.key.startsWith("deposit_"));
+
   return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <h1 className="font-display text-2xl">System Config</h1>
-        {msg && <span className="text-xs text-white/70">{msg}</span>}
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h1 style={{ fontSize: 20, fontWeight: 800, color: "var(--fs-text-1)" }}>System Configuration</h1>
+        {msg && <span style={{ fontSize: 12, color: "var(--fs-green)", maxWidth: 200, textAlign: "right" }}>{msg}</span>}
       </div>
 
       {loading ? (
-        <>
-          <CardSkeleton lines={5} />
-          <CardSkeleton lines={5} />
-        </>
-      ) : Object.entries(groups).map(([cat, items]) => (
-        <div key={cat} className="card">
-          <h2 className="font-display text-lg text-neon-cyan">{cat}</h2>
-          <div className="mt-3 divide-y divide-border">
-            {items.map((c) => (
-              <div key={c.key} className="grid grid-cols-1 md:grid-cols-[200px_1fr_120px] gap-3 py-3 items-center">
-                <div>
-                  <div className="text-sm text-white">{c.label}</div>
-                  <div className="text-[10px] text-white/40 font-mono">{c.key}</div>
-                </div>
-                <div>{renderInput(c, drafts[c.key], (v) => setDrafts((d) => ({ ...d, [c.key]: v })))}</div>
-                <button
-                  className="btn-primary"
-                  disabled={savingKey === c.key || drafts[c.key] === c.value}
-                  onClick={() => save(c.key)}
-                >
-                  <ButtonLoading loading={savingKey === c.key} loadingText="Saving...">
-                    Save
-                  </ButtonLoading>
-                </button>
-              </div>
-            ))}
-          </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {[1,2,3].map(i => <div key={i} className="fs-skeleton" style={{ height: 80, borderRadius: 12 }} />)}
         </div>
-      ))}
+      ) : (
+        <>
+          {/* Payment Settings Section */}
+          <div style={{ background: "var(--fs-surface-1)", borderRadius: 14, border: "0.5px solid var(--fs-border)", overflow: "hidden" }}>
+            <div style={{ padding: "14px 16px", borderBottom: "0.5px solid var(--fs-border)", background: "var(--fs-surface-2)" }}>
+              <p style={{ fontSize: 14, fontWeight: 700, color: "var(--fs-text-1)" }}>Payment & Deposit Settings</p>
+              <p style={{ fontSize: 11, color: "var(--fs-text-3)", marginTop: 2 }}>Configure QR code, account details, and instructions shown on the deposit page</p>
+            </div>
+            <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 16 }}>
+              {paymentConfigs.map(c => {
+                const meta = LABELS[c.key] ?? { label: c.key, description: "", type: "text" };
+                const changed = drafts[c.key] !== c.value;
+                return (
+                  <div key={c.key}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+                      <div>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: "var(--fs-text-1)" }}>{meta.label}</p>
+                        <p style={{ fontSize: 11, color: "var(--fs-text-3)" }}>{meta.description}</p>
+                      </div>
+                      {changed && (
+                        <button
+                          onClick={() => save(c.key)}
+                          disabled={savingKey === c.key}
+                          className="fs-btn fs-btn-primary fs-btn-sm"
+                          style={{ flexShrink: 0 }}
+                        >
+                          <ButtonLoading loading={savingKey === c.key} loadingText="...">
+                            <Save size={12} /> Save
+                          </ButtonLoading>
+                        </button>
+                      )}
+                    </div>
+                    {meta.type === "image" ? (
+                      <div>
+                        <input
+                          className="fs-input"
+                          placeholder="https://example.com/qr-code.png"
+                          value={drafts[c.key] ?? ""}
+                          onChange={(e) => setDrafts(d => ({ ...d, [c.key]: e.target.value }))}
+                        />
+                        {drafts[c.key] && (
+                          <div style={{ marginTop: 10, padding: 12, background: "#fff", borderRadius: 8, display: "inline-block" }}>
+                            <img src={drafts[c.key]} alt="QR Preview" style={{ width: 120, height: 120, objectFit: "contain" }} />
+                          </div>
+                        )}
+                      </div>
+                    ) : meta.type === "textarea" ? (
+                      <textarea
+                        className="fs-input"
+                        style={{ height: 80, paddingTop: 12, resize: "vertical" }}
+                        value={drafts[c.key] ?? ""}
+                        onChange={(e) => setDrafts(d => ({ ...d, [c.key]: e.target.value }))}
+                      />
+                    ) : (
+                      <input
+                        className="fs-input"
+                        value={drafts[c.key] ?? ""}
+                        onChange={(e) => setDrafts(d => ({ ...d, [c.key]: e.target.value }))}
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Other Settings */}
+          {otherConfigs.length > 0 && (
+            <div style={{ background: "var(--fs-surface-1)", borderRadius: 14, border: "0.5px solid var(--fs-border)", overflow: "hidden" }}>
+              <div style={{ padding: "14px 16px", borderBottom: "0.5px solid var(--fs-border)", background: "var(--fs-surface-2)" }}>
+                <p style={{ fontSize: 14, fontWeight: 700, color: "var(--fs-text-1)" }}>Other Settings</p>
+              </div>
+              <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 16 }}>
+                {otherConfigs.map(c => {
+                  const changed = drafts[c.key] !== c.value;
+                  return (
+                    <div key={c.key}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: "var(--fs-text-1)", fontFamily: "monospace" }}>{c.key}</p>
+                        {changed && (
+                          <button onClick={() => save(c.key)} disabled={savingKey === c.key} className="fs-btn fs-btn-primary fs-btn-sm" style={{ flexShrink: 0 }}>
+                            <ButtonLoading loading={savingKey === c.key} loadingText="..."><Save size={12} /> Save</ButtonLoading>
+                          </button>
+                        )}
+                      </div>
+                      <input
+                        className="fs-input"
+                        value={drafts[c.key] ?? ""}
+                        onChange={(e) => setDrafts(d => ({ ...d, [c.key]: e.target.value }))}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
-}
-
-function renderInput(c: ConfigItem, value: string, onChange: (v: string) => void) {
-  if (c.type === "BOOLEAN") {
-    return (
-      <select className="input" value={value} onChange={(e) => onChange(e.target.value)}>
-        <option value="true">true</option>
-        <option value="false">false</option>
-      </select>
-    );
-  }
-  if (c.type === "NUMBER") {
-    return (
-      <input
-        type="number"
-        className="input"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      />
-    );
-  }
-  if (c.type === "JSON") {
-    return (
-      <textarea
-        className="input font-mono text-xs"
-        rows={3}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      />
-    );
-  }
-  return <input className="input" value={value} onChange={(e) => onChange(e.target.value)} />;
 }

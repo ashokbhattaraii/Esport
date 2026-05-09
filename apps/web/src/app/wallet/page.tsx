@@ -6,28 +6,23 @@ import { withdrawalSchema } from "@fireslot/shared";
 import { ButtonLoading, EmptyState, LoadingState, StatusBadge } from "@/components/ui";
 import { useAuth } from "@/lib/auth-context";
 import { GoogleAuthPanel } from "@/components/GoogleAuthPanel";
-import { ArrowUpRight, Plus } from "lucide-react";
+import { ArrowUpRight, Plus, Copy, Check, ChevronDown, ChevronUp } from "lucide-react";
 
 export default function WalletPage() {
   const { user, loading } = useAuth();
   const [tab, setTab] = useState<"deposit" | "withdraw">("deposit");
   const [data, setData] = useState<any>(null);
   const [payments, setPayments] = useState<any[]>([]);
-  const [form, setForm] = useState({
-    amountNpr: 100,
-    method: "esewa" as const,
-    account: "",
-  });
-  const [deposit, setDeposit] = useState({
-    amountNpr: 100,
-    method: "esewa",
-    reference: "",
-  });
+  const [paymentConfig, setPaymentConfig] = useState<any>(null);
+  const [form, setForm] = useState({ amountNpr: 100, method: "esewa" as const, account: "" });
+  const [deposit, setDeposit] = useState({ amountNpr: 100, method: "esewa", reference: "" });
   const [proof, setProof] = useState<File | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [dataLoading, setDataLoading] = useState(false);
   const [withdrawing, setWithdrawing] = useState(false);
   const [depositing, setDepositing] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
 
   async function load() {
     setDataLoading(true);
@@ -42,6 +37,13 @@ export default function WalletPage() {
       setDataLoading(false);
     }
   }
+
+  useEffect(() => {
+    api<Record<string, string>>("/app/config")
+      .then(setPaymentConfig)
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     setTab(
       new URLSearchParams(window.location.search).get("tab") === "withdraw"
@@ -57,35 +59,20 @@ export default function WalletPage() {
 
   async function withdraw(e: React.FormEvent) {
     e.preventDefault();
-    const parsed = withdrawalSchema.safeParse({
-      ...form,
-      amountNpr: Number(form.amountNpr),
-    });
-    if (!parsed.success) {
-      setMsg(parsed.error.issues[0]?.message ?? "Invalid");
-      return;
-    }
+    const parsed = withdrawalSchema.safeParse({ ...form, amountNpr: Number(form.amountNpr) });
+    if (!parsed.success) { setMsg(parsed.error.issues[0]?.message ?? "Invalid"); return; }
     setWithdrawing(true);
     try {
-      await api("/wallet/withdraw", {
-        method: "POST",
-        body: JSON.stringify(parsed.data),
-      });
+      await api("/wallet/withdraw", { method: "POST", body: JSON.stringify(parsed.data) });
       setMsg("Withdrawal request submitted.");
       load();
-    } catch (e: any) {
-      setMsg(e.message);
-    } finally {
-      setWithdrawing(false);
-    }
+    } catch (e: any) { setMsg(e.message); }
+    finally { setWithdrawing(false); }
   }
 
   async function submitDeposit(e: React.FormEvent) {
     e.preventDefault();
-    if (!proof) {
-      setMsg("Upload payment proof screenshot.");
-      return;
-    }
+    if (!proof) { setMsg("Upload payment proof screenshot."); return; }
     setDepositing(true);
     const fd = new FormData();
     fd.append("amountNpr", String(deposit.amountNpr));
@@ -94,46 +81,50 @@ export default function WalletPage() {
     fd.append("proof", proof);
     try {
       await api("/payments/deposit", { method: "POST", body: fd });
-      setMsg("Deposit submitted. Admin approval will update your balance.");
+      setMsg("Deposit submitted! We'll verify and credit your balance within 5-15 minutes.");
       setProof(null);
       load();
-    } catch (e: any) {
-      setMsg(e.message);
-    } finally {
-      setDepositing(false);
-    }
+    } catch (e: any) { setMsg(e.message); }
+    finally { setDepositing(false); }
+  }
+
+  function copyToClipboard(text: string) {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   }
 
   if (loading) return <LoadingState label="Loading wallet..." />;
-  if (!user) {
-    return (
-      <div className="pt-6">
-        <GoogleAuthPanel title="Sign in to use your wallet" />
-      </div>
-    );
-  }
+  if (!user) return <div className="pt-6"><GoogleAuthPanel title="Sign in to use your wallet" /></div>;
   if (!data || dataLoading) return <LoadingState label="Loading wallet..." />;
 
+  const qrImage = paymentConfig?.deposit_qr_url || null;
+  const paymentId = paymentConfig?.deposit_account_id || "";
+  const paymentName = paymentConfig?.deposit_account_name || "FireSlot Nepal";
+  const depositNote = paymentConfig?.deposit_instructions || "Send the exact amount to the account shown above. Then upload a screenshot of the payment confirmation.";
+
   return (
-    <div className="space-y-4">
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {/* Balance Card */}
-      <div className="fs-card overflow-hidden">
-        <div style={{ height: '3px', background: 'var(--fs-red)' }} />
-        <div className="p-5 text-center">
-          <p className="fs-caption">YOUR BALANCE</p>
-          <p className="mt-2 text-5xl font-bold" style={{ color: 'var(--fs-text-1)' }}>
+      <div style={{ background: "var(--fs-surface-1)", borderRadius: 16, overflow: "hidden", border: "0.5px solid var(--fs-border)" }}>
+        <div style={{ height: 3, background: "linear-gradient(90deg, var(--fs-red), var(--fs-gold))" }} />
+        <div style={{ padding: "24px 20px", textAlign: "center" }}>
+          <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: 1, color: "var(--fs-text-3)", textTransform: "uppercase" }}>Available Balance</p>
+          <p style={{ fontSize: 40, fontWeight: 800, color: "var(--fs-text-1)", marginTop: 8 }}>
             {npr(data.wallet.balanceNpr)}
           </p>
-          <div className="mt-5 grid grid-cols-2 gap-3">
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 20 }}>
             <button
               onClick={() => setTab("deposit")}
-              className={`fs-btn fs-btn-full ${tab === "deposit" ? "fs-btn-primary" : "fs-btn-outline"}`}
+              className="fs-btn fs-btn-full"
+              style={{ background: tab === "deposit" ? "var(--fs-red)" : "var(--fs-surface-2)", color: tab === "deposit" ? "#fff" : "var(--fs-text-2)", border: tab === "deposit" ? "none" : "1px solid var(--fs-border)" }}
             >
               <Plus size={16} /> Deposit
             </button>
             <button
               onClick={() => setTab("withdraw")}
-              className={`fs-btn fs-btn-full ${tab === "withdraw" ? "fs-btn-primary" : "fs-btn-outline"}`}
+              className="fs-btn fs-btn-full"
+              style={{ background: tab === "withdraw" ? "var(--fs-red)" : "var(--fs-surface-2)", color: tab === "withdraw" ? "#fff" : "var(--fs-text-2)", border: tab === "withdraw" ? "none" : "1px solid var(--fs-border)" }}
             >
               <ArrowUpRight size={16} /> Withdraw
             </button>
@@ -142,209 +133,246 @@ export default function WalletPage() {
       </div>
 
       {tab === "deposit" ? (
-        <form onSubmit={submitDeposit} className="fs-card fs-card-body space-y-4">
-          <h3 className="fs-h3">Deposit Balance</h3>
-          <div className="fs-card fs-card-body">
-            <p className="fs-caption">Payment targets</p>
-            <p className="mt-1 text-sm" style={{ color: 'var(--fs-text-2)' }}>
-              Pay with eSewa, Khalti, or bank, then upload screenshot proof.
-            </p>
+        <form onSubmit={submitDeposit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {/* Payment QR Section */}
+          <div style={{ background: "var(--fs-surface-1)", borderRadius: 14, border: "0.5px solid var(--fs-border)", padding: 20 }}>
+            <p style={{ fontSize: 14, fontWeight: 700, color: "var(--fs-text-1)", marginBottom: 16 }}>Step 1: Send Payment</p>
+
+            {/* Method selector */}
+            <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+              {["esewa", "khalti", "bank"].map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setDeposit({ ...deposit, method: m })}
+                  style={{
+                    flex: 1, padding: "10px 8px", borderRadius: 10, fontSize: 13, fontWeight: 600,
+                    background: deposit.method === m ? "var(--fs-green-dim)" : "var(--fs-surface-2)",
+                    border: deposit.method === m ? "1px solid var(--fs-green)" : "1px solid var(--fs-border)",
+                    color: deposit.method === m ? "var(--fs-green)" : "var(--fs-text-3)",
+                    cursor: "pointer", textTransform: "capitalize",
+                  }}
+                >
+                  {m === "esewa" ? "eSewa" : m === "khalti" ? "Khalti" : "Bank"}
+                </button>
+              ))}
+            </div>
+
+            {/* QR Code Display */}
+            {qrImage && (
+              <div style={{ textAlign: "center", marginBottom: 16 }}>
+                <div style={{ background: "#fff", borderRadius: 12, padding: 12, display: "inline-block" }}>
+                  <img
+                    src={qrImage}
+                    alt="Payment QR"
+                    style={{ width: 180, height: 180, objectFit: "contain" }}
+                  />
+                </div>
+                <p style={{ fontSize: 11, color: "var(--fs-text-3)", marginTop: 8 }}>Scan to pay via {deposit.method}</p>
+              </div>
+            )}
+
+            {/* Account Details */}
+            <div style={{ background: "var(--fs-surface-2)", borderRadius: 10, padding: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                <span style={{ fontSize: 11, color: "var(--fs-text-3)" }}>Account Name</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fs-text-1)" }}>{paymentName}</span>
+              </div>
+              {paymentId && (
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: 11, color: "var(--fs-text-3)" }}>Account/ID</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fs-gold)", fontFamily: "monospace" }}>{paymentId}</span>
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(paymentId)}
+                      style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}
+                    >
+                      {copied ? <Check size={14} style={{ color: "var(--fs-green)" }} /> : <Copy size={14} style={{ color: "var(--fs-text-3)" }} />}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Instructions */}
+            <div style={{ marginTop: 12, padding: "10px 12px", background: "var(--fs-amber-dim)", borderRadius: 8, borderLeft: "3px solid var(--fs-amber)" }}>
+              <p style={{ fontSize: 12, color: "var(--fs-amber)", lineHeight: 1.5 }}>{depositNote}</p>
+            </div>
           </div>
-          <div>
-            <label className="fs-label">Amount (NPR)</label>
-            <input
-              type="number"
-              min={50}
-              className="fs-input"
-              value={deposit.amountNpr}
-              onChange={(e) =>
-                setDeposit({ ...deposit, amountNpr: Number(e.target.value) })
-              }
-            />
-          </div>
-          <div>
-            <label className="fs-label">Method</label>
-            <select
-              className="fs-input"
-              value={deposit.method}
-              onChange={(e) =>
-                setDeposit({ ...deposit, method: e.target.value })
-              }
+
+          {/* Step 2: Fill details */}
+          <div style={{ background: "var(--fs-surface-1)", borderRadius: 14, border: "0.5px solid var(--fs-border)", padding: 20 }}>
+            <p style={{ fontSize: 14, fontWeight: 700, color: "var(--fs-text-1)", marginBottom: 16 }}>Step 2: Submit Proof</p>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div>
+                <label className="fs-label">Amount (NPR)</label>
+                <input
+                  type="number"
+                  min={50}
+                  className="fs-input"
+                  value={deposit.amountNpr}
+                  onChange={(e) => setDeposit({ ...deposit, amountNpr: Number(e.target.value) })}
+                />
+              </div>
+              <div>
+                <label className="fs-label">Transaction ID / Reference</label>
+                <input
+                  className="fs-input"
+                  placeholder="e.g. TXN2024050912345"
+                  value={deposit.reference}
+                  onChange={(e) => setDeposit({ ...deposit, reference: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="fs-label">Payment Screenshot</label>
+                <div
+                  style={{
+                    border: "2px dashed var(--fs-border-md)",
+                    borderRadius: 10,
+                    padding: "16px 12px",
+                    textAlign: "center",
+                    cursor: "pointer",
+                    background: "var(--fs-surface-2)",
+                  }}
+                  onClick={() => document.getElementById("proof-input")?.click()}
+                >
+                  {proof ? (
+                    <p style={{ fontSize: 13, color: "var(--fs-green)" }}>{proof.name}</p>
+                  ) : (
+                    <>
+                      <p style={{ fontSize: 13, color: "var(--fs-text-2)" }}>Tap to upload screenshot</p>
+                      <p style={{ fontSize: 11, color: "var(--fs-text-3)", marginTop: 4 }}>PNG, JPG up to 5MB</p>
+                    </>
+                  )}
+                </div>
+                <input
+                  id="proof-input"
+                  type="file"
+                  accept="image/*"
+                  style={{ display: "none" }}
+                  onChange={(e) => setProof(e.target.files?.[0] ?? null)}
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              className="fs-btn fs-btn-primary fs-btn-full"
+              style={{ marginTop: 16, height: 48 }}
+              disabled={depositing}
             >
-              <option value="esewa">eSewa</option>
-              <option value="khalti">Khalti</option>
-              <option value="bank">Bank</option>
-            </select>
+              <ButtonLoading loading={depositing} loadingText="Submitting...">
+                Submit Deposit Request
+              </ButtonLoading>
+            </button>
           </div>
-          <div>
-            <label className="fs-label">Reference / Tx ID</label>
-            <input
-              className="fs-input"
-              value={deposit.reference}
-              onChange={(e) =>
-                setDeposit({ ...deposit, reference: e.target.value })
-              }
-            />
-          </div>
-          <div>
-            <label className="fs-label">Payment Proof</label>
-            <input
-              type="file"
-              accept="image/*"
-              className="text-sm" style={{ color: 'var(--fs-text-2)' }}
-              onChange={(e) => setProof(e.target.files?.[0] ?? null)}
-              required
-            />
-          </div>
-          <button className="fs-btn fs-btn-primary fs-btn-full" disabled={depositing}>
-            <ButtonLoading loading={depositing} loadingText="Submitting deposit...">
-              Submit Deposit
-            </ButtonLoading>
-          </button>
         </form>
       ) : (
-        <form onSubmit={withdraw} className="fs-card fs-card-body space-y-4">
-          <h3 className="fs-h3">Request Withdrawal</h3>
-          <div>
-            <label className="fs-label">Amount (NPR)</label>
-            <input
-              type="number"
-              min={100}
-              className="fs-input"
-              value={form.amountNpr}
-              onChange={(e) =>
-                setForm({ ...form, amountNpr: Number(e.target.value) })
-              }
-            />
+        <form onSubmit={withdraw} style={{ background: "var(--fs-surface-1)", borderRadius: 14, border: "0.5px solid var(--fs-border)", padding: 20 }}>
+          <p style={{ fontSize: 14, fontWeight: 700, color: "var(--fs-text-1)", marginBottom: 16 }}>Withdraw Funds</p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div>
+              <label className="fs-label">Amount (NPR)</label>
+              <input type="number" min={100} className="fs-input" value={form.amountNpr}
+                onChange={(e) => setForm({ ...form, amountNpr: Number(e.target.value) })} />
+            </div>
+            <div>
+              <label className="fs-label">Method</label>
+              <select className="fs-input" value={form.method}
+                onChange={(e) => setForm({ ...form, method: e.target.value as any })}>
+                <option value="esewa">eSewa</option>
+                <option value="khalti">Khalti</option>
+                <option value="bank">Bank</option>
+              </select>
+            </div>
+            <div>
+              <label className="fs-label">Account Number / ID</label>
+              <input className="fs-input" value={form.account} placeholder="Your eSewa/Khalti number or bank account"
+                onChange={(e) => setForm({ ...form, account: e.target.value })} required />
+            </div>
           </div>
-          <div>
-            <label className="fs-label">Method</label>
-            <select
-              className="fs-input"
-              value={form.method}
-              onChange={(e) =>
-                setForm({ ...form, method: e.target.value as any })
-              }
-            >
-              <option value="esewa">eSewa</option>
-              <option value="khalti">Khalti</option>
-              <option value="bank">Bank</option>
-            </select>
-          </div>
-          <div>
-            <label className="fs-label">Account Number / ID</label>
-            <input
-              className="fs-input"
-              value={form.account}
-              onChange={(e) => setForm({ ...form, account: e.target.value })}
-              required
-            />
-          </div>
-          <button className="fs-btn fs-btn-primary fs-btn-full" disabled={withdrawing}>
-            <ButtonLoading loading={withdrawing} loadingText="Submitting request...">
-              Submit Request
+          <button type="submit" className="fs-btn fs-btn-primary fs-btn-full" style={{ marginTop: 16, height: 48 }} disabled={withdrawing}>
+            <ButtonLoading loading={withdrawing} loadingText="Processing...">
+              Request Withdrawal
             </ButtonLoading>
           </button>
+          <p style={{ fontSize: 11, color: "var(--fs-text-3)", marginTop: 10, textAlign: "center" }}>
+            Withdrawals are processed manually within 24 hours.
+          </p>
         </form>
       )}
 
       {msg && (
-        <p className="rounded-lg p-3 text-sm" style={{ background: 'var(--fs-surface-2)', border: '0.5px solid var(--fs-border)', color: 'var(--fs-text-2)' }}>
-          {msg}
-        </p>
+        <div style={{ padding: "12px 14px", borderRadius: 10, background: "var(--fs-surface-2)", border: "0.5px solid var(--fs-border)" }}>
+          <p style={{ fontSize: 13, color: "var(--fs-text-2)" }}>{msg}</p>
+        </div>
       )}
 
-      {/* Transaction History */}
-      <div className="space-y-4">
-        <div className="fs-card fs-card-body">
-          <h3 className="fs-h3 mb-3">Deposit & Payment History</h3>
-          {payments.length === 0 ? (
-            <EmptyState title="No payments yet" />
-          ) : (
-            <div className="space-y-0">
-              {payments.slice(0, 8).map((p: any) => (
-                <div
-                  key={p.id}
-                  className="flex items-center justify-between py-3"
-                  style={{ borderBottom: '0.5px solid var(--fs-border)' }}
-                >
-                  <div className="min-w-0">
-                    <p className="text-sm truncate" style={{ color: 'var(--fs-text-1)' }}>
-                      {p.tournament?.title ?? "Wallet deposit"}
-                    </p>
-                    <p className="text-[11px]" style={{ color: 'var(--fs-text-3)' }}>
-                      {fmtDate(p.createdAt)}
-                    </p>
-                  </div>
-                  <div className="text-right flex items-center gap-2">
-                    <span className="text-sm font-semibold" style={{ color: 'var(--fs-text-1)' }}>
-                      {npr(p.amountNpr)}
-                    </span>
-                    <StatusBadge status={p.status} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+      {/* Transaction History - Collapsible */}
+      <button
+        onClick={() => setShowHistory(!showHistory)}
+        style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          width: "100%", padding: "14px 16px", borderRadius: 12,
+          background: "var(--fs-surface-1)", border: "0.5px solid var(--fs-border)",
+          cursor: "pointer", color: "var(--fs-text-1)", fontSize: 14, fontWeight: 600,
+        }}
+      >
+        Transaction History
+        {showHistory ? <ChevronUp size={16} style={{ color: "var(--fs-text-3)" }} /> : <ChevronDown size={16} style={{ color: "var(--fs-text-3)" }} />}
+      </button>
 
-        <div className="fs-card fs-card-body">
-          <h3 className="fs-h3 mb-3">Recent Transactions</h3>
-          {data.wallet.transactions.length === 0 ? (
-            <EmptyState title="No transactions yet" />
-          ) : (
-            <div className="space-y-0">
-              {data.wallet.transactions.map((t: any) => (
-                <div
-                  key={t.id}
-                  className="flex items-center justify-between py-3"
-                  style={{ borderBottom: '0.5px solid var(--fs-border)' }}
-                >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="h-2 w-2 rounded-full"
-                        style={{ background: t.type === 'CREDIT' ? 'var(--fs-green)' : 'var(--fs-red)' }}
-                      />
-                      <span className="text-sm" style={{ color: 'var(--fs-text-1)' }}>{t.reason}</span>
+      {showHistory && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ background: "var(--fs-surface-1)", borderRadius: 14, border: "0.5px solid var(--fs-border)", padding: 16 }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: "var(--fs-text-1)", marginBottom: 12 }}>Deposits</p>
+            {payments.length === 0 ? (
+              <EmptyState title="No payments yet" />
+            ) : (
+              <div>
+                {payments.slice(0, 8).map((p: any) => (
+                  <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "0.5px solid var(--fs-border)" }}>
+                    <div>
+                      <p style={{ fontSize: 13, color: "var(--fs-text-1)" }}>{p.tournament?.title ?? "Wallet deposit"}</p>
+                      <p style={{ fontSize: 11, color: "var(--fs-text-3)" }}>{fmtDate(p.createdAt)}</p>
                     </div>
-                    <p className="text-[11px] ml-4" style={{ color: 'var(--fs-text-3)' }}>{fmtDate(t.createdAt)}</p>
+                    <div style={{ textAlign: "right", display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fs-text-1)" }}>{npr(p.amountNpr)}</span>
+                      <StatusBadge status={p.status} />
+                    </div>
                   </div>
-                  <span
-                    className="text-sm font-semibold"
-                    style={{ color: t.type === 'CREDIT' ? 'var(--fs-green)' : 'var(--fs-red)' }}
-                  >
-                    {t.type === 'CREDIT' ? '+' : '-'}{npr(t.amountNpr)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+                ))}
+              </div>
+            )}
+          </div>
 
-        <div className="fs-card fs-card-body">
-          <h3 className="fs-h3 mb-3">Withdrawal Requests</h3>
-          {data.withdrawals.length === 0 ? (
-            <EmptyState title="No withdrawal requests" />
-          ) : (
-            <div className="space-y-0">
-              {data.withdrawals.map((w: any) => (
-                <div
-                  key={w.id}
-                  className="flex items-center justify-between py-3"
-                  style={{ borderBottom: '0.5px solid var(--fs-border)' }}
-                >
-                  <div className="min-w-0">
-                    <p className="text-sm" style={{ color: 'var(--fs-text-1)' }}>{w.method} • {npr(w.amountNpr)}</p>
-                    <p className="text-[11px]" style={{ color: 'var(--fs-text-3)' }}>{fmtDate(w.createdAt)}</p>
+          <div style={{ background: "var(--fs-surface-1)", borderRadius: 14, border: "0.5px solid var(--fs-border)", padding: 16 }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: "var(--fs-text-1)", marginBottom: 12 }}>Recent Transactions</p>
+            {data.wallet.transactions.length === 0 ? (
+              <EmptyState title="No transactions yet" />
+            ) : (
+              <div>
+                {data.wallet.transactions.map((t: any) => (
+                  <div key={t.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "0.5px solid var(--fs-border)" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: "50%", background: t.type === "CREDIT" ? "var(--fs-green)" : "var(--fs-red)" }} />
+                      <div>
+                        <p style={{ fontSize: 13, color: "var(--fs-text-1)" }}>{t.reason}</p>
+                        <p style={{ fontSize: 11, color: "var(--fs-text-3)" }}>{fmtDate(t.createdAt)}</p>
+                      </div>
+                    </div>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: t.type === "CREDIT" ? "var(--fs-green)" : "var(--fs-red)" }}>
+                      {t.type === "CREDIT" ? "+" : "-"}{npr(t.amountNpr)}
+                    </span>
                   </div>
-                  <StatusBadge status={w.status} />
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

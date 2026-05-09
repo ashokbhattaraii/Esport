@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Home, Trophy, Wallet, Swords, UserCircle } from "lucide-react";
+import { Home, Trophy, HeadphonesIcon, Swords, UserCircle } from "lucide-react";
 import { useIsNativeApp } from "@/hooks/useIsNativeApp";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
@@ -11,8 +11,8 @@ import { useUserRealtime } from "@/hooks/useUserRealtime";
 const TABS = [
   { href: "/", label: "Home", Icon: Home },
   { href: "/tournaments", label: "Tournaments", Icon: Trophy },
-  { href: "/wallet", label: "Wallet", Icon: Wallet },
   { href: "/challenges", label: "Challenges", Icon: Swords },
+  { href: "/support", label: "Support", Icon: HeadphonesIcon },
   { href: "/dashboard", label: "Profile", Icon: UserCircle },
 ];
 

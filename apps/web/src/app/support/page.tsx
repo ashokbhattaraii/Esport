@@ -1,26 +1,26 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
-import { Plus, MessageSquare, X, Send } from "lucide-react";
-import { ButtonLoading, CardSkeleton, PageLoading } from "@/components/ui";
+import { Plus, Send, X, Clock, CheckCircle, AlertCircle, MessageCircle } from "lucide-react";
+import { ButtonLoading, PageLoading } from "@/components/ui";
 
 const CATEGORIES = [
-  { v: "PAYMENT_ISSUE", label: "Payment Issue" },
-  { v: "TOURNAMENT_ISSUE", label: "Tournament Issue" },
-  { v: "WITHDRAWAL_ISSUE", label: "Withdrawal" },
-  { v: "ACCOUNT_ISSUE", label: "Account" },
-  { v: "RESULT_DISPUTE", label: "Result Dispute" },
-  { v: "GENERAL", label: "General" },
+  { v: "PAYMENT_ISSUE", label: "Payment", icon: "💳" },
+  { v: "TOURNAMENT_ISSUE", label: "Tournament", icon: "🏆" },
+  { v: "WITHDRAWAL_ISSUE", label: "Withdrawal", icon: "💸" },
+  { v: "ACCOUNT_ISSUE", label: "Account", icon: "👤" },
+  { v: "RESULT_DISPUTE", label: "Dispute", icon: "⚖️" },
+  { v: "GENERAL", label: "General", icon: "💬" },
 ];
 
-const STATUS_COLOR: Record<string, string> = {
-  OPEN: "bg-neon-cyan/20 text-neon-cyan border-neon-cyan/40",
-  ASSIGNED: "bg-purple-400/20 text-purple-300 border-purple-400/40",
-  IN_PROGRESS: "bg-yellow-400/20 text-yellow-300 border-yellow-400/40",
-  AWAITING_PLAYER: "bg-orange-400/20 text-orange-300 border-orange-400/40",
-  RESOLVED: "bg-neon-green/20 text-neon-green border-neon-green/40",
-  CLOSED: "bg-white/10 text-white/50 border-border",
+const STATUS_INFO: Record<string, { color: string; bg: string; label: string }> = {
+  OPEN: { color: "var(--fs-green)", bg: "var(--fs-green-dim)", label: "Open" },
+  ASSIGNED: { color: "#CE93D8", bg: "rgba(156,39,176,0.12)", label: "Assigned" },
+  IN_PROGRESS: { color: "var(--fs-amber)", bg: "var(--fs-amber-dim)", label: "In Progress" },
+  AWAITING_PLAYER: { color: "var(--fs-gold)", bg: "var(--fs-gold-dim)", label: "Awaiting Reply" },
+  RESOLVED: { color: "var(--fs-green)", bg: "var(--fs-green-dim)", label: "Resolved" },
+  CLOSED: { color: "var(--fs-text-3)", bg: "rgba(255,255,255,0.04)", label: "Closed" },
 };
 
 interface Ticket {
@@ -55,9 +55,7 @@ export default function SupportPage() {
     try {
       const r = await api<{ items: Ticket[] }>("/support/tickets");
       setTickets(r.items);
-    } finally {
-      setTicketsLoading(false);
-    }
+    } finally { setTicketsLoading(false); }
   }
   useEffect(() => { if (user) load().catch(() => {}); }, [user]);
 
@@ -65,11 +63,8 @@ export default function SupportPage() {
     setOpenId(id);
     setDetail(null);
     setDetailLoading(true);
-    try {
-      setDetail(await api(`/support/tickets/${id}`));
-    } finally {
-      setDetailLoading(false);
-    }
+    try { setDetail(await api(`/support/tickets/${id}`)); }
+    finally { setDetailLoading(false); }
   }
 
   async function createTicket() {
@@ -80,108 +75,135 @@ export default function SupportPage() {
       setCreating(false);
       setDraft({ category: "GENERAL", subject: "", message: "" });
       await load();
-    } finally {
-      setCreatingTicket(false);
-    }
+    } finally { setCreatingTicket(false); }
   }
 
-  async function sendReply() {
+  async function sendReplyFn() {
     if (!reply.trim() || !openId) return;
     setSendingReply(true);
     try {
-      await api(`/support/tickets/${openId}/reply`, {
-        method: "POST",
-        body: JSON.stringify({ message: reply }),
-      });
+      await api(`/support/tickets/${openId}/reply`, { method: "POST", body: JSON.stringify({ message: reply }) });
       setReply("");
       await loadDetail(openId);
-    } finally {
-      setSendingReply(false);
-    }
+    } finally { setSendingReply(false); }
   }
 
-  if (authLoading) return <PageLoading label="Loading support..." />;
-  if (!user) return <p className="text-white/60">Please sign in to view your tickets.</p>;
+  if (authLoading) return <PageLoading label="Loading..." />;
+  if (!user) return <p style={{ color: "var(--fs-text-3)", textAlign: "center", padding: 40 }}>Please sign in to access support.</p>;
+
+  const openTickets = tickets.filter(t => !["RESOLVED", "CLOSED"].includes(t.status));
+  const closedTickets = tickets.filter(t => ["RESOLVED", "CLOSED"].includes(t.status));
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {/* Header */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
-          <p className="label">Support</p>
-          <h1 className="font-display text-2xl text-white">My Tickets</h1>
+          <h1 style={{ fontSize: 20, fontWeight: 800, color: "var(--fs-text-1)" }}>Help Center</h1>
+          <p style={{ fontSize: 12, color: "var(--fs-text-3)", marginTop: 2 }}>Get help with your account, payments, or tournaments</p>
         </div>
-        <button className="btn-primary" onClick={() => setCreating(true)}>
-          <Plus size={14} /> New Ticket
+        <button
+          onClick={() => setCreating(true)}
+          className="fs-btn fs-btn-primary fs-btn-sm"
+        >
+          <Plus size={14} /> New
         </button>
       </div>
 
+      {/* Quick Actions */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+        <QuickAction icon="💳" label="Payment Help" onClick={() => { setDraft({ ...draft, category: "PAYMENT_ISSUE" }); setCreating(true); }} />
+        <QuickAction icon="🏆" label="Match Issue" onClick={() => { setDraft({ ...draft, category: "TOURNAMENT_ISSUE" }); setCreating(true); }} />
+        <QuickAction icon="💸" label="Withdrawal" onClick={() => { setDraft({ ...draft, category: "WITHDRAWAL_ISSUE" }); setCreating(true); }} />
+      </div>
+
+      {/* Active Tickets */}
       {ticketsLoading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <CardSkeleton key={i} lines={2} />
-          ))}
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {[1,2,3].map(i => <div key={i} className="fs-skeleton" style={{ height: 72, borderRadius: 12 }} />)}
         </div>
-      ) : tickets.length === 0 ? (
-        <div className="card text-center text-white/50">
-          No tickets yet. Open one if you need help.
+      ) : openTickets.length === 0 && closedTickets.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "40px 20px", background: "var(--fs-surface-1)", borderRadius: 14, border: "0.5px solid var(--fs-border)" }}>
+          <MessageCircle size={32} style={{ color: "var(--fs-text-3)", margin: "0 auto" }} />
+          <p style={{ fontSize: 14, color: "var(--fs-text-2)", marginTop: 12 }}>No support tickets yet</p>
+          <p style={{ fontSize: 12, color: "var(--fs-text-3)", marginTop: 4 }}>Open a ticket if you need any help</p>
         </div>
       ) : (
-        <div className="space-y-2">
-          {tickets.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => loadDetail(t.id)}
-              className="card w-full text-left hover:border-neon-cyan/50"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="text-[10px] font-mono text-white/40">{t.ticketNumber}</div>
-                  <div className="font-semibold text-white truncate">{t.subject}</div>
-                  <div className="mt-1 flex flex-wrap gap-1 text-[10px]">
-                    <span className="px-2 py-0.5 rounded bg-surface text-white/70">
-                      {CATEGORIES.find((c) => c.v === t.category)?.label ?? t.category}
-                    </span>
-                    <span className={`px-2 py-0.5 rounded border ${STATUS_COLOR[t.status]}`}>
-                      {t.status}
-                    </span>
-                  </div>
-                </div>
-                <MessageSquare size={16} className="text-white/40 shrink-0" />
+        <>
+          {openTickets.length > 0 && (
+            <div>
+              <p style={{ fontSize: 12, fontWeight: 600, color: "var(--fs-text-3)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                Active ({openTickets.length})
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {openTickets.map(t => <TicketRow key={t.id} ticket={t} onClick={() => loadDetail(t.id)} />)}
               </div>
-            </button>
-          ))}
-        </div>
+            </div>
+          )}
+          {closedTickets.length > 0 && (
+            <div>
+              <p style={{ fontSize: 12, fontWeight: 600, color: "var(--fs-text-3)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                Resolved ({closedTickets.length})
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {closedTickets.slice(0, 5).map(t => <TicketRow key={t.id} ticket={t} onClick={() => loadDetail(t.id)} />)}
+              </div>
+            </div>
+          )}
+        </>
       )}
 
+      {/* Create Ticket Modal */}
       {creating && (
-        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/70 p-4">
-          <div className="card w-full max-w-md">
-            <div className="flex items-center justify-between">
-              <h3 className="font-display text-lg">New Ticket</h3>
-              <button onClick={() => setCreating(false)}><X size={18} /></button>
+        <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "flex-end", justifyContent: "center", background: "rgba(0,0,0,0.7)", padding: 16 }}>
+          <div style={{ background: "var(--fs-surface-1)", borderRadius: 16, width: "100%", maxWidth: 420, padding: 20, border: "0.5px solid var(--fs-border)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--fs-text-1)" }}>New Support Request</h3>
+              <button onClick={() => setCreating(false)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
+                <X size={18} style={{ color: "var(--fs-text-3)" }} />
+              </button>
             </div>
-            <div className="mt-3 space-y-3">
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <div>
-                <label className="label">Category</label>
-                <select className="input" value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value })}>
-                  {CATEGORIES.map((c) => <option key={c.v} value={c.v}>{c.label}</option>)}
-                </select>
+                <label className="fs-label">Category</label>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
+                  {CATEGORIES.map(c => (
+                    <button
+                      key={c.v}
+                      type="button"
+                      onClick={() => setDraft({ ...draft, category: c.v })}
+                      style={{
+                        padding: "10px 6px", borderRadius: 8, fontSize: 11, fontWeight: 600, textAlign: "center",
+                        background: draft.category === c.v ? "var(--fs-red-glow)" : "var(--fs-surface-2)",
+                        border: draft.category === c.v ? "1px solid var(--fs-red)" : "1px solid var(--fs-border)",
+                        color: draft.category === c.v ? "var(--fs-red)" : "var(--fs-text-3)",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <span style={{ display: "block", fontSize: 16, marginBottom: 2 }}>{c.icon}</span>
+                      {c.label}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div>
-                <label className="label">Subject</label>
-                <input className="input" value={draft.subject} onChange={(e) => setDraft({ ...draft, subject: e.target.value })} />
+                <label className="fs-label">Subject</label>
+                <input className="fs-input" placeholder="Brief description of your issue" value={draft.subject} onChange={(e) => setDraft({ ...draft, subject: e.target.value })} />
               </div>
               <div>
-                <label className="label">Message</label>
-                <textarea className="input" rows={4} value={draft.message} onChange={(e) => setDraft({ ...draft, message: e.target.value })} />
+                <label className="fs-label">Details</label>
+                <textarea
+                  className="fs-input"
+                  style={{ height: 100, paddingTop: 12, resize: "none" }}
+                  placeholder="Describe your issue in detail. Include transaction IDs, screenshots, or any relevant info."
+                  value={draft.message}
+                  onChange={(e) => setDraft({ ...draft, message: e.target.value })}
+                />
               </div>
-              <button
-                className="btn-primary w-full"
-                onClick={createTicket}
-                disabled={creatingTicket}
-              >
-                <ButtonLoading loading={creatingTicket} loadingText="Submitting ticket...">
-                  Submit Ticket
+              <button className="fs-btn fs-btn-primary fs-btn-full" style={{ height: 48 }} onClick={createTicket} disabled={creatingTicket || !draft.subject || !draft.message}>
+                <ButtonLoading loading={creatingTicket} loadingText="Submitting...">
+                  Submit Request
                 </ButtonLoading>
               </button>
             </div>
@@ -189,76 +211,131 @@ export default function SupportPage() {
         </div>
       )}
 
-      {openId && detailLoading && !detail && (
-        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/70 p-4">
-          <div className="card w-full max-w-md">
-            <div className="flex items-center justify-between">
-              <h3 className="font-display text-lg">Opening Ticket</h3>
-              <button onClick={() => { setOpenId(null); setDetail(null); }}><X size={18} /></button>
-            </div>
-            <div className="mt-4">
-              <CardSkeleton lines={4} />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {openId && detail && (
-        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/70 p-4">
-          <div className="card w-full max-w-md flex flex-col max-h-[90vh]">
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <div className="text-[10px] font-mono text-white/40">{detail.ticketNumber}</div>
-                <h3 className="font-display text-lg">{detail.subject}</h3>
-                <span className={`mt-1 inline-block px-2 py-0.5 rounded border text-[10px] ${STATUS_COLOR[detail.status]}`}>
-                  {detail.status}
-                </span>
+      {/* Ticket Detail Modal */}
+      {openId && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", flexDirection: "column", background: "var(--fs-bg)" }}>
+          {/* Detail Header */}
+          <div style={{ padding: "14px 16px", borderBottom: "0.5px solid var(--fs-border)", display: "flex", alignItems: "center", gap: 12, paddingTop: "calc(var(--fs-safe-top) + 14px)" }}>
+            <button onClick={() => { setOpenId(null); setDetail(null); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, minWidth: 44, minHeight: 44 }}>
+              <X size={20} style={{ color: "var(--fs-text-1)" }} />
+            </button>
+            {detail && (
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: 14, fontWeight: 600, color: "var(--fs-text-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{detail.subject}</p>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
+                  <span style={{ fontSize: 10, color: "var(--fs-text-3)", fontFamily: "monospace" }}>{detail.ticketNumber}</span>
+                  <span style={{ fontSize: 10, padding: "2px 6px", borderRadius: 4, background: STATUS_INFO[detail.status]?.bg, color: STATUS_INFO[detail.status]?.color }}>
+                    {STATUS_INFO[detail.status]?.label ?? detail.status}
+                  </span>
+                </div>
               </div>
-              <button onClick={() => { setOpenId(null); setDetail(null); }}><X size={18} /></button>
-            </div>
-            <div className="mt-4 flex-1 overflow-y-auto space-y-2">
-              {detail.messages.map((m) => {
-                const mine = m.senderId === user.id;
-                const bot = m.senderRole === "BOT";
-                return (
-                  <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
-                    <div className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${
-                      bot
-                        ? "bg-neon-cyan/10 border border-neon-cyan/30 text-neon-cyan"
-                        : mine
-                          ? "bg-neon/15 border border-neon/30 text-white"
-                          : "bg-surface border border-border text-white/90"
-                    }`}>
-                      <div className="text-[10px] text-white/50 mb-1">
-                        {bot ? "🤖 Auto-reply" : mine ? "You" : "Support"} · {new Date(m.createdAt).toLocaleTimeString()}
-                      </div>
-                      {m.message}
-                    </div>
+            )}
+          </div>
+
+          {/* Messages */}
+          <div style={{ flex: 1, overflowY: "auto", padding: 16, display: "flex", flexDirection: "column", gap: 8 }}>
+            {detailLoading ? (
+              <div style={{ textAlign: "center", padding: 40 }}>
+                <div className="fs-skeleton" style={{ width: 200, height: 40, margin: "0 auto" }} />
+              </div>
+            ) : detail?.messages.map((m) => {
+              const mine = m.senderId === user.id;
+              const isBot = m.senderRole === "BOT";
+              const isAdmin = m.senderRole === "ADMIN" || m.senderRole === "SUPER_ADMIN";
+              return (
+                <div key={m.id} style={{ display: "flex", justifyContent: mine ? "flex-end" : "flex-start" }}>
+                  <div style={{
+                    maxWidth: "82%", padding: "10px 14px", borderRadius: mine ? "14px 14px 4px 14px" : "14px 14px 14px 4px",
+                    background: mine ? "var(--fs-red-glow)" : isBot ? "var(--fs-surface-2)" : isAdmin ? "var(--fs-surface-3)" : "var(--fs-surface-2)",
+                    border: mine ? "1px solid rgba(229,57,53,0.2)" : "1px solid var(--fs-border)",
+                  }}>
+                    <p style={{ fontSize: 10, color: "var(--fs-text-3)", marginBottom: 4 }}>
+                      {isBot ? "System" : mine ? "You" : "Support Team"} · {new Date(m.createdAt).toLocaleString(undefined, { hour: "2-digit", minute: "2-digit", month: "short", day: "numeric" })}
+                    </p>
+                    <p style={{ fontSize: 13, color: "var(--fs-text-1)", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{m.message}</p>
                   </div>
-                );
-              })}
-            </div>
-            {detail.status !== "CLOSED" && (
-              <form
-                onSubmit={(e) => { e.preventDefault(); sendReply(); }}
-                className="mt-3 flex gap-2"
-              >
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Reply Input */}
+          {detail && detail.status !== "CLOSED" && (
+            <div style={{ padding: "12px 16px", borderTop: "0.5px solid var(--fs-border)", paddingBottom: "calc(12px + var(--fs-safe-bottom))", background: "var(--fs-surface-1)" }}>
+              <form onSubmit={(e) => { e.preventDefault(); sendReplyFn(); }} style={{ display: "flex", gap: 8 }}>
                 <input
-                  className="input flex-1"
-                  placeholder="Type a reply..."
+                  className="fs-input"
+                  style={{ flex: 1, height: 44 }}
+                  placeholder="Type your message..."
                   value={reply}
                   onChange={(e) => setReply(e.target.value)}
                 />
-                <button className="btn-primary" type="submit" disabled={sendingReply}>
-                  <ButtonLoading loading={sendingReply} loadingText="Sending...">
-                    <Send size={14} />
-                  </ButtonLoading>
+                <button type="submit" className="fs-btn fs-btn-primary" style={{ width: 44, height: 44, padding: 0 }} disabled={sendingReply || !reply.trim()}>
+                  {sendingReply ? <span className="animate-pulse">...</span> : <Send size={16} />}
                 </button>
               </form>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       )}
     </div>
   );
+}
+
+function QuickAction({ icon, label, onClick }: { icon: string; label: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
+        padding: "14px 8px", borderRadius: 12, cursor: "pointer",
+        background: "var(--fs-surface-1)", border: "0.5px solid var(--fs-border)",
+      }}
+    >
+      <span style={{ fontSize: 20 }}>{icon}</span>
+      <span style={{ fontSize: 11, fontWeight: 600, color: "var(--fs-text-2)" }}>{label}</span>
+    </button>
+  );
+}
+
+function TicketRow({ ticket, onClick }: { ticket: Ticket; onClick: () => void }) {
+  const status = STATUS_INFO[ticket.status] ?? STATUS_INFO.OPEN;
+  const cat = CATEGORIES.find(c => c.v === ticket.category);
+  const timeAgo = getTimeAgo(ticket.updatedAt);
+
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        display: "flex", alignItems: "center", gap: 12, width: "100%",
+        padding: "14px 14px", borderRadius: 12, textAlign: "left", cursor: "pointer",
+        background: "var(--fs-surface-1)", border: "0.5px solid var(--fs-border)",
+      }}
+    >
+      <div style={{ width: 36, height: 36, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", background: status.bg, fontSize: 16, flexShrink: 0 }}>
+        {cat?.icon ?? "💬"}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ fontSize: 13, fontWeight: 600, color: "var(--fs-text-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ticket.subject}</p>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3 }}>
+          <span style={{ fontSize: 10, padding: "2px 6px", borderRadius: 4, background: status.bg, color: status.color, fontWeight: 600 }}>
+            {status.label}
+          </span>
+          <span style={{ fontSize: 10, color: "var(--fs-text-3)" }}>{timeAgo}</span>
+        </div>
+      </div>
+      <MessageCircle size={16} style={{ color: "var(--fs-text-3)", flexShrink: 0 }} />
+    </button>
+  );
+}
+
+function getTimeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
 }
