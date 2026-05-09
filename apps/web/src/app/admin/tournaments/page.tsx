@@ -129,6 +129,19 @@ export default function AdminTournaments() {
     }
   }
 
+  async function deleteTournament(id: string) {
+    if (!confirm("Are you sure you want to delete this tournament? This action cannot be undone.")) return;
+    setActionKey(`${id}:delete`);
+    try {
+      await api(`/tournaments/${id}`, { method: "DELETE" });
+      await load(false);
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setActionKey(null);
+    }
+  }
+
   return (
     <div>
       <PageHeader
@@ -340,6 +353,15 @@ export default function AdminTournaments() {
                 >
                   <ButtonLoading loading={actionKey === `${t.id}:lock`} loadingText="Locking...">
                     {t.roomLocked ? `Locked (${t.actualPlayers})` : "Lock Room"}
+                  </ButtonLoading>
+                </button>
+                <button
+                  className="btn-danger text-xs"
+                  onClick={() => deleteTournament(t.id)}
+                  disabled={actionKey?.startsWith(`${t.id}:`)}
+                >
+                  <ButtonLoading loading={actionKey === `${t.id}:delete`} loadingText="Deleting...">
+                    Delete
                   </ButtonLoading>
                 </button>
                 <select

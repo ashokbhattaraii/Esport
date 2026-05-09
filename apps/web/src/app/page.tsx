@@ -37,6 +37,7 @@ interface GameChoice {
   parentName?: string;
   description?: string | null;
   comingSoon?: boolean;
+  coverUrl?: string | null;
 }
 
 export default function HomePage() {

@@ -417,6 +417,14 @@ export class TournamentsService implements OnModuleInit {
     return updated;
   }
 
+  async delete(id: string) {
+    const tournament = await this.prisma.tournament.findUnique({ where: { id } });
+    if (!tournament) throw new NotFoundException("Tournament not found");
+    await this.prisma.tournament.delete({ where: { id } });
+    this.invalidateReadCaches(id);
+    return { success: true };
+  }
+
   async checkEligibility(userId: string, tournamentId: string) {
     const t = await this.prisma.tournament.findUnique({ where: { id: tournamentId } });
     if (!t) throw new NotFoundException("Tournament not found");

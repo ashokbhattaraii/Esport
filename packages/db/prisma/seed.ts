@@ -125,9 +125,9 @@ async function main() {
     "/ Player@123",
   );
 
+  await seedGameCategories();
   await seedSystemConfig();
   await seedRolesAndSuperAdmin();
-  await seedGameCategories();
   await seedHeroBanners();
   await seedBotJobs();
 }

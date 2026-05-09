@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Headers,
   Param,
@@ -142,6 +143,14 @@ export class TournamentsController {
   @Put(":id/room")
   publishRoom(@Param("id") id: string, @Body() dto: PublishRoomDto) {
     return this.svc.publishRoom(id, dto);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @Roles(Role.ADMIN)
+  @RequirePermission("tournaments", "write")
+  @Delete(":id")
+  delete(@Param("id") id: string) {
+    return this.svc.delete(id);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
