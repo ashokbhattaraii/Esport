@@ -85,7 +85,6 @@ export class UsersService {
               prizePoolNpr: true,
               maxSlots: true,
               filledSlots: true,
-              coverUrl: true,
             },
           },
         },
