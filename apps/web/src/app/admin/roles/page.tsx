@@ -13,8 +13,8 @@ interface Role {
   userCount: number;
 }
 
-const RESOURCES = ["tournaments", "payments", "users", "withdrawals", "results", "config", "*"];
-const ACTIONS = ["read", "write", "approve", "delete", "ban", "*"];
+const RESOURCES = ["tournaments", "payments", "users", "withdrawals", "results", "config", "support", "challenges", "roles", "logs", "bot", "banners", "apk", "*"];
+const ACTIONS = ["read", "write", "approve", "delete", "ban", "toggle", "*"];
 
 export default function RolesPage() {
   const [roles, setRoles] = useState<Role[]>([]);
@@ -26,6 +26,10 @@ export default function RolesPage() {
   const [creating, setCreating] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [assignEmail, setAssignEmail] = useState("");
+  const [assignRoleId, setAssignRoleId] = useState("");
+  const [assigning, setAssigning] = useState(false);
+  const [assignResult, setAssignResult] = useState<string | null>(null);
 
   async function load(showLoading = true) {
     if (showLoading) setLoading(true);
@@ -178,6 +182,78 @@ export default function RolesPage() {
           )}
         </div>
       ))}
+
+      {/* Assign Role to User */}
+      <div className="card mt-6">
+        <h2 className="font-display text-lg text-white mb-3">Assign Role to User</h2>
+        <p className="text-xs text-white/50 mb-4">Search user by email and assign a role</p>
+        <div className="flex gap-3 items-end flex-wrap">
+          <div className="flex-1" style={{ minWidth: 200 }}>
+            <label className="label">User Email</label>
+            <input
+              className="input"
+              placeholder="user@email.com"
+              value={assignEmail}
+              onChange={(e) => setAssignEmail(e.target.value)}
+            />
+          </div>
+          <div style={{ minWidth: 160 }}>
+            <label className="label">Role</label>
+            <select
+              className="input"
+              value={assignRoleId}
+              onChange={(e) => setAssignRoleId(e.target.value)}
+            >
+              <option value="">Select role...</option>
+              {roles.map((r) => (
+                <option key={r.id} value={r.id}>{r.name}</option>
+              ))}
+            </select>
+          </div>
+          <button
+            className="btn-primary"
+            disabled={assigning || !assignEmail || !assignRoleId}
+            onClick={async () => {
+              setAssigning(true);
+              setAssignResult(null);
+              try {
+                const users = await api<any[]>("/admin/users");
+                const found = users.find((u: any) => u.email.toLowerCase() === assignEmail.toLowerCase());
+                if (!found) {
+                  setAssignResult("User not found with that email");
+                  return;
+                }
+                await api(`/admin/users/${found.id}/role`, {
+                  method: "PUT",
+                  body: JSON.stringify({ roleId: assignRoleId }),
+                });
+                const roleName = roles.find((r) => r.id === assignRoleId)?.name;
+                setAssignResult(`Assigned ${roleName} to ${found.email}`);
+                setAssignEmail("");
+                await load(false);
+              } catch (e: any) {
+                setAssignResult(e.message ?? "Failed");
+              } finally {
+                setAssigning(false);
+              }
+            }}
+          >
+            <ButtonLoading loading={assigning} loadingText="Assigning...">
+              Assign Role
+            </ButtonLoading>
+          </button>
+        </div>
+        {assignResult && (
+          <p className="text-xs mt-3" style={{ color: assignResult.includes("Assigned") ? "var(--fs-green)" : "var(--fs-red)" }}>
+            {assignResult}
+          </p>
+        )}
+        {assignRoleId && roles.find((r) => r.id === assignRoleId && (r.name === "ADMIN" || r.name === "SUPER_ADMIN")) && (
+          <p className="text-xs mt-2 px-3 py-2 rounded" style={{ background: "rgba(229,57,53,0.1)", color: "var(--fs-amber)" }}>
+            Assigning {roles.find((r) => r.id === assignRoleId)?.name} gives significant platform access
+          </p>
+        )}
+      </div>
     </div>
   );
 }

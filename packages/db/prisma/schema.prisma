@@ -540,6 +540,7 @@ model TournamentParticipant {
   joinedAt     DateTime   @default(now())
   placement    Int?
   prizeEarned  Int        @default(0)
+  teamMembers  TournamentTeamMember[]
 
   tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -834,4 +835,29 @@ model Permission {
   role     UserRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
   @@unique([roleId, resource, action])
+}
+
+model FeatureFlag {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  label       String
+  enabled     Boolean  @default(true)
+  group       String
+  description String?
+  updatedBy   String?
+  updatedAt   DateTime @updatedAt
+}
+
+model TournamentTeamMember {
+  id             String               @id @default(cuid())
+  participantId  String
+  participant    TournamentParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  slotIndex      Int
+  freefireUid    String
+  igName         String
+  verified       Boolean              @default(false)
+  createdAt      DateTime             @default(now())
+
+  @@unique([participantId, slotIndex])
+  @@unique([participantId, freefireUid])
 }

@@ -130,6 +130,7 @@ async function main() {
   await seedRolesAndSuperAdmin();
   await seedHeroBanners();
   await seedBotJobs();
+  await seedFeatureFlags();
 }
 
 async function seedBotJobs() {
@@ -433,6 +434,12 @@ async function seedRolesAndSuperAdmin() {
         ...["read", "approve"].map((action) => ({ resource: "withdrawals", action })),
         ...["read", "approve"].map((action) => ({ resource: "results", action })),
         ...["read", "write"].map((action) => ({ resource: "config", action })),
+        { resource: "support", action: "read" },
+        { resource: "support", action: "write" },
+        { resource: "support", action: "approve" },
+        { resource: "challenges", action: "read" },
+        { resource: "challenges", action: "write" },
+        { resource: "config", action: "toggle" },
       ],
     },
     MODERATOR: {
@@ -440,10 +447,14 @@ async function seedRolesAndSuperAdmin() {
       permissions: [
         { resource: "tournaments", action: "read" },
         { resource: "tournaments", action: "write" },
+        { resource: "tournaments", action: "approve" },
         { resource: "results", action: "read" },
         { resource: "results", action: "approve" },
         { resource: "users", action: "read" },
         { resource: "users", action: "ban" },
+        { resource: "support", action: "read" },
+        { resource: "support", action: "write" },
+        { resource: "support", action: "approve" },
       ],
     },
     FINANCE: {
@@ -458,9 +469,12 @@ async function seedRolesAndSuperAdmin() {
     SUPPORT: {
       isSystem: true,
       permissions: [
-        { resource: "tournaments", action: "read" },
-        { resource: "payments", action: "read" },
+        { resource: "support", action: "read" },
+        { resource: "support", action: "write" },
+        { resource: "support", action: "approve" },
         { resource: "users", action: "read" },
+        { resource: "payments", action: "read" },
+        { resource: "tournaments", action: "read" },
       ],
     },
     PLAYER: { isSystem: true, permissions: [] },
@@ -505,6 +519,33 @@ async function seedRolesAndSuperAdmin() {
     },
   });
   console.log("Super admin ensured:", superAdminEmail);
+}
+
+async function seedFeatureFlags() {
+  const flags: Array<{ key: string; label: string; group: string; enabled: boolean; description?: string }> = [
+    { key: "TOURNAMENT_JOIN_ENABLED", label: "Tournament Joins", group: "TOURNAMENTS", enabled: true, description: "Allow players to join tournaments" },
+    { key: "TOURNAMENT_CREATE_ENABLED", label: "Tournament Creation", group: "TOURNAMENTS", enabled: true, description: "Allow admin to create tournaments" },
+    { key: "FREE_DAILY_ENABLED", label: "Free Daily Match", group: "TOURNAMENTS", enabled: true, description: "Enable free daily tournament" },
+    { key: "CHALLENGE_ENABLED", label: "Challenges", group: "CHALLENGES", enabled: true, description: "Allow players to join challenges" },
+    { key: "CHALLENGE_CREATE_ENABLED", label: "Challenge Creation", group: "CHALLENGES", enabled: true, description: "Allow players to create challenges" },
+    { key: "DEPOSIT_ENABLED", label: "Deposits", group: "PAYMENTS", enabled: true, description: "Allow deposits" },
+    { key: "WITHDRAWAL_ENABLED", label: "Withdrawals", group: "PAYMENTS", enabled: true, description: "Allow withdrawal requests" },
+    { key: "PAYMENT_PROOF_ENABLED", label: "Payment Proof Upload", group: "PAYMENTS", enabled: true, description: "Allow payment proof submissions" },
+    { key: "SUPPORT_ENABLED", label: "Support Tickets", group: "SUPPORT", enabled: true, description: "Allow support ticket creation" },
+    { key: "PUSH_NOTIFICATIONS_ENABLED", label: "Push Notifications", group: "NOTIFICATIONS", enabled: true, description: "Send push notifications" },
+    { key: "LEADERBOARD_ENABLED", label: "Leaderboard", group: "SYSTEM", enabled: true, description: "Show leaderboard" },
+    { key: "REGISTRATION_ENABLED", label: "New Registrations", group: "SYSTEM", enabled: true, description: "Allow new user registrations" },
+    { key: "MAINTENANCE_MODE", label: "Maintenance Mode", group: "SYSTEM", enabled: false, description: "Show maintenance screen to all users" },
+  ];
+
+  for (const f of flags) {
+    await prisma.featureFlag.upsert({
+      where: { key: f.key },
+      update: { label: f.label, group: f.group, description: f.description },
+      create: f,
+    });
+  }
+  console.log(`Seeded ${flags.length} feature flags`);
 }
 
 main()

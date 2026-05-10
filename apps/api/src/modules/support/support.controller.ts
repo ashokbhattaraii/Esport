@@ -11,6 +11,7 @@ import {
 } from "@nestjs/common";
 import { JwtAuthGuard } from "../../common/guards/jwt.guard";
 import { PermissionsGuard, RequirePermission } from "../../common/guards/permissions.guard";
+import { FeatureFlagGuard, UseFeatureFlag } from "../../common/guards/feature-flag.guard";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { SupportService } from "./support.service";
 import { TicketCategory, TicketPriority, TicketStatus } from "@fireslot/db";
@@ -20,6 +21,8 @@ import { TicketCategory, TicketPriority, TicketStatus } from "@fireslot/db";
 export class SupportPlayerController {
   constructor(private svc: SupportService) {}
 
+  @UseGuards(FeatureFlagGuard)
+  @UseFeatureFlag("SUPPORT_ENABLED")
   @Post()
   create(
     @CurrentUser() u: any,

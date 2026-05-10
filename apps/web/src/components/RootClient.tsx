@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import { SplashScreen } from './SplashScreen'
 import { useLocalNotifications } from '@/hooks/useLocalNotifications'
 import { useAppConfig } from '@/hooks/useAppConfig'
+import { useFlags } from '@/lib/flags'
 import { AnnouncementBanner } from './AnnouncementBanner'
 
 export function RootClient({ children }: { children: React.ReactNode }) {
@@ -13,6 +14,7 @@ export function RootClient({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
   const appConfig = useAppConfig()
+  const { flags, isEnabled } = useFlags()
 
   useLocalNotifications()
 
@@ -60,6 +62,9 @@ export function RootClient({ children }: { children: React.ReactNode }) {
     }
   }, [readyToHide])
 
+  const maintenanceMode = flags?.MAINTENANCE_MODE === true
+  const isAdminOrLogin = pathname.startsWith('/admin') || pathname === '/login'
+
   return (
     <>
       {splashVisible && <SplashScreen onComplete={handleSplashComplete} />}
@@ -71,7 +76,17 @@ export function RootClient({ children }: { children: React.ReactNode }) {
               color={appConfig.announcementColor}
             />
           )}
-          {children}
+          {maintenanceMode && !isAdminOrLogin ? (
+            <div className="flex min-h-[80vh] items-center justify-center">
+              <div className="text-center" style={{ maxWidth: 360, padding: 24 }}>
+                <div className="text-5xl mb-4">🔧</div>
+                <h1 className="fs-h1">Under Maintenance</h1>
+                <p className="mt-3 text-sm" style={{ color: 'var(--fs-text-3)' }}>
+                  FireSlot Nepal is updating. Please try again soon.
+                </p>
+              </div>
+            </div>
+          ) : children}
         </>
       )}
     </>

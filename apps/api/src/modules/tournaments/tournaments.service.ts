@@ -27,6 +27,7 @@ import { SystemConfigService } from "../admin/system-config.service";
 import { FreeDailyWindowService } from "../admin/free-daily-window.service";
 import { MemoryCacheService } from "../../common/cache/memory-cache.service";
 import { RealtimeService } from "../../common/realtime/realtime.service";
+import { Errors } from "../../common/errors";
 import { createHash } from "crypto";
 import {
   TOURNAMENT_LIST_CACHE_PREFIX,
@@ -560,22 +561,36 @@ export class TournamentsService implements OnModuleInit {
       where: { id: tournamentId },
     });
     if (!t) throw new NotFoundException("Tournament not found");
-    if (t.status !== TournamentStatus.UPCOMING)
-      throw new BadRequestException("Tournament not open");
+
+    // Edge case: tournament status checks
+    if (t.status === "LIVE" || t.status === "COMPLETED" || t.status === "CANCELLED") {
+      throw new BadRequestException(Errors.NOT_UPCOMING);
+    }
+    if (t.status !== TournamentStatus.UPCOMING) {
+      throw new BadRequestException(Errors.ALREADY_STARTED);
+    }
+
+    // Edge case: user banned
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { profile: true },
+    });
+    if (!user) throw new NotFoundException("User not found");
+    if (user.isBanned) throw new ForbiddenException(Errors.BANNED);
+
+    // Edge case: profile incomplete
+    if (!user.profile?.freeFireUid) {
+      throw new BadRequestException(Errors.NO_PROFILE);
+    }
 
     const teamSize = GameModeTeamSize[t.mode];
     const isTeamBased = teamSize > 1;
     const requiresCaptainRoster =
       t.mode === "CS_4V4" || t.mode === "LW_1V1" || t.mode === "LW_2V2";
 
-    if (isTeamBased) {
-      if (t.filledSlots >= t.maxSlots) {
-        throw new BadRequestException("Tournament is full");
-      }
-    } else {
-      // For individual games, check player slots
-      if (t.filledSlots >= t.maxSlots)
-        throw new BadRequestException("Tournament is full");
+    // Edge case: tournament full
+    if (t.filledSlots >= t.maxSlots) {
+      throw new ConflictException(Errors.TOURNAMENT_FULL);
     }
 
     if (t.type !== "FREE_DAILY") {
@@ -588,16 +603,52 @@ export class TournamentsService implements OnModuleInit {
     if (t.type === "FREE_DAILY") {
       const elig = await this.freeDailyWindows.isUserEligible(userId);
       if (!elig.eligible) {
-        throw new BadRequestException(
-          `Free daily slot unavailable. Next at ${elig.nextWindowAt}`,
+        throw new ConflictException(
+          Errors.FREE_DAILY_USED(elig.nextWindowAt ?? "later"),
         );
       }
     }
 
+    // Edge case: already joined
     const existing = await this.prisma.tournamentParticipant.findUnique({
       where: { tournamentId_userId: { tournamentId, userId } },
     });
-    if (existing) throw new ConflictException("Already joined");
+    if (existing) throw new ConflictException(Errors.ALREADY_JOINED);
+
+    // Edge case: pending payment already exists
+    if (t.type !== "FREE_DAILY") {
+      const pendingPayment = await this.prisma.payment.findFirst({
+        where: { userId, tournamentId, status: "PENDING" },
+      });
+      if (pendingPayment) throw new ConflictException(Errors.PAYMENT_PENDING);
+    }
+
+    // Validate teammates for team-based BR modes (not CS/LW captain roster)
+    if (isTeamBased && !requiresCaptainRoster && teamSize > 1) {
+      const teammates = dto?.teammates ?? [];
+      const required = teamSize - 1;
+      if (teammates.length !== required) {
+        throw new BadRequestException(
+          `This tournament requires ${required} teammate UID${required > 1 ? "s" : ""}`,
+        );
+      }
+      // Validate UID format
+      for (const tm of teammates) {
+        if (!/^\d{9,12}$/.test(tm.freefireUid)) {
+          throw new BadRequestException(Errors.INVALID_UID);
+        }
+      }
+      // Check captain UID not in teammates
+      const captainUid = user.profile!.freeFireUid;
+      if (teammates.some((tm) => tm.freefireUid === captainUid)) {
+        throw new BadRequestException(Errors.SAME_UID);
+      }
+      // Check for duplicates among teammates
+      const allUids = teammates.map((tm) => tm.freefireUid);
+      if (new Set(allUids).size !== allUids.length) {
+        throw new BadRequestException(Errors.DUPLICATE_UID);
+      }
+    }
 
     if (requiresCaptainRoster) {
       const playerUids = (dto?.playerUids ?? [])
@@ -613,22 +664,17 @@ export class TournamentsService implements OnModuleInit {
 
       const unique = new Set(playerUids);
       if (unique.size !== playerUids.length) {
-        throw new BadRequestException("Player UIDs must be unique");
+        throw new BadRequestException(Errors.DUPLICATE_UID);
       }
 
-      const captainProfile = await this.prisma.playerProfile.findUnique({
-        where: { userId },
-      });
-      if (!captainProfile?.freeFireUid) {
-        throw new BadRequestException("Complete your profile with Free Fire UID first");
-      }
+      const captainProfile = user.profile!;
       if (!unique.has(captainProfile.freeFireUid)) {
         throw new BadRequestException("Your own Free Fire UID must be included in the submitted roster");
       }
 
       const teamSlots = t.maxTeams ?? GameModeMaxTeams[t.mode];
       if (t.filledTeams >= teamSlots) {
-        throw new BadRequestException("Tournament is full (no more teams available)");
+        throw new ConflictException(Errors.TOURNAMENT_FULL);
       }
 
       const team = await this.prisma.team.create({
@@ -663,61 +709,23 @@ export class TournamentsService implements OnModuleInit {
       return participant;
     }
 
-    // Handle team-based vs individual joining
+    // Handle team-based (BR_DUO, BR_SQUAD) joining with teammate UIDs
     let teamId: string | undefined;
     let createdTeam = false;
     if (isTeamBased) {
       const teamSlots = t.maxTeams ?? Math.floor(t.maxSlots / teamSize);
-      const teamRows = await this.prisma.tournamentParticipant.findMany({
-        where: { tournamentId, teamId: { not: null } },
-        select: { teamId: true },
-        distinct: ["teamId"],
-      });
-      const teamIds = teamRows.map((r) => r.teamId).filter(Boolean) as string[];
-
-      const teams = teamIds.length
-        ? await this.prisma.team.findMany({
-            where: { id: { in: teamIds } },
-            include: {
-              _count: {
-                select: { members: true },
-              },
-            },
-          })
-        : [];
-
-      const availableTeam = teams.find((team) => team._count.members < teamSize);
-
-      if (availableTeam) {
-        // Join existing team
-        teamId = availableTeam.id;
-        await this.prisma.teamMember.create({
-          data: {
-            teamId,
-            userId,
-          },
-        });
-      } else {
-        if (teamIds.length >= teamSlots) {
-          throw new BadRequestException("Tournament is full (no more teams available)");
-        }
-        // Create new team
-        const newTeam = await this.prisma.team.create({
-          data: {
-            name: `Team ${Date.now().toString().slice(-6)}`,
-            captainId: userId,
-          },
-        });
-        await this.prisma.teamMember.create({
-          data: {
-            teamId: newTeam.id,
-            userId,
-            role: "captain",
-          },
-        });
-        teamId = newTeam.id;
-        createdTeam = true;
+      if (t.filledTeams >= teamSlots) {
+        throw new ConflictException(Errors.TOURNAMENT_FULL);
       }
+
+      const team = await this.prisma.team.create({
+        data: {
+          name: `Team ${t.filledTeams + 1}`,
+          captainId: userId,
+        },
+      });
+      teamId = team.id;
+      createdTeam = true;
     }
 
     const participant = await this.prisma.tournamentParticipant.create({
@@ -725,15 +733,40 @@ export class TournamentsService implements OnModuleInit {
         tournamentId,
         userId,
         teamId,
-        paid: t.type === "FREE_DAILY", // free entry is auto-paid
+        paid: t.type === "FREE_DAILY",
       },
     });
 
-    // Update occupancy counters.
+    // Store team member UIDs for team-based tournaments
+    if (isTeamBased && dto?.teammates?.length) {
+      const captainProfile = user.profile!;
+      // Create captain as slot 1
+      await this.prisma.tournamentTeamMember.create({
+        data: {
+          participantId: participant.id,
+          slotIndex: 1,
+          freefireUid: captainProfile.freeFireUid,
+          igName: captainProfile.ign,
+        },
+      });
+      // Create teammates as slot 2+
+      for (let i = 0; i < dto.teammates.length; i++) {
+        await this.prisma.tournamentTeamMember.create({
+          data: {
+            participantId: participant.id,
+            slotIndex: i + 2,
+            freefireUid: dto.teammates[i].freefireUid,
+            igName: dto.teammates[i].igName,
+          },
+        });
+      }
+    }
+
+    // Update occupancy counters
     await this.prisma.tournament.update({
       where: { id: tournamentId },
       data: {
-        filledSlots: { increment: 1 },
+        filledSlots: { increment: isTeamBased ? teamSize : 1 },
         ...(createdTeam ? { filledTeams: { increment: 1 } } : {}),
       },
     });

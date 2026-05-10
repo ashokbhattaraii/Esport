@@ -2,6 +2,8 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { useFlags } from "@/lib/flags";
+import { FeatureDisabledPage } from "@/components/FeatureDisabledPage";
 import { Plus, Send, X, Clock, CheckCircle, AlertCircle, MessageCircle } from "lucide-react";
 import { ButtonLoading, PageLoading } from "@/components/ui";
 
@@ -39,6 +41,11 @@ interface TicketDetail extends Ticket {
 
 export default function SupportPage() {
   const { user, loading: authLoading } = useAuth();
+  const { isEnabled } = useFlags();
+
+  if (!isEnabled("SUPPORT_ENABLED")) {
+    return <FeatureDisabledPage name="Support" />;
+  }
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
   const [detail, setDetail] = useState<TicketDetail | null>(null);

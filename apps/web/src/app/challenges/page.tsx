@@ -5,6 +5,8 @@ import { api } from "@/lib/api";
 import { Coins, Plus, Swords, Gamepad2 } from "lucide-react";
 import { useToast, handleJoinError } from "@/lib/toast";
 import { useAuth } from "@/lib/auth-context";
+import { useFlags } from "@/lib/flags";
+import { FeatureDisabledPage } from "@/components/FeatureDisabledPage";
 import { ButtonLoading, CardSkeleton, LoadingState } from "@/components/ui";
 
 type GameMode = "BR" | "CS" | "LW" | "ALL";
@@ -12,6 +14,11 @@ type Status = "OPEN" | "MATCHED" | "COMPLETED" | "ALL";
 
 export default function ChallengesPage() {
   const { user } = useAuth();
+  const { isEnabled } = useFlags();
+
+  if (!isEnabled("CHALLENGE_ENABLED")) {
+    return <FeatureDisabledPage name="Challenges" />;
+  }
   const toast = useToast();
   const [items, setItems] = useState<any[]>([]);
   const [gameMode, setGameMode] = useState<GameMode>("ALL");

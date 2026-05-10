@@ -19,6 +19,10 @@ import {
   PermissionsGuard,
   RequirePermission,
 } from "../../common/guards/permissions.guard";
+import {
+  FeatureFlagGuard,
+  UseFeatureFlag,
+} from "../../common/guards/feature-flag.guard";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import {
   CreateTournamentDto,
@@ -90,7 +94,8 @@ export class TournamentsController {
     return details;
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, FeatureFlagGuard)
+  @UseFeatureFlag("TOURNAMENT_JOIN_ENABLED")
   @Post(":id/join")
   join(@Param("id") id: string, @CurrentUser() u: any, @Body() dto: JoinTournamentDto) {
     return this.svc.join(u.sub, id, dto);
@@ -122,9 +127,10 @@ export class TournamentsController {
   }
 
   // ----- Admin -----
-  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard, FeatureFlagGuard)
   @Roles(Role.ADMIN)
   @RequirePermission("tournaments", "write")
+  @UseFeatureFlag("TOURNAMENT_CREATE_ENABLED")
   @Post()
   create(@CurrentUser() u: any, @Body() dto: CreateTournamentDto) {
     return this.svc.create(u.sub, dto);

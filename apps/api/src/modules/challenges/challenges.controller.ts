@@ -16,6 +16,10 @@ import {
   PermissionsGuard,
   RequirePermission,
 } from "../../common/guards/permissions.guard";
+import {
+  FeatureFlagGuard,
+  UseFeatureFlag,
+} from "../../common/guards/feature-flag.guard";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 
 @Controller("challenges")
@@ -51,13 +55,15 @@ export class ChallengesController {
     return this.svc.getById(id);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, FeatureFlagGuard)
+  @UseFeatureFlag("CHALLENGE_CREATE_ENABLED")
   @Post()
   create(@CurrentUser() u: any, @Body() dto: CreateChallengeDto) {
     return this.svc.createChallenge(u.sub, dto);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, FeatureFlagGuard)
+  @UseFeatureFlag("CHALLENGE_ENABLED")
   @Post(":id/join")
   join(
     @CurrentUser() u: any,

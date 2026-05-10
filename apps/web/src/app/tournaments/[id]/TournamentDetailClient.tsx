@@ -3,10 +3,12 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { useFlags } from "@/lib/flags";
 import { fmtDate } from "@/lib/utils";
 import { useToast, handleJoinError } from "@/lib/toast";
 import { useTournamentRealtime } from "@/hooks/useTournamentRealtime";
 import { ButtonLoading, PageLoading } from "@/components/ui";
+import { TeamJoinSection, getTeamSizeFromTournament } from "@/components/TeamJoinSection";
 import {
   Trophy, AlertTriangle, Settings, BookOpen, ShieldCheck, X, ArrowLeft,
 } from "lucide-react";
@@ -29,12 +31,14 @@ export default function TournamentDetailClient() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { user } = useAuth();
+  const { isEnabled } = useFlags();
   const toast = useToast();
   const [t, setT] = useState<any>(null);
   const [eligibility, setEligibility] = useState<any>(null);
   const [showFail, setShowFail] = useState(false);
   const [showRosterForm, setShowRosterForm] = useState(false);
   const [rosterUids, setRosterUids] = useState<string[]>([]);
+  const [teammates, setTeammates] = useState<{freefireUid:string;igName:string}[]>([]);
   const [joining, setJoining] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -64,17 +68,31 @@ export default function TournamentDetailClient() {
     onStatusChanged: () => load(),
   });
 
-  async function join(payload?: { playerUids: string[] }) {
+  async function join(payload?: { playerUids?: string[]; teammates?: {freefireUid:string;igName:string}[] }) {
     if (!user) return router.push("/login");
     if (eligibility && !eligibility.eligible) {
       setShowFail(true);
       return;
     }
+    // Validate teammates for BR team modes
+    const teamSize = t ? getTeamSizeFromTournament(t) : 1;
+    const requiresTeammates = teamSize > 1 && !requiredCaptainRosterCount;
+    if (requiresTeammates) {
+      const required = teamSize - 1;
+      if (teammates.length !== required || teammates.some(tm => !/^\d{9,12}$/.test(tm.freefireUid) || !tm.igName.trim())) {
+        toast.error(`Add ${required} valid teammate UID${required > 1 ? "s" : ""} to join`);
+        return;
+      }
+    }
     setJoining(true);
     try {
+      const body: any = payload ?? {};
+      if (requiresTeammates && !payload?.playerUids) {
+        body.teammates = teammates;
+      }
       await api(`/tournaments/${id}/join`, {
         method: "POST",
-        ...(payload ? { body: JSON.stringify(payload) } : {}),
+        body: JSON.stringify(body),
       });
       setShowRosterForm(false);
       toast.success("Joined! Upload payment proof to confirm.");
@@ -201,6 +219,23 @@ export default function TournamentDetailClient() {
         )}
       </div>
 
+      {/* Team Member Section for BR_DUO/BR_SQUAD */}
+      {getTeamSizeFromTournament(t) > 1 && !requiredCaptainRosterCount && !alreadyJoined && t.status === "UPCOMING" && (
+        <div className="px-4">
+          <TeamJoinSection tournament={t} onTeammatesChange={setTeammates} />
+        </div>
+      )}
+
+      {/* Feature flag: joins disabled */}
+      {!isEnabled("TOURNAMENT_JOIN_ENABLED") && !alreadyJoined && (
+        <div className="px-4 mt-4">
+          <div className="fs-card p-4 text-center" style={{ border: "1px solid var(--fs-amber)" }}>
+            <p className="text-sm font-semibold" style={{ color: "var(--fs-amber)" }}>Joins Temporarily Disabled</p>
+            <p className="text-xs mt-1" style={{ color: "var(--fs-text-3)" }}>Tournament joining is currently paused. Check back soon.</p>
+          </div>
+        </div>
+      )}
+
       {/* Sticky Join Button */}
       <div
         className="fixed left-0 right-0 z-[100] p-4"
@@ -219,7 +254,13 @@ export default function TournamentDetailClient() {
             }
             void join();
           }}
-          disabled={joining || t.status !== "UPCOMING" || alreadyJoined}
+          disabled={
+            joining ||
+            t.status !== "UPCOMING" ||
+            alreadyJoined ||
+            !isEnabled("TOURNAMENT_JOIN_ENABLED") ||
+            (getTeamSizeFromTournament(t) > 1 && !requiredCaptainRosterCount && teammates.some(tm => !/^\d{9,12}$/.test(tm.freefireUid) || !tm.igName.trim()))
+          }
           className="fs-btn fs-btn-primary fs-btn-full"
           style={{
             height: '50px',
@@ -235,7 +276,9 @@ export default function TournamentDetailClient() {
                 ? t.status
                 : requiredCaptainRosterCount > 0
                   ? `JOIN TEAM · Rs ${t.entryFeeNpr}/team`
-                  : `JOIN NOW · Rs ${t.entryFeeNpr}`}
+                  : getTeamSizeFromTournament(t) > 1
+                    ? `Join with Team (${getTeamSizeFromTournament(t)} players) · Rs ${t.entryFeeNpr}`
+                    : `JOIN NOW · Rs ${t.entryFeeNpr}`}
           </ButtonLoading>
         </button>
         {msg && <p className="mt-2 text-center text-xs" style={{ color: 'var(--fs-text-3)' }}>{msg}</p>}

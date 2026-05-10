@@ -69,10 +69,19 @@ export class PublishRoomDto {
   @IsString() roomPassword!: string;
 }
 
+export class TeammateDto {
+  @IsString() freefireUid!: string;
+  @IsString() igName!: string;
+}
+
 export class JoinTournamentDto {
   @IsOptional()
   @IsArray()
   @ArrayUnique()
   @IsString({ each: true })
   playerUids?: string[];
+
+  @IsOptional()
+  @IsArray()
+  teammates?: TeammateDto[];
 }

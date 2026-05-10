@@ -1,27 +1,29 @@
 "use client";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
+import { useAdminNav } from "@/lib/useAdminNav";
 import { ViewportToggle } from "@/components/ViewportToggle";
 import { PageLoading } from "@/components/ui";
 
-const NAV = [
-  { href: "/admin", label: "Overview", icon: "📊" },
-  { href: "/admin/tournaments", label: "Tournaments", icon: "🏆" },
-  { href: "/admin/payments", label: "Payments", icon: "💳" },
-  { href: "/admin/results", label: "Results", icon: "📋" },
-  { href: "/admin/withdrawals", label: "Withdrawals", icon: "💸" },
-  { href: "/admin/users", label: "Users", icon: "👥" },
-  { href: "/admin/banners", label: "Banners", icon: "🖼️" },
-  { href: "/admin/config", label: "System Config", icon: "⚙️" },
-  { href: "/admin/schedule", label: "Free Daily", icon: "📅" },
-  { href: "/admin/roles", label: "Roles & Perms", icon: "🔐" },
-  { href: "/admin/logs", label: "Audit Logs", icon: "📝" },
-  { href: "/admin/bot", label: "Bot Control", icon: "🤖" },
-  { href: "/admin/support", label: "Support", icon: "🎧" },
-  { href: "/admin/app-releases", label: "App Releases", icon: "📱" },
-  { href: "/admin/apk-test", label: "APK Testing", icon: "🧪" },
+const ALL_NAV = [
+  { key: "overview", href: "/admin", label: "Overview", icon: "📊" },
+  { key: "tournaments", href: "/admin/tournaments", label: "Tournaments", icon: "🏆" },
+  { key: "payments", href: "/admin/payments", label: "Payments", icon: "💳" },
+  { key: "results", href: "/admin/results", label: "Results", icon: "📋" },
+  { key: "withdrawals", href: "/admin/withdrawals", label: "Withdrawals", icon: "💸" },
+  { key: "users", href: "/admin/users", label: "Users", icon: "👥" },
+  { key: "banners", href: "/admin/banners", label: "Banners", icon: "🖼️" },
+  { key: "flags", href: "/admin/flags", label: "Feature Flags", icon: "🚦" },
+  { key: "config", href: "/admin/config", label: "System Config", icon: "⚙️" },
+  { key: "schedule", href: "/admin/schedule", label: "Free Daily", icon: "📅" },
+  { key: "roles", href: "/admin/roles", label: "Roles & Perms", icon: "🔐" },
+  { key: "logs", href: "/admin/logs", label: "Audit Logs", icon: "📝" },
+  { key: "bot", href: "/admin/bot", label: "Bot Control", icon: "🤖" },
+  { key: "support", href: "/admin/support", label: "Support", icon: "🎧" },
+  { key: "apk-releases", href: "/admin/app-releases", label: "APK Releases", icon: "📱" },
+  { key: "apk-test", href: "/admin/apk-test", label: "APK Testing", icon: "🧪" },
 ];
 
 export default function AdminLayout({
@@ -29,13 +31,33 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { user, loading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
+  const { nav: allowedNav, isLoading: navLoading } = useAdminNav();
   const pathname = usePathname();
+  const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  const loading = authLoading || navLoading;
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace("/login");
+    }
+  }, [authLoading, user, router]);
+
+  useEffect(() => {
+    if (!navLoading && allowedNav && allowedNav.length === 0) {
+      router.replace("/");
+    }
+  }, [navLoading, allowedNav, router]);
 
   if (loading) return <PageLoading label="Checking admin access..." />;
   if (!user || (user.role !== "ADMIN" && user.role !== "SUPER_ADMIN"))
     return <p style={{ color: "var(--fs-red)" }}>Admin access required.</p>;
+
+  const visibleNav = allowedNav
+    ? ALL_NAV.filter((item) => allowedNav.includes(item.key))
+    : ALL_NAV;
 
   const SidebarContent = () => (
     <>
@@ -49,7 +71,7 @@ export default function AdminLayout({
       </div>
 
       <nav style={{ padding: "8px 6px", flex: 1, overflowY: "auto" }}>
-        {NAV.map((item) => {
+        {visibleNav.map((item) => {
           const active = pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href));
           return (
             <Link

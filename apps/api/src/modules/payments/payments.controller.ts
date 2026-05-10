@@ -13,6 +13,10 @@ import { FileInterceptor } from "@nestjs/platform-express";
 import { PaymentsService } from "./payments.service";
 import { JwtAuthGuard } from "../../common/guards/jwt.guard";
 import { Roles, RolesGuard } from "../../common/guards/roles.guard";
+import {
+  FeatureFlagGuard,
+  UseFeatureFlag,
+} from "../../common/guards/feature-flag.guard";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { StorageService } from "../../common/storage/storage.service";
 import { PaymentStatus, Role } from "@fireslot/db";
@@ -24,7 +28,8 @@ export class PaymentsController {
     private readonly storage: StorageService,
   ) {}
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, FeatureFlagGuard)
+  @UseFeatureFlag("PAYMENT_PROOF_ENABLED")
   @Post()
   @UseInterceptors(FileInterceptor("proof"))
   async submit(
@@ -36,7 +41,8 @@ export class PaymentsController {
     return this.svc.submit(u.sub, body, url);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, FeatureFlagGuard)
+  @UseFeatureFlag("DEPOSIT_ENABLED")
   @Post("deposit")
   @UseInterceptors(FileInterceptor("proof"))
   async deposit(

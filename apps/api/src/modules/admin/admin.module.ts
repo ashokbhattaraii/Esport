@@ -149,7 +149,14 @@ import { ApkTestService } from "./apk-test.service";
 import { ApkTestController } from "./apk-test.controller";
 import { AppConfigService } from "./app-config.service";
 import { AppConfigController } from "./app-config.controller";
+import { FeatureFlagService } from "./feature-flag.service";
+import {
+  FeatureFlagAdminController,
+  FeatureFlagPublicController,
+} from "./feature-flag.controller";
+import { AdminNavController } from "./admin-nav.controller";
 import { PermissionsGuard } from "../../common/guards/permissions.guard";
+import { FeatureFlagGuard } from "../../common/guards/feature-flag.guard";
 import { StorageModule } from "../../common/storage/storage.module";
 import { MulterModule } from "@nestjs/platform-express";
 import { memoryStorage } from "multer";
@@ -164,6 +171,9 @@ import { memoryStorage } from "multer";
     AdminActionLogController,
     ApkTestController,
     AppConfigController,
+    FeatureFlagAdminController,
+    FeatureFlagPublicController,
+    AdminNavController,
   ],
   providers: [
     SystemConfigService,
@@ -172,7 +182,9 @@ import { memoryStorage } from "multer";
     AdminActionLogService,
     ApkTestService,
     AppConfigService,
+    FeatureFlagService,
     PermissionsGuard,
+    FeatureFlagGuard,
   ],
   exports: [
     SystemConfigService,
@@ -180,6 +192,8 @@ import { memoryStorage } from "multer";
     RolesService,
     AdminActionLogService,
     AppConfigService,
+    FeatureFlagService,
+    FeatureFlagGuard,
     PermissionsGuard,
   ],
 })

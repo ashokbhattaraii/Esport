@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/co
 import { WalletService, WithdrawDto } from './wallet.service';
 import { JwtAuthGuard } from '../../common/guards/jwt.guard';
 import { Roles, RolesGuard } from '../../common/guards/roles.guard';
+import { FeatureFlagGuard, UseFeatureFlag } from '../../common/guards/feature-flag.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Role, WithdrawalStatus } from '@fireslot/db';
 
@@ -15,7 +16,8 @@ export class WalletController {
     return this.svc.getMine(u.sub);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, FeatureFlagGuard)
+  @UseFeatureFlag('WITHDRAWAL_ENABLED')
   @Post('withdraw')
   withdraw(@CurrentUser() u: any, @Body() dto: WithdrawDto) {
     return this.svc.withdraw(u.sub, dto);

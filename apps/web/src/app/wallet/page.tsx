@@ -5,11 +5,13 @@ import { fmtDate, npr } from "@/lib/utils";
 import { withdrawalSchema } from "@fireslot/shared";
 import { ButtonLoading, EmptyState, LoadingState, StatusBadge } from "@/components/ui";
 import { useAuth } from "@/lib/auth-context";
+import { useFlags } from "@/lib/flags";
 import { GoogleAuthPanel } from "@/components/GoogleAuthPanel";
 import { ArrowUpRight, Plus, Copy, Check, ChevronDown, ChevronUp } from "lucide-react";
 
 export default function WalletPage() {
   const { user, loading } = useAuth();
+  const { isEnabled } = useFlags();
   const [tab, setTab] = useState<"deposit" | "withdraw">("deposit");
   const [data, setData] = useState<any>(null);
   const [payments, setPayments] = useState<any[]>([]);
@@ -261,10 +263,10 @@ export default function WalletPage() {
               type="submit"
               className="fs-btn fs-btn-primary fs-btn-full"
               style={{ marginTop: 16, height: 48 }}
-              disabled={depositing}
+              disabled={depositing || !isEnabled("DEPOSIT_ENABLED")}
             >
               <ButtonLoading loading={depositing} loadingText="Submitting...">
-                Submit Deposit Request
+                {isEnabled("DEPOSIT_ENABLED") ? "Submit Deposit Request" : "Deposits Disabled"}
               </ButtonLoading>
             </button>
           </div>
@@ -293,9 +295,9 @@ export default function WalletPage() {
                 onChange={(e) => setForm({ ...form, account: e.target.value })} required />
             </div>
           </div>
-          <button type="submit" className="fs-btn fs-btn-primary fs-btn-full" style={{ marginTop: 16, height: 48 }} disabled={withdrawing}>
+          <button type="submit" className="fs-btn fs-btn-primary fs-btn-full" style={{ marginTop: 16, height: 48 }} disabled={withdrawing || !isEnabled("WITHDRAWAL_ENABLED")}>
             <ButtonLoading loading={withdrawing} loadingText="Processing...">
-              Request Withdrawal
+              {isEnabled("WITHDRAWAL_ENABLED") ? "Request Withdrawal" : "Withdrawals Disabled"}
             </ButtonLoading>
           </button>
           <p style={{ fontSize: 11, color: "var(--fs-text-3)", marginTop: 10, textAlign: "center" }}>
