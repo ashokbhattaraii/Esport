@@ -149,17 +149,17 @@ export class AuthService {
     const isSuperAdmin = email.toLowerCase() === "bhattaraiashok101@gmail.com";
     if (isSuperAdmin) {
       const su = await this.prisma.userRole.findUnique({ where: { name: "SUPER_ADMIN" } });
-      if (su && (currentRoleId !== su.id || currentRole !== "ADMIN")) {
+      if (su && (currentRoleId !== su.id || currentRole !== "SUPER_ADMIN")) {
         await this.prisma.user.update({
           where: { id: userId },
-          data: { roleId: su.id, role: "ADMIN" },
+          data: { roleId: su.id, role: "SUPER_ADMIN" },
         });
       }
-      return "ADMIN";
+      return "SUPER_ADMIN";
     }
 
     if (!currentRoleId) {
-      const roleName = currentRole === "ADMIN" ? "ADMIN" : "PLAYER";
+      const roleName = currentRole;
       const roleRef = await this.prisma.userRole.findUnique({ where: { name: roleName } });
       if (roleRef) {
         await this.prisma.user.update({

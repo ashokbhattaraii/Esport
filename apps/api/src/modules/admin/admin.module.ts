@@ -155,6 +155,9 @@ import {
   FeatureFlagPublicController,
 } from "./feature-flag.controller";
 import { AdminNavController } from "./admin-nav.controller";
+import { FinancialRiskService } from "../finance/financial-risk.service";
+import { ReportService } from "../finance/report.service";
+import { FinanceController } from "../finance/finance.controller";
 import { PermissionsGuard } from "../../common/guards/permissions.guard";
 import { FeatureFlagGuard } from "../../common/guards/feature-flag.guard";
 import { StorageModule } from "../../common/storage/storage.module";
@@ -174,6 +177,7 @@ import { memoryStorage } from "multer";
     FeatureFlagAdminController,
     FeatureFlagPublicController,
     AdminNavController,
+    FinanceController,
   ],
   providers: [
     SystemConfigService,
@@ -185,6 +189,8 @@ import { memoryStorage } from "multer";
     FeatureFlagService,
     PermissionsGuard,
     FeatureFlagGuard,
+    FinancialRiskService,
+    ReportService,
   ],
   exports: [
     SystemConfigService,
@@ -195,6 +201,8 @@ import { memoryStorage } from "multer";
     FeatureFlagService,
     FeatureFlagGuard,
     PermissionsGuard,
+    FinancialRiskService,
+    ReportService,
   ],
 })
 export class AdminModule {}

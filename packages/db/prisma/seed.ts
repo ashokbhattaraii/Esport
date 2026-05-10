@@ -1,6 +1,11 @@
 import { PrismaClient, GameMode, TournamentStatus, Role } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
+declare const process: {
+  env: Record<string, string | undefined>;
+  exit(code?: number): never;
+};
+
 const prisma = new PrismaClient();
 
 async function main() {
@@ -434,6 +439,8 @@ async function seedRolesAndSuperAdmin() {
         ...["read", "approve"].map((action) => ({ resource: "withdrawals", action })),
         ...["read", "approve"].map((action) => ({ resource: "results", action })),
         ...["read", "write"].map((action) => ({ resource: "config", action })),
+        { resource: "reports", action: "read" },
+        ...["read", "write"].map((action) => ({ resource: "finance", action })),
         { resource: "support", action: "read" },
         { resource: "support", action: "write" },
         { resource: "support", action: "approve" },
@@ -464,6 +471,7 @@ async function seedRolesAndSuperAdmin() {
         { resource: "payments", action: "approve" },
         { resource: "withdrawals", action: "read" },
         { resource: "withdrawals", action: "approve" },
+        { resource: "support", action: "read" },
       ],
     },
     SUPPORT: {
@@ -509,11 +517,11 @@ async function seedRolesAndSuperAdmin() {
 
   await prisma.user.upsert({
     where: { email: superAdminEmail },
-    update: { roleId: superRoleId, isBanned: false, role: Role.ADMIN },
+    update: { roleId: superRoleId, isBanned: false, role: Role.SUPER_ADMIN },
     create: {
       email: superAdminEmail,
       name: "Ashok Bhattarai",
-      role: Role.ADMIN,
+      role: Role.SUPER_ADMIN,
       roleId: superRoleId,
       wallet: { create: {} },
     },

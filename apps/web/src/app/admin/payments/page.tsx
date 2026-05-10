@@ -3,12 +3,14 @@ import { useEffect, useState } from "react";
 import { api, FILE_BASE } from "@/lib/api";
 import { fmtDate, npr } from "@/lib/utils";
 import { ButtonLoading, CardGridSkeleton, EmptyState, PageHeader, StatusBadge } from "@/components/ui";
+import { WithdrawalReviewPanel } from "@/components/admin/WithdrawalReviewPanel";
 
 export default function AdminPayments() {
   const [items, setItems] = useState<any[]>([]);
   const [filter, setFilter] = useState("PENDING");
   const [loading, setLoading] = useState(true);
   const [actingKey, setActingKey] = useState<string | null>(null);
+  const [reviewId, setReviewId] = useState<string | null>(null);
 
   async function load(showLoading = true) {
     if (showLoading) setLoading(true);
@@ -21,29 +23,6 @@ export default function AdminPayments() {
   useEffect(() => {
     load().catch(() => {});
   }, [filter]);
-
-  async function approve(id: string) {
-    setActingKey(`${id}:approve`);
-    try {
-      await api(`/payments/${id}/approve`, { method: "POST" });
-      await load(false);
-    } finally {
-      setActingKey(null);
-    }
-  }
-  async function reject(id: string) {
-    const note = prompt("Reject reason?") ?? undefined;
-    setActingKey(`${id}:reject`);
-    try {
-      await api(`/payments/${id}/reject`, {
-        method: "POST",
-        body: JSON.stringify({ note }),
-      });
-      await load(false);
-    } finally {
-      setActingKey(null);
-    }
-  }
 
   return (
     <div>
@@ -87,6 +66,9 @@ export default function AdminPayments() {
               </span>
               <StatusBadge status={p.status} />
             </div>
+            <p className="mt-2 text-xs text-white/60">
+              Risk: {p.user.financialRiskProfile?.riskLevel ?? "UNKNOWN"}
+            </p>
             {p.proofUrl && (
               <a
                 href={`${FILE_BASE}${p.proofUrl}`}
@@ -103,30 +85,21 @@ export default function AdminPayments() {
             )}
             {p.status === "PENDING" && (
               <div className="mt-3 flex gap-2">
-                <button
-                  onClick={() => approve(p.id)}
-                  className="btn-primary"
-                  disabled={actingKey?.startsWith(`${p.id}:`)}
-                >
-                  <ButtonLoading loading={actingKey === `${p.id}:approve`} loadingText="Approving...">
-                    Approve
-                  </ButtonLoading>
-                </button>
-                <button
-                  onClick={() => reject(p.id)}
-                  className="btn-outline"
-                  disabled={actingKey?.startsWith(`${p.id}:`)}
-                >
-                  <ButtonLoading loading={actingKey === `${p.id}:reject`} loadingText="Rejecting...">
-                    Reject
-                  </ButtonLoading>
-                </button>
+                <button onClick={() => setReviewId(p.id)} className="btn-primary">Review</button>
               </div>
             )}
           </div>
         ))}
         {items.length === 0 && <EmptyState title="No payments in this queue" />}
       </div>
+      )}
+      {reviewId && (
+        <WithdrawalReviewPanel
+          withdrawalId={reviewId}
+          kind="payment"
+          onClose={() => setReviewId(null)}
+          onDecision={() => load(false)}
+        />
       )}
     </div>
   );

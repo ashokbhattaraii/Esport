@@ -23,13 +23,13 @@ export class WalletController {
     return this.svc.withdraw(u.sub, dto);
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard) @Roles(Role.ADMIN)
+  @UseGuards(JwtAuthGuard, RolesGuard) @Roles(Role.ADMIN, Role.FINANCE, Role.SUPER_ADMIN)
   @Get('withdrawals')
   listWithdrawals(@Query('status') status?: WithdrawalStatus) {
     return this.svc.listWithdrawals(status);
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard) @Roles(Role.ADMIN)
+  @UseGuards(JwtAuthGuard, RolesGuard) @Roles(Role.ADMIN, Role.FINANCE, Role.SUPER_ADMIN)
   @Post('withdrawals/:id/review')
   review(
     @CurrentUser() u: any,

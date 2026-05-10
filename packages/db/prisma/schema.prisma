@@ -11,6 +11,7 @@ datasource db {
 enum Role {
   PLAYER
   ADMIN
+  FINANCE
   SUPER_ADMIN
 }
 
@@ -361,6 +362,7 @@ model User {
   permissionOverrides UserPermission[]
   supportTickets SupportTicket[]
   pushTokens     UserPushToken[]
+  financialRiskProfile FinancialRiskProfile?
 
   @@index([role])
   @@index([roleId])
@@ -703,6 +705,7 @@ model Payment {
 
   user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   tournament Tournament? @relation(fields: [tournamentId], references: [id])
+  depositReview DepositReview?
 
   @@index([userId, createdAt])
   @@index([status, createdAt])
@@ -742,6 +745,7 @@ model WithdrawalRequest {
   reviewedAt DateTime?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  withdrawalReview WithdrawalReview?
 
   @@index([userId, createdAt])
   @@index([status, createdAt])
@@ -793,6 +797,66 @@ model AdminActionLog {
 
   @@index([adminId, createdAt])
   @@index([resource, createdAt])
+}
+
+model FinancialRiskProfile {
+  id                    String   @id @default(cuid())
+  userId                String   @unique
+  user                  User     @relation(fields:[userId], references:[id], onDelete: Cascade)
+  riskScore             Int      @default(0)
+  riskLevel             String   @default("LOW")
+  flags                 Json     @default("[]")
+  totalDeposited        Float    @default(0)
+  totalWithdrawn        Float    @default(0)
+  totalPrizeEarned      Float    @default(0)
+  totalEntryFeesPaid    Float    @default(0)
+  tournamentCount       Int      @default(0)
+  winCount              Int      @default(0)
+  disputeCount          Int      @default(0)
+  rejectedPaymentCount  Int      @default(0)
+  lastDepositAt         DateTime?
+  lastWithdrawAt        DateTime?
+  lastLoginAt           DateTime?
+  accountAgeDays        Int      @default(0)
+  isBlacklisted         Boolean  @default(false)
+  blacklistReason       String?
+  reviewedBy            String?
+  reviewNote            String?
+  updatedAt             DateTime @updatedAt
+}
+
+model WithdrawalReview {
+  id             String   @id @default(cuid())
+  withdrawalId   String   @unique
+  withdrawal     WithdrawalRequest @relation(fields:[withdrawalId], references:[id], onDelete: Cascade)
+  reviewedBy     String
+  riskSnapshot   Json
+  reviewNote     String?
+  decision       String
+  decisionAt     DateTime @default(now())
+  ipAddress      String?
+}
+
+model DepositReview {
+  id           String   @id @default(cuid())
+  paymentId    String   @unique
+  payment      Payment  @relation(fields:[paymentId], references:[id], onDelete: Cascade)
+  reviewedBy   String
+  riskSnapshot Json
+  reviewNote   String?
+  decision     String
+  decisionAt   DateTime @default(now())
+  ipAddress    String?
+}
+
+model FinancialReport {
+  id          String   @id @default(cuid())
+  generatedBy String
+  reportType  String
+  fromDate    DateTime
+  toDate      DateTime
+  data        Json
+  createdAt   DateTime @default(now())
 }
 
 model SystemConfig {

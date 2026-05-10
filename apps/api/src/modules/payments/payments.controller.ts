@@ -61,21 +61,21 @@ export class PaymentsController {
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.FINANCE, Role.SUPER_ADMIN)
   @Get()
   list(@Query("status") status?: PaymentStatus) {
     return this.svc.list(status);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.FINANCE, Role.SUPER_ADMIN)
   @Post(":id/approve")
   approve(@CurrentUser() u: any, @Param("id") id: string) {
     return this.svc.approve(u.sub, id);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.FINANCE, Role.SUPER_ADMIN)
   @Post(":id/reject")
   reject(
     @CurrentUser() u: any,

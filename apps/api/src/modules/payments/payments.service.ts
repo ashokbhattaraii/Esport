@@ -8,12 +8,14 @@ import { PaymentStatus, PrismaClient } from "@fireslot/db";
 import { PRISMA } from "../../prisma/prisma.module";
 import { MemoryCacheService } from "../../common/cache/memory-cache.service";
 import { invalidateTournamentCaches } from "../tournaments/tournament-cache.keys";
+import { FinancialRiskService } from "../finance/financial-risk.service";
 
 @Injectable()
 export class PaymentsService {
   constructor(
     @Inject(PRISMA) private prisma: PrismaClient,
     private cache: MemoryCacheService,
+    private risk: FinancialRiskService,
   ) {}
 
   async submit(
@@ -101,6 +103,18 @@ export class PaymentsService {
       if (p.status !== "PENDING")
         throw new BadRequestException("Already reviewed");
       tournamentId = p.tournamentId;
+      const check = await this.risk.checkDepositRisk(p.userId);
+      if (check.blockedReason) throw new BadRequestException(check.blockedReason);
+
+      await tx.depositReview.create({
+        data: {
+          paymentId,
+          reviewedBy: adminId,
+          riskSnapshot: check.profile as any,
+          reviewNote: null,
+          decision: "APPROVED",
+        },
+      });
 
       await tx.payment.update({
         where: { id: paymentId },
@@ -176,6 +190,16 @@ export class PaymentsService {
       where: { id: paymentId },
     });
     if (!p) throw new NotFoundException();
+    const profile = await this.risk.buildRiskProfile(p.userId);
+    await this.prisma.depositReview.create({
+      data: {
+        paymentId,
+        reviewedBy: adminId,
+        riskSnapshot: profile as any,
+        reviewNote: note,
+        decision: "REJECTED",
+      },
+    });
     await this.prisma.payment.update({
       where: { id: paymentId },
       data: {

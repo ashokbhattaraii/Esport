@@ -9,6 +9,7 @@ import { PrismaClient, WithdrawalStatus } from "@fireslot/db";
 import { PRISMA } from "../../prisma/prisma.module";
 import { RealtimeService } from "../../common/realtime/realtime.service";
 import { SystemConfigService } from "../admin/system-config.service";
+import { FinancialRiskService } from "../finance/financial-risk.service";
 
 export class WithdrawDto {
   @IsInt() @Min(100) amountNpr!: number;
@@ -22,6 +23,7 @@ export class WalletService {
     @Inject(PRISMA) private prisma: PrismaClient,
     private realtime: RealtimeService,
     private config: SystemConfigService,
+    private risk: FinancialRiskService,
   ) {}
 
   async getMine(userId: string) {
@@ -124,8 +126,50 @@ export class WalletService {
     return this.prisma.$transaction(async (tx: any) => {
       const w = await tx.withdrawalRequest.findUnique({ where: { id } });
       if (!w) throw new NotFoundException();
-      if (status === "REJECTED" && w.status === "PENDING") {
-        // refund
+      if (w.status !== "PENDING") throw new BadRequestException("Already processed");
+      const profile = await this.risk.buildRiskProfile(w.userId);
+      if (status === "APPROVED") {
+        const check = await this.risk.checkWithdrawalRisk(w.userId, w.amountNpr);
+        if (check.blockedReason) throw new BadRequestException(check.blockedReason);
+        const wallet = await tx.wallet.findUnique({ where: { userId: w.userId } });
+        if (!wallet) throw new NotFoundException("Wallet not found");
+        if (wallet.balanceNpr < w.amountNpr) {
+          throw new BadRequestException(
+            `User has insufficient wallet balance. Short by NPR ${w.amountNpr - wallet.balanceNpr}`,
+          );
+        }
+        await tx.withdrawalReview.create({
+          data: {
+            withdrawalId: id,
+            reviewedBy: adminId,
+            riskSnapshot: profile as any,
+            reviewNote: note,
+            decision: "APPROVED",
+          },
+        });
+        await tx.wallet.update({
+          where: { userId: w.userId },
+          data: { balanceNpr: { decrement: w.amountNpr } },
+        });
+        await tx.walletTransaction.create({
+          data: {
+            walletId: wallet.id,
+            type: "DEBIT",
+            reason: "WITHDRAWAL",
+            amountNpr: w.amountNpr,
+            note: `Withdrawal approved by ${adminId}`,
+          },
+        });
+      } else if (status === "REJECTED") {
+        await tx.withdrawalReview.create({
+          data: {
+            withdrawalId: id,
+            reviewedBy: adminId,
+            riskSnapshot: profile as any,
+            reviewNote: note,
+            decision: "REJECTED",
+          },
+        });
         const wallet = await tx.wallet.findUnique({
           where: { userId: w.userId },
         });

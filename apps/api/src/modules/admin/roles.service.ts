@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { PrismaClient } from "@fireslot/db";
+import { PrismaClient, Role } from "@fireslot/db";
 import { PRISMA } from "../../prisma/prisma.module";
 import { MemoryCacheService } from "../../common/cache/memory-cache.service";
 import { AdminActionLogService } from "./admin-action-log.service";
@@ -28,7 +28,7 @@ interface CachedPermissionOverride extends CachedPermission {
 
 interface CachedPermissionProfile {
   exists: boolean;
-  role: "PLAYER" | "ADMIN" | "SUPER_ADMIN";
+  role: "PLAYER" | "ADMIN" | "FINANCE" | "SUPER_ADMIN";
   roleName: string | null;
   rolePermissions: CachedPermission[];
   permissionOverrides: CachedPermissionOverride[];
@@ -105,9 +105,10 @@ export class RolesService {
     const role = await this.prisma.userRole.findUnique({ where: { id: roleId } });
     if (!role) throw new NotFoundException("Role not found");
     const before = await this.prisma.user.findUnique({ where: { id: userId }, select: { roleId: true } });
+    const nextRole = this.toUserRole(role.name);
     const updated = await this.prisma.user.update({
       where: { id: userId },
-      data: { roleId, role: role.name === "PLAYER" ? "PLAYER" : "ADMIN" },
+      data: { roleId, role: nextRole },
     });
     await this.logs.log(adminId, "user.assign_role", "user", userId, before, { roleId, roleName: role.name }, ip);
     this.invalidatePermissionCache(userId);
@@ -289,5 +290,20 @@ export class RolesService {
       return;
     }
     this.cache.delPrefix("permissions:");
+  }
+
+  private toUserRole(roleName: string): Role {
+    switch (roleName) {
+      case "PLAYER":
+        return Role.PLAYER;
+      case "ADMIN":
+        return Role.ADMIN;
+      case "FINANCE":
+        return Role.FINANCE;
+      case "SUPER_ADMIN":
+        return Role.SUPER_ADMIN;
+      default:
+        return Role.ADMIN;
+    }
   }
 }

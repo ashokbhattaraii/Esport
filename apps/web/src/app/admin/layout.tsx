@@ -13,6 +13,8 @@ const ALL_NAV = [
   { key: "payments", href: "/admin/payments", label: "Payments", icon: "💳" },
   { key: "results", href: "/admin/results", label: "Results", icon: "📋" },
   { key: "withdrawals", href: "/admin/withdrawals", label: "Withdrawals", icon: "💸" },
+  { key: "reports", href: "/admin/reports", label: "Reports", icon: "📊" },
+  { key: "risk-profiles", href: "/admin/finance/risk-profiles", label: "Risk Profiles", icon: "🛡️" },
   { key: "users", href: "/admin/users", label: "Users", icon: "👥" },
   { key: "banners", href: "/admin/banners", label: "Banners", icon: "🖼️" },
   { key: "flags", href: "/admin/flags", label: "Feature Flags", icon: "🚦" },
@@ -52,7 +54,7 @@ export default function AdminLayout({
   }, [navLoading, allowedNav, router]);
 
   if (loading) return <PageLoading label="Checking admin access..." />;
-  if (!user || (user.role !== "ADMIN" && user.role !== "SUPER_ADMIN"))
+  if (!user || (user.role !== "ADMIN" && user.role !== "SUPER_ADMIN" && user.role !== "FINANCE"))
     return <p style={{ color: "var(--fs-red)" }}>Admin access required.</p>;
 
   const visibleNav = allowedNav

@@ -3,12 +3,14 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { fmtDate, npr } from "@/lib/utils";
 import { ButtonLoading, EmptyState, PageHeader, StatusBadge, TableLoading } from "@/components/ui";
+import { WithdrawalReviewPanel } from "@/components/admin/WithdrawalReviewPanel";
 
 export default function AdminWithdrawals() {
   const [items, setItems] = useState<any[]>([]);
   const [filter, setFilter] = useState("PENDING");
   const [loading, setLoading] = useState(true);
   const [actingKey, setActingKey] = useState<string | null>(null);
+  const [reviewId, setReviewId] = useState<string | null>(null);
 
   async function load(showLoading = true) {
     if (showLoading) setLoading(true);
@@ -21,21 +23,6 @@ export default function AdminWithdrawals() {
   useEffect(() => {
     load().catch(() => {});
   }, [filter]);
-
-  async function review(id: string, status: string) {
-    const note =
-      status !== "APPROVED" ? (prompt("Note?") ?? undefined) : undefined;
-    setActingKey(`${id}:${status}`);
-    try {
-      await api(`/wallet/withdrawals/${id}/review`, {
-        method: "POST",
-        body: JSON.stringify({ status, note }),
-      });
-      await load(false);
-    } finally {
-      setActingKey(null);
-    }
-  }
 
   return (
     <div>
@@ -83,40 +70,17 @@ export default function AdminWithdrawals() {
                   <td>{w.account}</td>
                   <td>{npr(w.amountNpr)}</td>
                   <td>
-                    <StatusBadge status={w.status} />
+                    <div style={{ display: "grid", gap: 6 }}>
+                      <StatusBadge status={w.status} />
+                      <span style={{ fontSize: 11, color: "var(--fs-text-3)" }}>
+                        {w.user.financialRiskProfile?.riskLevel ?? "UNKNOWN"}
+                      </span>
+                    </div>
                   </td>
                   <td className="space-x-1">
                     {w.status === "PENDING" && (
-                      <>
-                        <button
-                          onClick={() => review(w.id, "APPROVED")}
-                          className="btn-outline text-xs"
-                          disabled={actingKey?.startsWith(`${w.id}:`)}
-                        >
-                          <ButtonLoading loading={actingKey === `${w.id}:APPROVED`} loadingText="Approving...">
-                            Approve
-                          </ButtonLoading>
-                        </button>
-                        <button
-                          onClick={() => review(w.id, "REJECTED")}
-                          className="btn-outline text-xs"
-                          disabled={actingKey?.startsWith(`${w.id}:`)}
-                        >
-                          <ButtonLoading loading={actingKey === `${w.id}:REJECTED`} loadingText="Rejecting...">
-                            Reject
-                          </ButtonLoading>
-                        </button>
-                      </>
-                    )}
-                    {w.status === "APPROVED" && (
-                      <button
-                        onClick={() => review(w.id, "PAID")}
-                        className="btn-primary text-xs"
-                        disabled={actingKey?.startsWith(`${w.id}:`)}
-                      >
-                        <ButtonLoading loading={actingKey === `${w.id}:PAID`} loadingText="Saving...">
-                          Mark Paid
-                        </ButtonLoading>
+                      <button onClick={() => setReviewId(w.id)} className="btn-primary text-xs">
+                        Review
                       </button>
                     )}
                   </td>
@@ -126,6 +90,13 @@ export default function AdminWithdrawals() {
           </table>
         )}
       </div>
+      {reviewId && (
+        <WithdrawalReviewPanel
+          withdrawalId={reviewId}
+          onClose={() => setReviewId(null)}
+          onDecision={() => load(false)}
+        />
+      )}
     </div>
   );
 }
