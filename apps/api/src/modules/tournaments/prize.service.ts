@@ -129,23 +129,25 @@ export class PrizeService {
     const maxPlayers = tournament.maxSlots;
     const sysFee = this.config.getNumber("SYSTEM_FEE_PERCENT");
 
+    // FIX: Use maxPlayers for preview when actualPlayers is 0
+    // Only use actualPlayers for final payout after room is locked
+    const playerCount = actualPlayers > 0 ? actualPlayers : maxPlayers;
+
     // Check if this is a winner-takes-all mode (CS/LW)
-    // In these modes: 1 captain registers & pays for the whole team.
-    // The winning team's captain receives the entire net pool.
     if (this.isWinnerTakesAllMode(tournament.mode)) {
-      let teamSize = 4; // CS_4V4 default
+      let teamSize = 4;
       if (tournament.mode === "LW_1V1") teamSize = 1;
       else if (tournament.mode === "LW_2V2") teamSize = 2;
 
-      const actualTeamsJoined = Math.max(1, Math.floor(actualPlayers / teamSize));
-      const gross = entryFee * actualTeamsJoined;
+      const teamsJoined = Math.max(1, Math.floor(playerCount / teamSize));
+      const gross = entryFee * teamsJoined;
       const cut = Math.floor((gross * sysFee) / 100);
       const net = gross - cut;
 
       return {
         entryFee,
         maxPlayers,
-        actualPlayers,
+        actualPlayers: playerCount,
         grossPool: gross,
         platformCut: cut,
         netPool: net,
@@ -156,7 +158,7 @@ export class PrizeService {
         killRewardPercent: 0,
         booyahNote: "",
         platformNote: `Rs ${cut} platform fee (${sysFee}%)`,
-        scalingNote: `${actualTeamsJoined} teams × Rs${entryFee}/team = Rs${gross} total`,
+        scalingNote: `${teamsJoined} teams × Rs${entryFee}/team = Rs${gross} total`,
         exampleEarning: `Winning captain gets Rs ${net}`,
         isWinnerTakesAll: true,
         prizePerWinner: net,
@@ -164,7 +166,7 @@ export class PrizeService {
     }
 
     // For BR/solo modes: standard per-kill model
-    const players = Math.max(1, actualPlayers);
+    const players = Math.max(1, playerCount);
     const killPct = this.config.getNumber("KILL_REWARD_PERCENT");
 
     const { gross, cut, net } = this.calculateNetPool(entryFee, players);
@@ -189,9 +191,9 @@ export class PrizeService {
       )})`,
       platformNote: `Rs ${cut} platform fee (${sysFee}%)`,
       scalingNote:
-        actualPlayers < maxPlayers
+        actualPlayers > 0 && actualPlayers < maxPlayers
           ? `Pool scaled to ${actualPlayers}/${maxPlayers} players`
-          : "Full lobby — maximum prize pool",
+          : `Estimated for full lobby (${maxPlayers} players)`,
       exampleEarning: `3 kills + Booyah = Rs ${3 * perKillReward + booyahPrize}`,
       isWinnerTakesAll: false,
     };

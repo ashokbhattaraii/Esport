@@ -1,11 +1,16 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   GameModeLabels,
   TournamentTypeLabels,
   calculateKillPrize,
+  calculatePrize,
+  formatSlots,
+  GAME_MODE_LIMITS,
+  isWinnerTakesAllOnly,
   type TournamentType,
+  type PrizeGameMode,
 } from "@fireslot/shared";
 import { fmtDate, npr } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -16,10 +21,34 @@ export function TournamentCard({ t }: { t: any }) {
   const full = t.filledSlots >= t.maxSlots;
   const playerFee = t.entryFeeNpr;
   const type = (t.type ?? "SOLO_1ST") as TournamentType;
-  const perKill = t.killPrize ?? t.perKillPrizeNpr ?? calculateKillPrize(playerFee);
   const isFree = type === "FREE_DAILY";
-  const topPrize = t.firstPrize || t.prizePoolNpr;
   const modeLabel = GameModeLabels[t.mode as keyof typeof GameModeLabels] ?? t.mode;
+  const isWTA = isWinnerTakesAllOnly(t.mode ?? "");
+
+  const displayPrize = useMemo(() => {
+    const existingPerKill = t.killPrize ?? t.perKillReward ?? t.perKillPrizeNpr ?? 0;
+    if (existingPerKill > 0 || isWTA) {
+      return {
+        perKill: existingPerKill,
+        booyah: t.booyahPrize ?? 0,
+        prizePool: t.prizeStructure?.netPool ?? t.firstPrize ?? t.prizePoolNpr ?? 0,
+      };
+    }
+    const calc = calculatePrize({
+      entryFee: playerFee,
+      playerCount: t.maxSlots || 48,
+      tournamentType: type,
+    });
+    return {
+      perKill: calc.perKillReward,
+      booyah: calc.booyahPrize,
+      prizePool: calc.netPool,
+    };
+  }, [t, playerFee, type, isWTA]);
+
+  const perKill = displayPrize.perKill;
+  const topPrize = displayPrize.prizePool || t.firstPrize || t.prizePoolNpr || 0;
+  const slotText = formatSlots(t.mode ?? "BR_SOLO", t.filledSlots ?? 0, t.maxSlots ?? 48);
 
   const { user } = useAuth();
   const [nextAt, setNextAt] = useState<string | null>(null);
@@ -106,12 +135,20 @@ export function TournamentCard({ t }: { t: any }) {
             <p className="text-[13px] font-bold mt-0.5" style={{ color: 'var(--fs-text-1)' }}>{fmtDate(t.dateTime)}</p>
           </div>
           <div style={{ borderRight: '0.5px solid var(--fs-border)' }}>
-            <p className="text-[9px] uppercase font-semibold" style={{ color: 'var(--fs-text-3)' }}>Prize Pool</p>
-            <p className="text-[13px] font-bold mt-0.5" style={{ color: 'var(--fs-text-1)' }}>Rs {topPrize}</p>
+            <p className="text-[9px] uppercase font-semibold" style={{ color: 'var(--fs-text-3)' }}>
+              {isWTA ? "Winner Gets" : "Prize Pool"}
+            </p>
+            <p className="text-[13px] font-bold mt-0.5" style={{ color: 'var(--fs-text-1)' }}>
+              {isFree ? "" : "~"}Rs {topPrize}
+            </p>
           </div>
           <div>
-            <p className="text-[9px] uppercase font-semibold" style={{ color: 'var(--fs-text-3)' }}>Per Kill</p>
-            <p className="text-[13px] font-bold mt-0.5" style={{ color: 'var(--fs-text-1)' }}>Rs {perKill}</p>
+            <p className="text-[9px] uppercase font-semibold" style={{ color: 'var(--fs-text-3)' }}>
+              {isWTA ? "Mode" : "Per Kill"}
+            </p>
+            <p className="text-[13px] font-bold mt-0.5" style={{ color: 'var(--fs-text-1)' }}>
+              {isWTA ? "WTA" : `Rs ${perKill}`}
+            </p>
           </div>
         </div>
 
@@ -123,7 +160,7 @@ export function TournamentCard({ t }: { t: any }) {
 
         <div className="mt-3 flex items-center justify-between">
           <span className="text-xs" style={{ color: 'var(--fs-text-3)' }}>
-            Total Players: {t.filledSlots}/{t.maxSlots}
+            {slotText}
           </span>
           <Link
             href={`/tournaments/${t.id}`}

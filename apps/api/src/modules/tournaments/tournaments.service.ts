@@ -34,7 +34,14 @@ import {
   invalidateTournamentCaches,
   tournamentDetailCacheKey,
 } from "./tournament-cache.keys";
-import { GameModeTeamSize, GameModeMaxTeams } from "@fireslot/shared";
+import {
+  GameModeTeamSize,
+  GameModeMaxTeams,
+  validateTournamentCreation,
+  isWinnerTakesAllOnly,
+  GAME_MODE_LIMITS,
+  type PrizeGameMode,
+} from "@fireslot/shared";
 
 const ROOM_CACHE_TTL_SECONDS = 30;
 const TOURNAMENT_LIST_SOFT_TTL_SECONDS = 15;
@@ -262,7 +269,27 @@ export class TournamentsService implements OnModuleInit {
 
   async create(adminId: string, dto: CreateTournamentDto) {
     this.validateFeePlan(dto);
+
+    // Auto-set tournament type for CS/LW modes
+    if (isWinnerTakesAllOnly(dto.mode)) {
+      dto.type = "SOLO_1ST" as any;
+    }
+
     const type = (dto.type ?? "SOLO_1ST") as TournamentType;
+
+    // Validate game mode limits
+    const limits = GAME_MODE_LIMITS[dto.mode as PrizeGameMode];
+    if (limits) {
+      const validation = validateTournamentCreation({
+        gameMode: dto.mode,
+        tournamentType: type,
+        entryFee: dto.entryFeeNpr,
+        maxPlayers: dto.maxSlots,
+      });
+      if (!validation.valid) {
+        throw new BadRequestException(validation.error);
+      }
+    }
     const freePool = this.config.getNumber("FREE_DAILY_PRIZE_POOL");
     const entryFee = type === "FREE_DAILY" ? 0 : dto.entryFeeNpr;
     const prizePool = type === "FREE_DAILY" ? freePool : dto.prizePoolNpr;

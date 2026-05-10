@@ -4,6 +4,7 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 import { Trophy, Users, Coins, ChevronDown, MapPin, Bomb } from "lucide-react";
 import { fmtDate, npr } from "@/lib/utils";
+import { calculatePrize, formatSlots, isWinnerTakesAllOnly } from "@fireslot/shared";
 import { CardSkeleton, LoadingState } from "@/components/ui";
 
 type Tab = "ONGOING" | "UPCOMING" | "RESULTS";
@@ -85,9 +86,24 @@ function TournamentRow({
   t, expanded, toggle,
 }: { t: any; expanded: boolean; toggle: () => void }) {
   const ps = t.prizeStructure ?? {};
-  const perKill = t.perKillReward ?? ps.perKillReward ?? 0;
-  const booyah = t.booyahPrize ?? ps.booyahPrize ?? 0;
-  const grossPool = ps.grossPool ?? t.entryFeeNpr * t.maxSlots;
+  const isWTA = isWinnerTakesAllOnly(t.mode ?? "");
+
+  // Fix: never show 0 — compute client-side if backend returned 0
+  const computed = useMemo(() => {
+    const existingPerKill = t.perKillReward ?? ps.perKillReward ?? 0;
+    if (existingPerKill > 0 || isWTA) return null;
+    return calculatePrize({
+      entryFee: t.entryFeeNpr ?? 0,
+      playerCount: t.maxSlots || 48,
+      tournamentType: t.type ?? "SOLO_TOP3",
+    });
+  }, [t, ps, isWTA]);
+
+  const perKill = computed?.perKillReward ?? t.perKillReward ?? ps.perKillReward ?? 0;
+  const booyah = computed?.booyahPrize ?? t.booyahPrize ?? ps.booyahPrize ?? 0;
+  const grossPool = computed?.grossPool ?? ps.grossPool ?? t.entryFeeNpr * t.maxSlots;
+  const netPool = computed?.netPool ?? ps.netPool ?? grossPool;
+  const slotText = formatSlots(t.mode ?? "BR_SOLO", t.filledSlots ?? 0, t.maxSlots ?? 48);
 
   return (
     <div className="rounded-2xl border border-border bg-gradient-to-br from-[#1a1233] via-[#0f0a26] to-[#1a1233] overflow-hidden">
@@ -121,14 +137,16 @@ function TournamentRow({
             <div className="text-xs text-white">{fmtDate(t.dateTime)}</div>
           </Cell>
           <button onClick={toggle} className="text-left">
-            <Cell label="PRIZE POOL">
+            <Cell label={isWTA ? "WINNER GETS" : "PRIZE POOL"}>
               <div className="flex items-center gap-1 text-neon font-bold text-sm">
-                {npr(grossPool)} <ChevronDown size={12} className={expanded ? "rotate-180" : ""} />
+                ~{npr(netPool)} <ChevronDown size={12} className={expanded ? "rotate-180" : ""} />
               </div>
             </Cell>
           </button>
-          <Cell label="PER KILL">
-            <div className="text-neon-cyan font-bold text-sm">{npr(perKill)}</div>
+          <Cell label={isWTA ? "MODE" : "PER KILL"}>
+            <div className="text-neon-cyan font-bold text-sm">
+              {isWTA ? "Winner Takes All" : npr(perKill)}
+            </div>
           </Cell>
         </div>
 
@@ -147,7 +165,7 @@ function TournamentRow({
 
         <div className="mt-3 flex items-center justify-between">
           <span className="text-xs text-white/60 flex items-center gap-1">
-            <Users size={12} /> Total Players: {t.maxSlots}
+            <Users size={12} /> {slotText}
           </span>
           <Link
             href={`/tournaments/${t.id}`}

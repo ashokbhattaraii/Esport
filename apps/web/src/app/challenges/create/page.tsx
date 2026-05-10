@@ -76,10 +76,16 @@ export default function CreateChallengePage() {
 
   const [submitting, setSubmitting] = useState(false);
 
-  const prizeToWinner = useMemo(
-    () => Math.floor(entryFee * 2 * 0.8),
-    [entryFee],
-  );
+  const csPlayerCount = useMemo(() => {
+    if (gameMode !== "CS") return 2;
+    const size = csTeamMode === "4v4" ? 4 : csTeamMode === "2v2" ? 2 : 1;
+    return size * 2;
+  }, [gameMode, csTeamMode]);
+
+  const prizeToWinner = useMemo(() => {
+    const players = gameMode === "CS" ? csPlayerCount : gameMode === "LW" ? 2 : 2;
+    return Math.floor(entryFee * players * 0.8);
+  }, [entryFee, gameMode, csPlayerCount]);
 
   const igName = user?.profile?.ign ?? user?.name ?? user?.email ?? "Player";
 

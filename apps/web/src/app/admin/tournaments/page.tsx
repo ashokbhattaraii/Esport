@@ -2,7 +2,18 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
-import { GameModeLabels, GameModes, GameModeMaxTeams, GameModeTeamSize } from "@fireslot/shared";
+import {
+  GameModeLabels,
+  GameModes,
+  GameModeMaxTeams,
+  GameModeTeamSize,
+  calculatePrize,
+  getDefaultTournamentType,
+  isWinnerTakesAllOnly,
+  GAME_MODE_LIMITS,
+  formatSlots,
+  type PrizeGameMode,
+} from "@fireslot/shared";
 import { fmtDate, npr } from "@/lib/utils";
 import { ButtonLoading, CardSkeleton, EmptyState, PageHeader, StatusBadge } from "@/components/ui";
 
@@ -150,14 +161,29 @@ export default function AdminTournaments() {
     const isTeamBased = teamSize > 1;
     const isFixedTwoTeamMode = mode === "CS_4V4" || mode === "LW_1V1" || mode === "LW_2V2";
     const defaultTeams = isFixedTwoTeamMode ? 2 : modeMaxTeams;
+    const defaultType = getDefaultTournamentType(mode);
 
     setForm((prev: any) => ({
       ...prev,
       mode,
+      type: defaultType,
       maxTeams: isTeamBased ? defaultTeams : undefined,
       maxSlots: defaultTeams * teamSize,
     }));
   }
+
+  const typeLocked = isWinnerTakesAllOnly(form.mode);
+
+  const localPreview = useMemo(() => {
+    const fee = Number(form.entryFeeNpr);
+    const slots = Number(form.maxSlots);
+    if (!fee || !slots) return null;
+    return calculatePrize({
+      entryFee: fee,
+      playerCount: slots,
+      tournamentType: form.type,
+    });
+  }, [form.entryFeeNpr, form.maxSlots, form.type]);
 
   return (
     <div>
@@ -201,6 +227,8 @@ export default function AdminTournaments() {
               className="input"
               value={form.type}
               onChange={(e) => setForm({ ...form, type: e.target.value })}
+              disabled={typeLocked}
+              title={typeLocked ? "CS/LW modes are always Winner Takes All" : ""}
             >
               <option value="SOLO_TOP3">Solo Top 3</option>
               <option value="SOLO_1ST">Solo Winner Takes All</option>
@@ -234,9 +262,14 @@ export default function AdminTournaments() {
             />
             <div className="mt-1 flex items-center justify-between text-xs text-white/70">
               <span>Rs {form.entryFeeNpr}</span>
-              {preview && (
+              {(preview || localPreview) && !typeLocked && (
                 <span>
-                  Per Kill <b className="text-yellow-300">Rs {preview.perKillReward}</b> · Booyah <b className="text-neon-cyan">Rs {preview.booyahPrize}</b>
+                  Per Kill <b className="text-yellow-300">Rs {preview?.perKillReward ?? localPreview?.perKillReward ?? 0}</b> · Booyah <b className="text-neon-cyan">Rs {preview?.booyahPrize ?? localPreview?.booyahPrize ?? 0}</b>
+                </span>
+              )}
+              {typeLocked && localPreview && (
+                <span>
+                  Winner gets <b className="text-yellow-300">Rs {localPreview.netPool}</b>
                 </span>
               )}
             </div>
