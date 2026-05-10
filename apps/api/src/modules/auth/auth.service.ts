@@ -15,12 +15,19 @@ import { jwtSecret } from "./jwt-secret";
 
 @Injectable()
 export class AuthService {
-  private readonly googleClient = new OAuth2Client(this.googleClientId);
+  private googleClient: OAuth2Client | null = null;
 
   constructor(
     @Inject(PRISMA) private prisma: PrismaClient,
     private jwt: JwtService,
   ) {}
+
+  private getGoogleClient(): OAuth2Client {
+    if (!this.googleClient) {
+      this.googleClient = new OAuth2Client(this.googleClientId);
+    }
+    return this.googleClient;
+  }
 
   async register(dto: RegisterDto) {
     this.assertReady();
@@ -69,10 +76,15 @@ export class AuthService {
     if (!dto?.credential)
       throw new UnauthorizedException("Missing Google credential");
 
-    const ticket = await this.googleClient.verifyIdToken({
-      idToken: dto.credential,
-      audience: clientId,
-    });
+    let ticket;
+    try {
+      ticket = await this.getGoogleClient().verifyIdToken({
+        idToken: dto.credential,
+        audience: clientId,
+      });
+    } catch {
+      throw new UnauthorizedException("Invalid or expired Google credential");
+    }
     const payload = ticket.getPayload();
     const email = payload?.email?.toLowerCase();
     const googleId = payload?.sub;
@@ -110,12 +122,17 @@ export class AuthService {
       create: { userId: user.id },
     });
 
-    const role = await this.ensureUserRole(
-      user.id,
-      user.email,
-      user.role,
-      user.roleId,
-    );
+    let role: Role = user.role;
+    try {
+      role = await this.ensureUserRole(
+        user.id,
+        user.email,
+        user.role,
+        user.roleId,
+      );
+    } catch {
+      // Non-critical: role assignment failed, continue with existing role
+    }
 
     return this.issueToken(user.id, user.email, role, {
       name: user.name,
