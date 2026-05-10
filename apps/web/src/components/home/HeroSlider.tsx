@@ -98,8 +98,8 @@ const FEATURE_SLIDES: FeatureSlide[] = [
     badge: "Community play",
     title: "Climb rankings, clear challenges, and stay supported.",
     subtitle:
-      "Leaderboard pressure, challenge rooms, and support access all sit close to the home experience so players never lose momentum.",
-    highlights: ["Live leaderboard", "Challenge rooms", "Support access"],
+      "Leaderboard pressure, challenge rooms, and match tracking all sit close to the home experience so players never lose momentum.",
+    highlights: ["Live leaderboard", "Challenge rooms", "My Matches"],
     stats: [
       { value: "Top", label: "prize chase" },
       { value: "Fast", label: "help flow" },
@@ -107,8 +107,8 @@ const FEATURE_SLIDES: FeatureSlide[] = [
     ],
     ctaText: "View challenges",
     ctaLink: "/challenges",
-    secondaryCtaText: "Contact support",
-    secondaryCtaLink: "/support",
+    secondaryCtaText: "My matches",
+    secondaryCtaLink: "/my-matches",
     accent: "linear-gradient(135deg, rgba(255, 45, 117, 0.24), rgba(31, 8, 19, 0.96))",
     icon: Trophy,
     autoSlide: true,

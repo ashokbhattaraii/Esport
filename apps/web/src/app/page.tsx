@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Flame, Plus, Trophy, Wallet } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
-import { npr } from "@/lib/utils";
+import { fmtDate, npr } from "@/lib/utils";
 import { TournamentCard } from "@/components/TournamentCard";
 import { CardSkeleton, EmptyState, LoadingState } from "@/components/ui";
 import { DownloadBanner } from "@/components/home/DownloadBanner";
@@ -43,6 +43,8 @@ interface GameChoice {
 export default function HomePage() {
   const { user } = useAuth();
   const [tournaments, setTournaments] = useState<any[]>([]);
+  const [challenges, setChallenges] = useState<any[]>([]);
+  const [matches, setMatches] = useState<any>(null);
   const [wallet, setWallet] = useState<any>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [stats, setStats] = useState<{ activeUsers: number; totalDownloads: number } | null>(null);
@@ -51,8 +53,10 @@ export default function HomePage() {
   useEffect(() => {
     Promise.all([
       api("/tournaments").then(setTournaments),
+      api("/challenges?limit=4").then(setChallenges).catch(() => setChallenges([])),
       api("/categories").then(setCategories).catch(() => setCategories([])),
       api("/app/stats").then(setStats).catch(() => null),
+      user ? api("/me/matches").then(setMatches).catch(() => null) : Promise.resolve(),
       user
         ? api("/wallet")
             .then(setWallet)
@@ -114,6 +118,13 @@ export default function HomePage() {
 
   const activeCount = tournaments.filter((t) => t.status === "ONGOING" || t.status === "UPCOMING").length;
   const totalPrize = tournaments.reduce((sum, t) => sum + (t.prizePoolNpr ?? 0), 0);
+  const latestMatch = matches
+    ? [...(matches.tournaments ?? []), ...(matches.challenges ?? [])].sort((a: any, b: any) => {
+        const left = new Date(a.joinedAt ?? a.createdAt ?? 0).getTime();
+        const right = new Date(b.joinedAt ?? b.createdAt ?? 0).getTime();
+        return right - left;
+      })[0]
+    : null;
 
   return (
     <>
@@ -251,6 +262,49 @@ export default function HomePage() {
           )}
         </section>
 
+        {/* Challenge Rooms */}
+        <section>
+          <div className="fs-section-header">
+            <span className="fs-section-title">Challenge Rooms</span>
+            <Link href="/challenges" className="fs-section-link">View all</Link>
+          </div>
+          {loading ? (
+            <LoadingState label="Loading challenges..." />
+          ) : challenges.length === 0 ? (
+            <EmptyState
+              title="No challenges yet"
+              description="Fresh custom rooms will appear here as soon as players create them."
+            />
+          ) : (
+            <div className="space-y-3">
+              {challenges.map((challenge) => (
+                <ChallengeRoomCard key={challenge.id} challenge={challenge} />
+              ))}
+            </div>
+          )}
+        </section>
+
+        {user && latestMatch && (
+          <section>
+            <div className="fs-section-header">
+              <span className="fs-section-title">My Matches</span>
+              <Link href="/my-matches" className="fs-section-link">Open hub</Link>
+            </div>
+            <Link
+              href={latestMatch.tournament ? `/tournaments/${latestMatch.tournament.id}` : `/challenges/${latestMatch.id}`}
+              className="block rounded-xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] p-4"
+            >
+              <p className="text-[10px] uppercase tracking-[0.24em] text-[var(--fs-text-3)]">Latest activity</p>
+              <p className="mt-2 text-sm font-semibold text-[var(--fs-text-1)]">
+                {latestMatch.title ?? latestMatch.tournament?.title ?? "Match"}
+              </p>
+              <p className="mt-1 text-xs text-[var(--fs-text-3)]">
+                {latestMatch.status ?? latestMatch.tournament?.status ?? "ACTIVE"} · Check room, results, and dispute status in one place.
+              </p>
+            </Link>
+          </section>
+        )}
+
         <DownloadBanner />
 
         {/* Quick Links */}
@@ -274,5 +328,47 @@ export default function HomePage() {
         </section>
       </div>
     </>
+  );
+}
+
+function ChallengeRoomCard({ challenge }: { challenge: any }) {
+  const createdAt = challenge.createdAt ? new Date(challenge.createdAt) : null;
+  const statusTone: Record<string, string> = {
+    OPEN: "fs-badge-green",
+    MATCHED: "fs-badge-amber",
+    ROOM_SHARED: "fs-badge-amber",
+    ONGOING: "fs-badge-red",
+    PENDING_RESULTS: "fs-badge-amber",
+    COMPLETED: "fs-badge",
+    CANCELLED: "fs-badge",
+    DISPUTED: "fs-badge-red",
+  };
+
+  return (
+    <Link
+      href={`/challenges/${challenge.id}`}
+      className="block rounded-xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] p-4 transition hover:border-[rgba(255,255,255,0.16)]"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[10px] uppercase tracking-[0.24em] text-[var(--fs-text-3)]">
+            {challenge.challengeNumber ?? "Challenge"}
+          </p>
+          <p className="mt-1 truncate text-sm font-semibold text-[var(--fs-text-1)]">
+            {challenge.title}
+          </p>
+          <p className="mt-1 text-xs text-[var(--fs-text-3)]">
+            {challenge.opponentId ? "Matched room" : "Open room"} · {challenge.gameMode}
+          </p>
+        </div>
+        <span className={statusTone[challenge.status] ?? "fs-badge"}>
+          {challenge.status}
+        </span>
+      </div>
+      <div className="mt-3 flex items-center justify-between text-xs text-[var(--fs-text-3)]">
+        <span>{createdAt ? fmtDate(createdAt.toISOString()) : "New"}</span>
+        <span>{challenge.opponentId ? "Opponent locked" : "Waiting for opponent"}</span>
+      </div>
+    </Link>
   );
 }

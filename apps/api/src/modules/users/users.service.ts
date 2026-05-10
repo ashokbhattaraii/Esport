@@ -67,4 +67,49 @@ export class UsersService {
       },
     );
   }
+
+  async myMatches(userId: string) {
+    const [tournaments, challenges] = await Promise.all([
+      this.prisma.tournamentParticipant.findMany({
+        where: { userId },
+        include: {
+          tournament: {
+            select: {
+              id: true,
+              title: true,
+              mode: true,
+              type: true,
+              status: true,
+              dateTime: true,
+              entryFeeNpr: true,
+              prizePoolNpr: true,
+              maxSlots: true,
+              filledSlots: true,
+              coverUrl: true,
+            },
+          },
+        },
+        orderBy: { joinedAt: 'desc' },
+      }),
+      this.prisma.challenge.findMany({
+        where: { OR: [{ creatorId: userId }, { opponentId: userId }] },
+        include: {
+          creator: { select: { id: true, name: true, profile: true } },
+          opponent: { select: { id: true, name: true, profile: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
+    return {
+      tournaments,
+      challenges,
+      counts: {
+        tournaments: tournaments.length,
+        challenges: challenges.length,
+        createdChallenges: challenges.filter((challenge) => challenge.creatorId === userId).length,
+        joinedChallenges: challenges.filter((challenge) => challenge.opponentId === userId).length,
+      },
+    };
+  }
 }

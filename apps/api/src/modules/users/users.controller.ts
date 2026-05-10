@@ -21,4 +21,10 @@ export class UsersController {
   leaderboard() {
     return this.users.leaderboard();
   }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('me/matches')
+  matches(@CurrentUser() u: any) {
+    return this.users.myMatches(u.sub);
+  }
 }

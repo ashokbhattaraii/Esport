@@ -7,9 +7,9 @@ import { useAuth } from "@/lib/auth-context";
 import {
   Bell,
   Flame,
+  ListChecks,
   LogOut,
   Shield,
-  LifeBuoy,
   Wallet,
 } from "lucide-react";
 import { ViewportToggle } from "./ViewportToggle";
@@ -85,12 +85,12 @@ export function Navbar() {
                 )}
               </Link>
               <Link
-                href="/support"
+                href="/my-matches"
                 className="flex h-9 w-9 items-center justify-center rounded-lg"
                 style={{ background: 'var(--fs-surface-2)', border: '1px solid var(--fs-border)' }}
-                aria-label="Support"
+                aria-label="My Matches"
               >
-                <LifeBuoy size={17} style={{ color: 'var(--fs-text-2)' }} />
+                <ListChecks size={17} style={{ color: 'var(--fs-text-2)' }} />
               </Link>
               {(user.role === "ADMIN" || user.role === "SUPER_ADMIN") && (
                 <Link

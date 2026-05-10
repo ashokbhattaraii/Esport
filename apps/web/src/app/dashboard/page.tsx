@@ -19,7 +19,7 @@ import { PageLoading } from "@/components/ui";
 export default function Dashboard() {
   const { user, loading } = useAuth();
   const [wallet, setWallet] = useState<any>(null);
-  const [joined, setJoined] = useState<any[]>([]);
+  const [matches, setMatches] = useState<any>(null);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
   const [dashboardLoading, setDashboardLoading] = useState(false);
@@ -31,9 +31,9 @@ export default function Dashboard() {
       api("/wallet")
         .then(setWallet)
         .catch(() => null),
-      api("/tournaments/me/joined")
-        .then(setJoined)
-        .catch(() => []),
+      api("/me/matches")
+        .then(setMatches)
+        .catch(() => null),
       api("/notifications")
         .then(setNotifications)
         .catch(() => []),
@@ -43,13 +43,14 @@ export default function Dashboard() {
     ]).finally(() => setDashboardLoading(false));
   }, [user]);
 
+  const joined = useMemo(() => matches?.tournaments ?? [], [matches]);
   const nextMatch = useMemo(
     () =>
       joined
-        .map((p) => p.tournament)
-        .filter((t) => t && new Date(t.dateTime).getTime() >= Date.now())
+        .map((p: any) => p.tournament)
+        .filter((t: any) => t && new Date(t.dateTime).getTime() >= Date.now())
         .sort(
-          (a, b) =>
+          (a: any, b: any) =>
             new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime(),
         )[0],
     [joined],
@@ -135,8 +136,8 @@ export default function Dashboard() {
         <MenuItem
           icon={<Trophy size={19} />}
           title="My Matches"
-          detail={`${joined.length} joined`}
-          href="/tournaments"
+          detail={`${matches?.counts?.tournaments ?? 0} tournament(s), ${matches?.counts?.challenges ?? 0} challenge(s)`}
+          href="/my-matches"
         />
         <MenuItem
           icon={<Wallet size={19} />}
