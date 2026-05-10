@@ -619,3 +619,30 @@ function PreviewRow({
     </div>
   );
 }
+
+function ModeCard({
+  active,
+  title,
+  subtitle,
+  onClick,
+}: {
+  active: boolean;
+  title: string;
+  subtitle: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-[22px] border p-4 text-left transition ${
+        active
+          ? "border-[#E53935]/60 bg-[linear-gradient(180deg,rgba(229,57,53,0.18),rgba(17,17,38,0.95))] text-white shadow-[0_18px_40px_rgba(229,57,53,0.15)]"
+          : "border-white/8 bg-white/5 text-white/70 hover:border-white/15 hover:bg-white/8"
+      }`}
+    >
+      <p className="font-semibold">{title}</p>
+      <p className="mt-1 text-xs leading-5 text-white/55">{subtitle}</p>
+    </button>
+  );
+}

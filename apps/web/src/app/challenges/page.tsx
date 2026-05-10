@@ -15,10 +15,6 @@ type Status = "OPEN" | "MATCHED" | "COMPLETED" | "ALL";
 export default function ChallengesPage() {
   const { user } = useAuth();
   const { isEnabled } = useFlags();
-
-  if (!isEnabled("CHALLENGE_ENABLED")) {
-    return <FeatureDisabledPage name="Challenges" />;
-  }
   const toast = useToast();
   const [items, setItems] = useState<any[]>([]);
   const [gameMode, setGameMode] = useState<GameMode>("ALL");
@@ -42,6 +38,10 @@ export default function ChallengesPage() {
     }
   }
   useEffect(() => { load().catch(() => {}); }, [gameMode, status]);
+
+  if (!isEnabled("CHALLENGE_ENABLED")) {
+    return <FeatureDisabledPage name="Challenges" />;
+  }
 
   async function quickJoin(id: string) {
     if (!user) return toast.warning("Please sign in to join.");

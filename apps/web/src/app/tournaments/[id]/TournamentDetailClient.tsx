@@ -59,7 +59,6 @@ export default function TournamentDetailClient() {
     setRosterUids(Array.from({ length: count }, () => ""));
   }, [t?.mode]);
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { roomJustPublished } = useTournamentRealtime(id, {
     onRoomPublished: () => {
       toast.success("Room details are live!");
@@ -67,6 +66,7 @@ export default function TournamentDetailClient() {
     },
     onStatusChanged: () => load(),
   });
+  void roomJustPublished;
 
   async function join(payload?: { playerUids?: string[]; teammates?: {freefireUid:string;igName:string}[] }) {
     if (!user) return router.push("/login");

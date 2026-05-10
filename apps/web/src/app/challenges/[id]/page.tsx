@@ -307,7 +307,7 @@ export default function ChallengeDetailPage() {
         <Modal onClose={() => setShowRulesModal(false)}>
           <div className="rounded-md bg-purple-900/40 px-3 py-2 mb-3 flex items-center gap-2">
             <Gamepad2 size={14} />
-            <span className="text-sm">{creatorIgn}'s Match</span>
+            <span className="text-sm">{creatorIgn}&apos;s Match</span>
           </div>
           <h3 className="font-display text-base text-white mb-2">Match Rules</h3>
           <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-md bg-black/40 p-3 text-xs text-white/80">

@@ -42,10 +42,6 @@ interface TicketDetail extends Ticket {
 export default function SupportPage() {
   const { user, loading: authLoading } = useAuth();
   const { isEnabled } = useFlags();
-
-  if (!isEnabled("SUPPORT_ENABLED")) {
-    return <FeatureDisabledPage name="Support" />;
-  }
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
   const [detail, setDetail] = useState<TicketDetail | null>(null);
@@ -65,6 +61,10 @@ export default function SupportPage() {
     } finally { setTicketsLoading(false); }
   }
   useEffect(() => { if (user) load().catch(() => {}); }, [user]);
+
+  if (!isEnabled("SUPPORT_ENABLED")) {
+    return <FeatureDisabledPage name="Support" />;
+  }
 
   async function loadDetail(id: string) {
     setOpenId(id);
