@@ -2,7 +2,7 @@
   "name": "@fireslot/api",
   "version": "0.1.0",
   "scripts": {
-    "build": "pnpm --filter @fireslot/db generate && pnpm --filter @fireslot/db build && nest build",
+    "build": "pnpm --filter @fireslot/shared build && pnpm --filter @fireslot/db generate && pnpm --filter @fireslot/db build && nest build",
     "dev": "nest start --watch",
     "start": "node dist/main.js",
     "lint": "eslint src --ext .ts"
