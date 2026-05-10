@@ -5,18 +5,20 @@ import {
   Module,
   Param,
   Post,
+  NotFoundException,
   UseGuards,
 } from "@nestjs/common";
 import { JwtAuthGuard } from "../../common/guards/jwt.guard";
 import { Roles, RolesGuard } from "../../common/guards/roles.guard";
 import { PrismaClient, Role } from "@fireslot/db";
 import { PRISMA } from "../../prisma/prisma.module";
+import { ProfileService } from "../profile/profile.service";
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.ADMIN)
 @Controller("admin")
 export class AdminController {
-  constructor(@Inject(PRISMA) private prisma: PrismaClient) {}
+  constructor(@Inject(PRISMA) private prisma: PrismaClient, private profiles: ProfileService) {}
 
   @Get("stats")
   async stats() {
@@ -123,15 +125,61 @@ export class AdminController {
   }
 
   @Post("users/:id/ban")
-  ban(@Param("id") id: string) {
-    return this.prisma.user.update({ where: { id }, data: { isBanned: true } });
+  async ban(@Param("id") id: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: { id: true, isBanned: true, profile: { select: { freeFireUid: true, isBlacklisted: true, blacklistReason: true } } },
+    });
+    if (!user) throw new NotFoundException("User not found");
+
+    if (user.profile?.freeFireUid) {
+      await this.profiles.blacklistFreeFireUid({
+        freeFireUid: user.profile.freeFireUid,
+        userId: id,
+        reason: user.profile.blacklistReason ?? "Account banned",
+      });
+    }
+
+    return this.prisma.user.update({
+      where: { id },
+      data: {
+        isBanned: true,
+        profile: user.profile
+          ? {
+              update: {
+                isBlacklisted: true,
+                blacklistReason: user.profile.blacklistReason ?? "Account banned",
+              },
+            }
+          : undefined,
+      },
+    });
   }
 
   @Post("users/:id/unban")
-  unban(@Param("id") id: string) {
+  async unban(@Param("id") id: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: { profile: { select: { freeFireUid: true } } },
+    });
+
+    if (user?.profile?.freeFireUid) {
+      await this.profiles.removeFreeFireUidBlacklist(user.profile.freeFireUid);
+    }
+
     return this.prisma.user.update({
       where: { id },
-      data: { isBanned: false },
+      data: {
+        isBanned: false,
+        profile: user?.profile
+          ? {
+              update: {
+                isBlacklisted: false,
+                blacklistReason: null,
+              },
+            }
+          : undefined,
+      },
     });
   }
 
@@ -161,11 +209,12 @@ import { FinanceController } from "../finance/finance.controller";
 import { PermissionsGuard } from "../../common/guards/permissions.guard";
 import { FeatureFlagGuard } from "../../common/guards/feature-flag.guard";
 import { StorageModule } from "../../common/storage/storage.module";
+import { ProfileModule } from "../profile/profile.module";
 import { MulterModule } from "@nestjs/platform-express";
 import { memoryStorage } from "multer";
 
 @Module({
-  imports: [StorageModule, MulterModule.register({ storage: memoryStorage() })],
+  imports: [StorageModule, ProfileModule, MulterModule.register({ storage: memoryStorage() })],
   controllers: [
     AdminController,
     SystemConfigController,

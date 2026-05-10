@@ -29,6 +29,7 @@ import { MemoryCacheService } from "../../common/cache/memory-cache.service";
 import { RealtimeService } from "../../common/realtime/realtime.service";
 import { Errors } from "../../common/errors";
 import { createHash } from "crypto";
+import { ProfileService } from "../profile/profile.service";
 import {
   TOURNAMENT_LIST_CACHE_PREFIX,
   invalidateTournamentCaches,
@@ -130,6 +131,7 @@ export class TournamentsService implements OnModuleInit {
     private freeDailyWindows: FreeDailyWindowService,
     private cache: MemoryCacheService,
     private realtime: RealtimeService,
+    private profiles: ProfileService,
   ) {}
 
   onModuleInit() {
@@ -523,6 +525,15 @@ export class TournamentsService implements OnModuleInit {
       checks.passed = false;
       checks.reason = "ACCOUNT_BANNED";
       checks.message = "Your account is banned.";
+    } else if (user.profile?.freeFireUid) {
+      const uidCheck = await this.prisma.bannedFreeFireUid.findUnique({
+        where: { freeFireUid: user.profile.freeFireUid },
+      });
+      if (uidCheck) {
+        checks.passed = false;
+        checks.reason = "ACCOUNT_BANNED";
+        checks.message = uidCheck.reason ?? "Your Free Fire UID is banned.";
+      }
     } else if (user.profile?.isBlacklisted) {
       checks.passed = false;
       checks.reason = "BLACKLISTED";
@@ -604,6 +615,9 @@ export class TournamentsService implements OnModuleInit {
     });
     if (!user) throw new NotFoundException("User not found");
     if (user.isBanned) throw new ForbiddenException(Errors.BANNED);
+    if (user.profile?.freeFireUid) {
+      await this.profiles.assertFreeFireUidAllowed(user.profile.freeFireUid);
+    }
 
     // Edge case: profile incomplete
     if (!user.profile?.freeFireUid) {

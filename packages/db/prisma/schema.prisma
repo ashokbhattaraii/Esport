@@ -363,6 +363,7 @@ model User {
   supportTickets SupportTicket[]
   pushTokens     UserPushToken[]
   financialRiskProfile FinancialRiskProfile?
+  bannedFreeFireUids BannedFreeFireUid[]
 
   @@index([role])
   @@index([roleId])
@@ -460,6 +461,19 @@ model PlayerProfile {
   isBlacklisted   Boolean @default(false)
   blacklistReason String?
   user            User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model BannedFreeFireUid {
+  id        String   @id @default(cuid())
+  freeFireUid String @unique
+  userId    String?
+  reason    String?
+  bannedAt  DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([bannedAt])
 }
 
 model TournamentEligibilityCheck {

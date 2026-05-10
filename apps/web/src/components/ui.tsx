@@ -65,7 +65,7 @@ export function StatusBadge({ status }: { status: string }) {
       ? "border-neon-green/50 bg-neon-green/10 text-neon-green"
       : status === "REJECTED" || status === "CANCELLED" || status === "DEBIT"
         ? "border-red-400/50 bg-red-500/10 text-red-300"
-        : status === "PENDING" || status === "UPCOMING" || status === "OPEN"
+        : status === "PENDING" || status === "UPCOMING" || status === "OPEN" || status === "PENDING_RESULTS"
           ? "border-neon-orange/50 bg-neon-orange/10 text-neon-orange"
           : "border-white/20 bg-white/5 text-white/60";
 

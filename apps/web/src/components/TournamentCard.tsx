@@ -16,6 +16,7 @@ import { fmtDate, npr } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { Gift } from "lucide-react";
+import { StatusBadge } from "@/components/ui";
 
 export function TournamentCard({ t }: { t: any }) {
   const full = t.filledSlots >= t.maxSlots;
@@ -118,6 +119,7 @@ export function TournamentCard({ t }: { t: any }) {
         <div className="flex items-center gap-2 flex-wrap">
           <span className={modeBadgeClass}>{modeLabel}</span>
           <span className="fs-badge fs-badge-gray">{t.map ?? TournamentTypeLabels[type]}</span>
+          <StatusBadge status={t.status} />
           {isFree && (
             <span className="fs-badge fs-badge-green flex items-center gap-1">
               <Gift size={10} /> FREE

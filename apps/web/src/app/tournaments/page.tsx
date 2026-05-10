@@ -5,7 +5,7 @@ import { api } from "@/lib/api";
 import { Trophy, Users, Coins, ChevronDown, MapPin, Bomb } from "lucide-react";
 import { fmtDate, npr } from "@/lib/utils";
 import { calculatePrize, formatSlots, isWinnerTakesAllOnly } from "@fireslot/shared";
-import { CardSkeleton, LoadingState } from "@/components/ui";
+import { CardSkeleton, LoadingState, StatusBadge } from "@/components/ui";
 
 type Tab = "ONGOING" | "UPCOMING" | "RESULTS";
 
@@ -126,6 +126,7 @@ function TournamentRow({
               <MapPin size={10} /> {t.map}
             </span>
           )}
+          <StatusBadge status={t.status} />
         </div>
 
         <h3 className="font-display text-lg text-white flex items-center gap-2">

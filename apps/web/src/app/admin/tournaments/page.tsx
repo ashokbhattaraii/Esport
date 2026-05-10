@@ -481,12 +481,12 @@ export default function AdminTournaments() {
                 <select
                   onChange={(e) => setStatus(t.id, e.target.value)}
                   className="input text-xs flex-1 min-w-[120px]"
-                  defaultValue=""
+                  value={t.status}
                   disabled={actionKey?.startsWith(`${t.id}:`)}
                 >
-                  <option value="" disabled>Status</option>
                   <option value="UPCOMING">UPCOMING</option>
                   <option value="LIVE">LIVE</option>
+                  <option value="PENDING_RESULTS">PENDING_RESULTS</option>
                   <option value="COMPLETED">COMPLETED</option>
                   <option value="CANCELLED">CANCELLED</option>
                 </select>

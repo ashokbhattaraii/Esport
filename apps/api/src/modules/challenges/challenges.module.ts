@@ -6,9 +6,10 @@ import {
 } from "./challenges.controller";
 import { ChallengesService } from "./challenges.service";
 import { AdminModule } from "../admin/admin.module";
+import { ProfileModule } from "../profile/profile.module";
 
 @Module({
-  imports: [AdminModule],
+  imports: [AdminModule, ProfileModule],
   controllers: [
     ChallengesController,
     AdminChallengesController,

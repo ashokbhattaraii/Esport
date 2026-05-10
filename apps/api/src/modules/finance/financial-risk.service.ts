@@ -1,12 +1,13 @@
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaClient } from "@fireslot/db";
 import { PRISMA } from "../../prisma/prisma.module";
+import { ProfileService } from "../profile/profile.service";
 
 type RiskLevel = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 
 @Injectable()
 export class FinancialRiskService {
-  constructor(@Inject(PRISMA) private prisma: PrismaClient) {}
+  constructor(@Inject(PRISMA) private prisma: PrismaClient, private profiles: ProfileService) {}
 
   async buildRiskProfile(userId: string) {
     const [user, existingProfile, transactions, participants, disputes, payments, withdrawals] =
@@ -275,7 +276,27 @@ export class FinancialRiskService {
   }
 
   async blacklistUser(userId: string, reason: string, adminId: string) {
-    const profile = await this.buildRiskProfile(userId);
+    const [profile, user] = await Promise.all([
+      this.buildRiskProfile(userId),
+      this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, profile: { select: { freeFireUid: true } } },
+      }),
+    ]);
+    if (!user) throw new NotFoundException("User not found");
+    if (user.profile?.freeFireUid) {
+      await this.profiles.blacklistFreeFireUid({
+        freeFireUid: user.profile.freeFireUid,
+        userId,
+        reason,
+      });
+    }
+    if (user.profile?.freeFireUid) {
+      await this.prisma.playerProfile.update({
+        where: { userId },
+        data: { isBlacklisted: true, blacklistReason: reason },
+      });
+    }
     return this.prisma.financialRiskProfile.update({
       where: { userId },
       data: {
@@ -290,7 +311,21 @@ export class FinancialRiskService {
   }
 
   async removeBlacklist(userId: string, adminId: string) {
-    const profile = await this.buildRiskProfile(userId);
+    const [profile, user] = await Promise.all([
+      this.buildRiskProfile(userId),
+      this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, profile: { select: { freeFireUid: true } } },
+      }),
+    ]);
+    if (!user) throw new NotFoundException("User not found");
+    if (user.profile?.freeFireUid) {
+      await this.profiles.removeFreeFireUidBlacklist(user.profile.freeFireUid);
+      await this.prisma.playerProfile.update({
+        where: { userId },
+        data: { isBlacklisted: false, blacklistReason: null },
+      });
+    }
     return this.prisma.financialRiskProfile.update({
       where: { userId },
       data: {

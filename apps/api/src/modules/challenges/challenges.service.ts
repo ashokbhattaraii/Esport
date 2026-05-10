@@ -15,6 +15,7 @@ import { PRISMA } from "../../prisma/prisma.module";
 import { SystemConfigService } from "../admin/system-config.service";
 import { RealtimeService } from "../../common/realtime/realtime.service";
 import { MemoryCacheService } from "../../common/cache/memory-cache.service";
+import { ProfileService } from "../profile/profile.service";
 
 const CHALLENGE_LIST_CACHE_PREFIX = "challenges:list:";
 const CHALLENGE_DETAIL_CACHE_PREFIX = "challenges:detail:";
@@ -141,6 +142,7 @@ export class ChallengesService {
     private config: SystemConfigService,
     private realtime: RealtimeService,
     private cache: MemoryCacheService,
+    private profiles: ProfileService,
   ) {}
 
   getChallengeRulesText(c: any): string {
@@ -374,6 +376,9 @@ export class ChallengesService {
     });
     if (!user) throw new NotFoundException("User not found");
     if (user.isBanned) throw new ForbiddenException("Account banned");
+    if (user.profile?.freeFireUid) {
+      await this.profiles.assertFreeFireUidAllowed(user.profile.freeFireUid);
+    }
     if (user.profile?.isBlacklisted)
       throw new ForbiddenException(user.profile.blacklistReason ?? "Blacklisted");
     if (c.minLevel > 0 && (user.profile?.level ?? 0) < c.minLevel)
