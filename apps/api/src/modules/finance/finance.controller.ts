@@ -53,7 +53,14 @@ export class FinanceController {
     if (!withdrawal) throw new NotFoundException("Withdrawal not found");
     if (withdrawal.status !== "PENDING") throw new BadRequestException("Already processed");
     const check = await this.risk.checkWithdrawalRisk(withdrawal.userId, withdrawal.amountNpr);
-    if (check.blockedReason) throw new ForbiddenException(`Cannot approve: ${check.blockedReason}`);
+    const force = (body as any)?.force === true;
+    if (check.blockedReason && !force) throw new ForbiddenException(`Cannot approve: ${check.blockedReason}`);
+    if (check.blockedReason && force) {
+      const actor = await this.prisma.user.findUnique({ where: { id: user.sub }, select: { role: true } });
+      if (!actor || (actor.role !== Role.ADMIN && actor.role !== Role.SUPER_ADMIN)) {
+        throw new ForbiddenException("Only ADMIN or SUPER_ADMIN can force-approve critical withdrawals");
+      }
+    }
     const wallet = await this.prisma.wallet.findUnique({ where: { userId: withdrawal.userId } });
     if (!wallet) throw new NotFoundException("Wallet not found");
     if (wallet.balanceNpr < withdrawal.amountNpr) {
@@ -80,7 +87,7 @@ export class FinanceController {
         data: { walletId: wallet.id, type: "DEBIT", reason: "WITHDRAWAL", amountNpr: withdrawal.amountNpr, note: `Withdrawal approved by ${user.sub}` },
       });
       await tx.adminActionLog.create({
-        data: { adminId: user.sub, action: "APPROVE_WITHDRAWAL", resource: "withdrawal", resourceId: id, newValue: { status: "APPROVED", amountNpr: withdrawal.amountNpr, reviewId: review.id } },
+        data: { adminId: user.sub, action: check.blockedReason && force ? "FORCE_APPROVE_WITHDRAWAL" : "APPROVE_WITHDRAWAL", resource: "withdrawal", resourceId: id, newValue: { status: "APPROVED", amountNpr: withdrawal.amountNpr, reviewId: review.id, override: force ? true : false }, oldValue: check.blockedReason ? { blockedReason: check.blockedReason } : undefined },
       });
       await tx.notification.create({
         data: { userId: withdrawal.userId, type: "WALLET", title: "Withdrawal approved", body: `Your withdrawal of NPR ${withdrawal.amountNpr} has been approved.` },
@@ -191,7 +198,14 @@ export class FinanceController {
     if (!payment) throw new NotFoundException("Payment not found");
     if (payment.status !== "PENDING") throw new BadRequestException("Already processed");
     const check = await this.risk.checkDepositRisk(payment.userId);
-    if (check.blockedReason) throw new ForbiddenException(check.blockedReason);
+    const force = (body as any)?.force === true;
+    if (check.blockedReason && !force) throw new ForbiddenException(check.blockedReason);
+    if (check.blockedReason && force) {
+      const actor = await this.prisma.user.findUnique({ where: { id: user.sub }, select: { role: true } });
+      if (!actor || (actor.role !== Role.ADMIN && actor.role !== Role.SUPER_ADMIN)) {
+        throw new ForbiddenException("Only ADMIN or SUPER_ADMIN can force-approve critical payments");
+      }
+    }
     await this.prisma.$transaction(async (tx) => {
       await tx.depositReview.create({
         data: { paymentId: id, reviewedBy: user.sub, riskSnapshot: check.profile as any, reviewNote: body.reviewNote, decision: "APPROVED", ipAddress: req.ip },
@@ -217,7 +231,7 @@ export class FinanceController {
         data: { userId: payment.userId, type: "PAYMENT", title: payment.tournamentId ? "Payment approved" : "Deposit approved", body: payment.tournamentId ? "Your payment has been approved. Room details are now visible." : `Your wallet deposit of NPR ${payment.amountNpr} has been approved.` },
       });
       await tx.adminActionLog.create({
-        data: { adminId: user.sub, action: "APPROVE_PAYMENT", resource: "payment", resourceId: id, newValue: { status: "APPROVED", amountNpr: payment.amountNpr } },
+        data: { adminId: user.sub, action: check.blockedReason && force ? "FORCE_APPROVE_PAYMENT" : "APPROVE_PAYMENT", resource: "payment", resourceId: id, newValue: { status: "APPROVED", amountNpr: payment.amountNpr, override: force ? true : false }, oldValue: check.blockedReason ? { blockedReason: check.blockedReason } : undefined },
       });
     });
     return { ok: true };

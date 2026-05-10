@@ -112,11 +112,12 @@ export function WithdrawalReviewPanel({ withdrawalId, kind = "withdrawal", onClo
     return () => observer.disconnect();
   }, [data]);
 
-  async function submitDecision(decision: "approve" | "reject") {
+  async function submitDecision(decision: "approve" | "reject", force = false) {
     const body =
       decision === "approve"
         ? { reviewNote }
         : { reason: rejectReason.trim() || reviewNote.trim() };
+    if (force) (body as any).force = true;
     if (decision === "approve") {
       const label = kind === "payment" ? "Deposit" : "Withdrawal";
       const ok = window.confirm(
@@ -329,9 +330,24 @@ export function WithdrawalReviewPanel({ withdrawalId, kind = "withdrawal", onClo
               <button className="btn-outline" disabled={rejectDisabled} onClick={() => submitDecision("reject")}>
                 {actioning === "reject" ? "Rejecting..." : "Reject"}
               </button>
-              <button className="btn-primary" disabled={approveDisabled} onClick={() => submitDecision("approve")}>
-                {actioning === "approve" ? "Approving..." : blockedReason ? "Blocked" : riskLevel === "CRITICAL" ? "CRITICAL risk" : "Approve"}
-              </button>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button className="btn-primary" disabled={approveDisabled} onClick={() => submitDecision("approve")}>{actioning === "approve" ? "Approving..." : "Approve"}</button>
+                {(blockedReason || riskLevel === "CRITICAL") && (
+                  <button
+                    className="btn-ghost"
+                    style={{ background: "rgba(239,68,68,0.08)", color: "#ff6b6b", border: "1px solid rgba(239,68,68,0.16)" }}
+                    onClick={() => {
+                      const ok = window.confirm(
+                        `FORCE Approve\n\nThis user is flagged: ${blockedReason ?? riskLevel}. Only ADMIN/SUPER_ADMIN may force-approve. This will be logged. Continue?`,
+                      );
+                      if (!ok) return;
+                      submitDecision("approve", true);
+                    }}
+                  >
+                    {actioning === "approve" ? "Approving..." : "Approve Anyway"}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         )}
