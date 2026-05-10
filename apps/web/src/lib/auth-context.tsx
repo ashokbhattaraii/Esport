@@ -7,7 +7,7 @@ type User = {
   email: string;
   name?: string | null;
   avatarUrl?: string | null;
-  role: "PLAYER" | "ADMIN" | "SUPER_ADMIN";
+  role: "PLAYER" | "ADMIN" | "FINANCE" | "SUPER_ADMIN";
   isBanned?: boolean;
   createdAt?: string;
   profile?: any;
