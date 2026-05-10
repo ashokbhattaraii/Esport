@@ -165,7 +165,7 @@ export default function MyMatchesPage() {
                   <div className="min-w-0">
                     <p className="truncate font-semibold text-[var(--fs-text-1)]">{entry.tournament.title}</p>
                     <p className="text-sm text-[var(--fs-text-3)]">
-                      {fmtDate(entry.tournament.dateTime)} · Rs {npr(entry.tournament.entryFee)} entry
+                      {fmtDate(entry.tournament.dateTime)} · {npr(entry.tournament.entryFeeNpr ?? 0)} entry
                     </p>
                   </div>
                   <span className="fs-badge fs-badge-green">{entry.tournament.status}</span>
