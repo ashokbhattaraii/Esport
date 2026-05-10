@@ -1,11 +1,10 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Gamepad2, Coins, ChevronDown, ChevronUp } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { useToast, handleJoinError } from "@/lib/toast";
-import { ButtonLoading } from "@/components/ui";
+import { ButtonLoading, PageHeader } from "@/components/ui";
 
 type GameMode = "BR" | "CS" | "LW";
 
@@ -88,6 +87,14 @@ export default function CreateChallengePage() {
   }, [entryFee, gameMode, csPlayerCount]);
 
   const igName = user?.profile?.ign ?? user?.name ?? user?.email ?? "Player";
+  const modeTitle = gameMode === "CS" ? "Clash Squad" : gameMode === "LW" ? "Lone Wolf" : "Battle Royale";
+  const modeDescription =
+    gameMode === "CS"
+      ? "Fast, team-based fights with tighter round control."
+      : gameMode === "LW"
+        ? "Small-format duels with the cleanest ruleset."
+        : "Classic survival format with map and win-condition control.";
+  const totalPlayers = gameMode === "CS" ? csPlayerCount : 2;
 
   async function submit() {
     if (!user) return router.push("/login");
@@ -145,351 +152,470 @@ export default function CreateChallengePage() {
   }
 
   return (
-    <div className="space-y-4 pb-32 -mx-4 px-4" style={{ background: 'var(--fs-bg)', minHeight: '100vh' }}>
-      {/* Step Indicator */}
-      <div className="flex items-center justify-center gap-2 py-3">
-        <StepDot active />
-        <div className="h-px w-8" style={{ background: 'var(--fs-border-md)' }} />
-        <StepDot active={gameMode !== undefined} />
-        <div className="h-px w-8" style={{ background: 'var(--fs-border-md)' }} />
-        <StepDot active={entryFee > 0} />
-      </div>
+    <div className="mx-auto max-w-6xl px-4 py-6 pb-32">
+      <PageHeader
+        eyebrow="Challenges"
+        title="Create Challenge"
+        description="Build a room with the same visual language used across the rest of the app, then publish it in one pass."
+        action={
+          <div className="flex flex-wrap gap-2 text-xs">
+            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-white/70">{modeTitle}</span>
+            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-white/70">Rs {entryFee} entry</span>
+            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-white/70">{isPrivate ? "Private" : "Public"}</span>
+          </div>
+        }
+      />
 
-      {/* IGN bar */}
-      <div className="fs-card fs-card-body flex items-center gap-2">
-        <Gamepad2 size={18} style={{ color: 'var(--fs-red)' }} />
-        <span className="text-sm font-semibold" style={{ color: 'var(--fs-text-1)' }}>{igName}</span>
-      </div>
-
-      {/* Entry fee */}
-      <div className="fs-card fs-card-body">
-        <label className="fs-label flex items-center gap-1"><Coins size={12} /> Entry Fee</label>
-        <input
-          type="range"
-          min={20}
-          max={50}
-          step={5}
-          value={entryFee}
-          onChange={(e) => setEntryFee(Number(e.target.value))}
-          className="w-full mt-2"
-          style={{ accentColor: 'var(--fs-gold)' }}
+      <div className="mb-5 grid gap-3 sm:grid-cols-3">
+        <MetricCard label="Current mode" value={modeTitle} helper={modeDescription} />
+        <MetricCard label="Entry fee" value={`Rs ${entryFee}`} helper="Live payout preview updates instantly." />
+        <MetricCard
+          label="Winner preview"
+          value={`Rs ${prizeToWinner}`}
+          helper={gameMode === "CS" ? `${csPlayerCount} players in the current bracket.` : `Estimated for a ${gameMode === "LW" ? "duel" : "solo"} room.`}
         />
-        <div className="mt-2 flex items-center justify-between text-xs">
-          <span style={{ color: 'var(--fs-text-2)' }}>Rs {entryFee}</span>
-          <span style={{ color: 'var(--fs-gold)' }}>Winner gets <b>Rs {prizeToWinner}</b></span>
-        </div>
       </div>
 
-      {/* Prize preview card */}
-      <div className="rounded-xl p-4 text-center" style={{ background: 'var(--fs-gold-dim)', border: '1px solid rgba(255,215,0,0.2)' }}>
-        <p className="text-lg font-bold" style={{ color: 'var(--fs-gold)' }}>Winner gets Rs {prizeToWinner}</p>
-        <p className="text-[11px] mt-1" style={{ color: 'var(--fs-text-3)' }}>Platform fee: Rs {Math.floor(entryFee * 2 * 0.2)}</p>
-      </div>
-
-      {/* Game mode tabs */}
-      <div className="fs-card fs-card-body">
-        <label className="fs-label">Game Mode</label>
-        <div className="grid grid-cols-2 gap-2 mt-2">
-          <button
-            type="button"
-            onClick={() => setGameMode("BR")}
-            className={`fs-opt ${gameMode === "BR" ? "active" : ""}`}
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,380px)]">
+        <div className="space-y-5">
+          <SectionCard
+            title="Match blueprint"
+            description="Set the room title, wallet cost, and visibility before configuring the ruleset."
           >
-            Battle Royale
-          </button>
-          <button
-            type="button"
-            onClick={() => setGameMode("CS")}
-            className={`fs-opt ${gameMode === "CS" ? "active" : ""}`}
-          >
-            Clash Squad
-          </button>
-          <button
-            type="button"
-            onClick={() => setGameMode("LW")}
-            className={`fs-opt ${gameMode === "LW" ? "active" : ""}`}
-          >
-            Lone Wolf
-          </button>
-        </div>
-      </div>
-
-      {gameMode === "CS" ? (
-        <>
-          <OptSection label="Team Mode">
-            <div className="fs-opt-grid">
-              {CS_TEAM_MODES.map((m) => (
-                <button key={m} type="button" className={`fs-opt ${csTeamMode === m ? "active" : ""}`} onClick={() => setCsTeamMode(m)}>{m}</button>
-              ))}
-            </div>
-          </OptSection>
-
-          <YesNo label="Throwable Limit" value={csThrowable} onChange={setCsThrowable} />
-          <YesNo label="Character Skill" value={characterSkill} onChange={setCharacterSkill} />
-          <YesNo label="Gun Attribute" value={gunAttribute} onChange={setGunAttribute} />
-          <YesNo label="Headshot Only" value={headshotOnly} onChange={setHeadshotOnly} reversed />
-
-          <OptSection label="Rounds">
-            <div className="fs-opt-grid">
-              <button type="button" className={`fs-opt ${csRounds === 7 ? "active" : ""}`} onClick={() => setCsRounds(7)}>7</button>
-              <button type="button" className={`fs-opt ${csRounds === 13 ? "active" : ""}`} onClick={() => setCsRounds(13)}>13</button>
-            </div>
-          </OptSection>
-
-          <OptSection label="Coins">
-            <div className="fs-opt-grid">
-              <button type="button" className={`fs-opt ${csCoins === "DEFAULT" ? "active" : ""}`} onClick={() => setCsCoins("DEFAULT")}>Default</button>
-              <button type="button" className={`fs-opt ${csCoins === "9980" ? "active" : ""}`} onClick={() => setCsCoins("9980")}>9980</button>
-            </div>
-          </OptSection>
-
-          <YesNo label="Loadout" value={csLoadout} onChange={setCsLoadout} />
-
-          <OptSection label="Compulsory Weapon">
-            <div className="fs-opt-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))' }}>
-              {CS_WEAPONS.map((w) => (
-                <button key={w} type="button" className={`fs-opt ${csCompulsoryWeapon === w ? "active" : ""}`} onClick={() => setCsCompulsoryWeapon(w)}>
-                  {w === "NONE" ? "None" : w}
-                </button>
-              ))}
-            </div>
-          </OptSection>
-
-          <OptSection label="Compulsory Armour">
-            <div className="fs-opt-grid" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
-              {CS_ARMOURS.map((a) => (
-                <button key={a.val} type="button" className={`fs-opt ${csCompulsoryArmour === a.val ? "active" : ""}`} onClick={() => setCsCompulsoryArmour(a.val)}>
-                  {a.label}
-                </button>
-              ))}
-            </div>
-          </OptSection>
-        </>
-      ) : gameMode === "LW" ? (
-        <>
-          <OptSection label="Team Mode">
-            <div className="fs-opt-grid">
-              {LW_TEAM_MODES.map((m) => (
-                <button key={m} type="button" className={`fs-opt ${lwTeamMode === m ? "active" : ""}`} onClick={() => setLwTeamMode(m)}>{m}</button>
-              ))}
-            </div>
-          </OptSection>
-          <p className="text-[11px] text-white/60">Lone Wolf matches are 1v1 or 2v2 solo-style matches with headshot rules enabled.</p>
-        </>
-      ) : (
-        <>
-          <OptSection label="Map">
-            <div className="fs-opt-grid">
-              {BR_MAPS.map((m) => (
-                <button key={m} type="button" className={`fs-opt ${brMap === m ? "active" : ""}`} onClick={() => setBrMap(m)}>
-                  {m.charAt(0) + m.slice(1).toLowerCase()}
-                </button>
-              ))}
-            </div>
-          </OptSection>
-
-          <OptSection label="Team Mode">
-            <div className="fs-opt-grid" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
-              {BR_TEAM_MODES.map((m) => (
-                <button key={m} type="button" className={`fs-opt ${brTeamMode === m ? "active" : ""}`} onClick={() => setBrTeamMode(m)}>
-                  {m.charAt(0) + m.slice(1).toLowerCase()}
-                </button>
-              ))}
-            </div>
-          </OptSection>
-
-          <OptSection label="Win Condition">
-            <div className="fs-opt-grid" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
-              {BR_WIN_CONDITIONS.map((w) => (
-                <button key={w.val} type="button" className={`fs-opt ${brWinCondition === w.val ? "active" : ""}`} onClick={() => setBrWinCondition(w.val)}>
-                  {w.label}
-                </button>
-              ))}
-            </div>
-            {brWinCondition === "FIRST_TO_N_KILLS" && (
-              <div className="mt-2 flex items-center gap-2">
-                <span className="text-xs" style={{ color: 'var(--fs-text-3)' }}>Target:</span>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="md:col-span-2">
+                <label className="label mb-2 block">Title</label>
                 <input
-                  type="number"
-                  min={1}
-                  max={50}
-                  value={brTargetKills}
-                  onChange={(e) => setBrTargetKills(Number(e.target.value))}
-                  className="fs-input"
-                  style={{ width: '80px', height: '36px' }}
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder={`${igName}'s ${modeTitle} room`}
+                  className="input"
                 />
-                <span className="text-xs" style={{ color: 'var(--fs-text-3)' }}>kills</span>
               </div>
-            )}
-          </OptSection>
 
-          <OptSection label="Banned Guns (multi-select)">
-            <div className="fs-opt-grid" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
-              {BR_BANNED_OPTS.map((g) => {
-                const active = brBannedGuns.includes(g);
-                return (
-                  <button
-                    key={g}
-                    type="button"
-                    className={`fs-opt ${active ? "active" : ""}`}
-                    onClick={() =>
-                      setBrBannedGuns((arr) =>
-                        active ? arr.filter((x) => x !== g) : [...arr, g],
-                      )
-                    }
-                  >
-                    {g}
-                  </button>
-                );
-              })}
-            </div>
-          </OptSection>
-        </>
-      )}
+              <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
+                <label className="label mb-2 block">Entry fee</label>
+                <input
+                  type="range"
+                  min={20}
+                  max={50}
+                  step={5}
+                  value={entryFee}
+                  onChange={(e) => setEntryFee(Number(e.target.value))}
+                  className="w-full accent-[#E53935]"
+                />
+                <div className="mt-2 flex items-center justify-between text-xs text-white/70">
+                  <span>Rs {entryFee}</span>
+                  <span className="text-[#FFD166]">Winner preview Rs {prizeToWinner}</span>
+                </div>
+              </div>
 
-      {/* Eligibility (collapsible) */}
-      <div className="fs-card fs-card-body">
-        <button
-          onClick={() => setShowElig(!showElig)}
-          className="flex w-full items-center justify-between text-left"
-        >
-          <span className="fs-label" style={{ marginBottom: 0 }}>Eligibility</span>
-          {showElig ? <ChevronUp size={14} style={{ color: 'var(--fs-text-3)' }} /> : <ChevronDown size={14} style={{ color: 'var(--fs-text-3)' }} />}
-        </button>
-        {showElig && (
-          <div className="mt-3 space-y-3">
-            <div>
-              <p className="text-xs mb-2" style={{ color: 'var(--fs-text-3)' }}>Min Level</p>
-              <div className="fs-opt-grid" style={{ gridTemplateColumns: 'repeat(6, minmax(0, 1fr))' }}>
-                {[0, 20, 30, 40, 50, 60].map((v) => (
-                  <button key={v} type="button" className={`fs-opt ${minLevel === v ? "active" : ""}`} onClick={() => setMinLevel(v)}>
-                    {v === 0 ? "Any" : v}
-                  </button>
-                ))}
+              <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
+                <label className="label mb-2 block">Visibility</label>
+                <button
+                  type="button"
+                  onClick={() => setIsPrivate((v) => !v)}
+                  className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-sm transition ${
+                    isPrivate
+                      ? "border-[#E53935]/50 bg-[#E53935]/10 text-white"
+                      : "border-white/10 bg-black/20 text-white/70"
+                  }`}
+                >
+                  <span>{isPrivate ? "Private invite-only room" : "Public room"}</span>
+                  <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] uppercase tracking-wider">
+                    {isPrivate ? "Locked" : "Open"}
+                  </span>
+                </button>
               </div>
             </div>
-            <YesNo label="No Emulator" value={noEmulator} onChange={setNoEmulator} />
+          </SectionCard>
+
+          <SectionCard
+            title="Game mode"
+            description="Pick the rule set first. The rest of the form adapts to the selected format."
+          >
+            <div className="grid gap-3 md:grid-cols-3">
+              <ModeCard
+                active={gameMode === "BR"}
+                title="Battle Royale"
+                subtitle="Map, team mode, and win condition controls"
+                onClick={() => setGameMode("BR")}
+              />
+              <ModeCard
+                active={gameMode === "CS"}
+                title="Clash Squad"
+                subtitle="Round-based, weapon-limited team room"
+                onClick={() => setGameMode("CS")}
+              />
+              <ModeCard
+                active={gameMode === "LW"}
+                title="Lone Wolf"
+                subtitle="Fast duels with minimal setup"
+                onClick={() => setGameMode("LW")}
+              />
+            </div>
+          </SectionCard>
+
+          {gameMode === "CS" ? (
+            <SectionCard title="Clash Squad rules" description="Tuned for round-based team fights.">
+              <div className="grid gap-4 md:grid-cols-2">
+                <ChoiceGroup label="Team Mode">
+                  {CS_TEAM_MODES.map((m) => (
+                    <ChoiceButton key={m} active={csTeamMode === m} onClick={() => setCsTeamMode(m)}>
+                      {m}
+                    </ChoiceButton>
+                  ))}
+                </ChoiceGroup>
+
+                <ChoiceGroup label="Rounds">
+                  {([7, 13] as const).map((rounds) => (
+                    <ChoiceButton key={rounds} active={csRounds === rounds} onClick={() => setCsRounds(rounds)}>
+                      {rounds}
+                    </ChoiceButton>
+                  ))}
+                </ChoiceGroup>
+
+                <ChoiceGroup label="Coins">
+                  {(["DEFAULT", "9980"] as const).map((coin) => (
+                    <ChoiceButton key={coin} active={csCoins === coin} onClick={() => setCsCoins(coin)}>
+                      {coin === "DEFAULT" ? "Default" : coin}
+                    </ChoiceButton>
+                  ))}
+                </ChoiceGroup>
+
+                <div className="grid gap-3 md:grid-cols-2 md:col-span-2">
+                  <ToggleCard label="Throwable limit" value={csThrowable} onChange={setCsThrowable} />
+                  <ToggleCard label="Character skill" value={characterSkill} onChange={setCharacterSkill} />
+                  <ToggleCard label="Gun attribute" value={gunAttribute} onChange={setGunAttribute} />
+                  <ToggleCard label="Headshot only" value={headshotOnly} onChange={setHeadshotOnly} reversed />
+                  <ToggleCard label="Loadout lock" value={csLoadout} onChange={setCsLoadout} />
+                </div>
+
+                <ChoiceGroup label="Compulsory Weapon" className="md:col-span-2">
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                    {CS_WEAPONS.map((w) => (
+                      <ChoiceButton key={w} active={csCompulsoryWeapon === w} onClick={() => setCsCompulsoryWeapon(w)}>
+                        {w === "NONE" ? "None" : w}
+                      </ChoiceButton>
+                    ))}
+                  </div>
+                </ChoiceGroup>
+
+                <ChoiceGroup label="Compulsory Armour" className="md:col-span-2">
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    {CS_ARMOURS.map((a) => (
+                      <ChoiceButton key={a.val} active={csCompulsoryArmour === a.val} onClick={() => setCsCompulsoryArmour(a.val)}>
+                        {a.label}
+                      </ChoiceButton>
+                    ))}
+                  </div>
+                </ChoiceGroup>
+              </div>
+            </SectionCard>
+          ) : gameMode === "LW" ? (
+            <SectionCard title="Lone Wolf rules" description="Keep it simple for duels or small pair matches.">
+              <ChoiceGroup label="Team Mode">
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {LW_TEAM_MODES.map((m) => (
+                    <ChoiceButton key={m} active={lwTeamMode === m} onClick={() => setLwTeamMode(m)}>
+                      {m}
+                    </ChoiceButton>
+                  ))}
+                </div>
+              </ChoiceGroup>
+              <p className="mt-3 rounded-xl border border-white/8 bg-white/5 px-4 py-3 text-sm text-white/65">
+                Lone Wolf rooms are tuned for direct head-to-head play. Keep the rest of the rules minimal so players can join quickly.
+              </p>
+            </SectionCard>
+          ) : (
+            <SectionCard title="Battle Royale rules" description="Pick the map and end condition for the room.">
+              <div className="grid gap-4 md:grid-cols-2">
+                <ChoiceGroup label="Map">
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {BR_MAPS.map((m) => (
+                      <ChoiceButton key={m} active={brMap === m} onClick={() => setBrMap(m)}>
+                        {m.charAt(0) + m.slice(1).toLowerCase()}
+                      </ChoiceButton>
+                    ))}
+                  </div>
+                </ChoiceGroup>
+
+                <ChoiceGroup label="Team Mode">
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    {BR_TEAM_MODES.map((m) => (
+                      <ChoiceButton key={m} active={brTeamMode === m} onClick={() => setBrTeamMode(m)}>
+                        {m.charAt(0) + m.slice(1).toLowerCase()}
+                      </ChoiceButton>
+                    ))}
+                  </div>
+                </ChoiceGroup>
+
+                <ChoiceGroup label="Win Condition" className="md:col-span-2">
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    {BR_WIN_CONDITIONS.map((w) => (
+                      <ChoiceButton key={w.val} active={brWinCondition === w.val} onClick={() => setBrWinCondition(w.val)}>
+                        {w.label}
+                      </ChoiceButton>
+                    ))}
+                  </div>
+                  {brWinCondition === "FIRST_TO_N_KILLS" && (
+                    <div className="mt-3 flex items-center gap-2 rounded-xl border border-white/8 bg-white/5 px-4 py-3">
+                      <span className="text-xs uppercase tracking-wider text-white/45">Target kills</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={50}
+                        value={brTargetKills}
+                        onChange={(e) => setBrTargetKills(Number(e.target.value))}
+                        className="input !w-24"
+                      />
+                    </div>
+                  )}
+                </ChoiceGroup>
+
+                <ChoiceGroup label="Banned Guns" className="md:col-span-2">
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    {BR_BANNED_OPTS.map((g) => {
+                      const active = brBannedGuns.includes(g);
+                      return (
+                        <ChoiceButton
+                          key={g}
+                          active={active}
+                          onClick={() =>
+                            setBrBannedGuns((arr) =>
+                              active ? arr.filter((x) => x !== g) : [...arr, g],
+                            )
+                          }
+                        >
+                          {g}
+                        </ChoiceButton>
+                      );
+                    })}
+                  </div>
+                </ChoiceGroup>
+              </div>
+            </SectionCard>
+          )}
+
+          <SectionCard
+            title="Eligibility"
+            description="Control who can enter. These limits show up before players join."
+          >
+            <div className="space-y-4">
+              <ChoiceGroup label="Min level">
+                <div className="grid grid-cols-3 gap-2 md:grid-cols-6">
+                  {[0, 20, 30, 40, 50, 60].map((v) => (
+                    <ChoiceButton key={v} active={minLevel === v} onClick={() => setMinLevel(v)}>
+                      {v === 0 ? "Any" : v}
+                    </ChoiceButton>
+                  ))}
+                </div>
+              </ChoiceGroup>
+              <ToggleCard label="No emulator" value={noEmulator} onChange={setNoEmulator} />
+            </div>
+          </SectionCard>
+
+          <SectionCard
+            title="Anti-cheat"
+            description="Add proof requirements before results can be resolved."
+          >
+            <div className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-2">
+                <ToggleCard label="POV required" value={povRequired} onChange={setPovRequired} />
+                <ToggleCard label="Screenshot required" value={screenshotRequired} onChange={setScreenshotRequired} />
+              </div>
+              <ChoiceGroup label="Report window">
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {[30, 60, 120].map((v) => (
+                    <ChoiceButton key={v} active={reportWindowMins === v} onClick={() => setReportWindowMins(v)}>
+                      {v === 60 ? "1 hour" : v === 120 ? "2 hours" : `${v} min`}
+                    </ChoiceButton>
+                  ))}
+                </div>
+              </ChoiceGroup>
+            </div>
+          </SectionCard>
+        </div>
+
+        <aside className="h-fit lg:sticky lg:top-6">
+          <div className="rounded-[24px] border border-white/10 bg-[linear-gradient(180deg,rgba(21,14,41,0.98),rgba(12,9,24,0.98))] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="label">Live summary</p>
+                <h2 className="mt-1 font-display text-2xl text-white">{title || `${igName}'s ${modeTitle}`}</h2>
+              </div>
+              <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-white/60">
+                Draft
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-3">
+              <PreviewRow label="Mode" value={modeTitle} />
+              <PreviewRow label="Entry fee" value={`Rs ${entryFee}`} />
+              <PreviewRow label="Winner preview" value={`Rs ${prizeToWinner}`} accent />
+              <PreviewRow label="Visibility" value={isPrivate ? "Private" : "Public"} />
+              <PreviewRow label="Players" value={`${totalPlayers}`} />
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-white/8 bg-white/5 p-4">
+              <p className="label mb-2">Applied rules</p>
+              <div className="flex flex-wrap gap-2 text-xs text-white/70">
+                <span className="rounded-full border border-white/10 bg-black/20 px-2 py-1">{gameMode}</span>
+                <span className="rounded-full border border-white/10 bg-black/20 px-2 py-1">{isPrivate ? "Invite only" : "Open room"}</span>
+                <span className="rounded-full border border-white/10 bg-black/20 px-2 py-1">Min lvl {minLevel || "Any"}</span>
+                <span className="rounded-full border border-white/10 bg-black/20 px-2 py-1">{noEmulator ? "No emulator" : "Emulator allowed"}</span>
+              </div>
+            </div>
+
+            <p className="mt-4 text-xs leading-5 text-white/55">
+              Double-check the mode and eligibility before publishing. Once this room is created, players will use the persisted rules immediately.
+            </p>
+
+            <button onClick={submit} disabled={submitting} className="btn-primary mt-5 w-full">
+              <ButtonLoading loading={submitting} loadingText="Creating contest...">
+                CREATE CONTEST
+              </ButtonLoading>
+            </button>
+
+            <p className="mt-3 text-center text-xs text-white/45">
+              Rs {entryFee} will be deducted from your wallet when the challenge is published.
+            </p>
           </div>
-        )}
+        </aside>
       </div>
-
-      {/* Anti-cheat (collapsible) */}
-      <div className="fs-card fs-card-body">
-        <button
-          onClick={() => setShowAntiCheat(!showAntiCheat)}
-          className="flex w-full items-center justify-between text-left"
-        >
-          <span className="fs-label" style={{ marginBottom: 0 }}>Anti-cheat</span>
-          {showAntiCheat ? <ChevronUp size={14} style={{ color: 'var(--fs-text-3)' }} /> : <ChevronDown size={14} style={{ color: 'var(--fs-text-3)' }} />}
-        </button>
-        {showAntiCheat && (
-          <div className="mt-3 space-y-3">
-            <YesNo label="POV Required" value={povRequired} onChange={setPovRequired} />
-            <YesNo label="Screenshot Required" value={screenshotRequired} onChange={setScreenshotRequired} />
-            <div>
-              <p className="text-xs mb-2" style={{ color: 'var(--fs-text-3)' }}>Report Window</p>
-              <div className="fs-opt-grid" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
-                {[30, 60, 120].map((v) => (
-                  <button key={v} type="button" className={`fs-opt ${reportWindowMins === v ? "active" : ""}`} onClick={() => setReportWindowMins(v)}>
-                    {v === 60 ? "1 hour" : v === 120 ? "2 hours" : `${v} min`}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Private toggle */}
-      <div className="fs-card fs-card-body">
-        <label className="flex items-center justify-between text-sm">
-          <span style={{ color: 'var(--fs-text-2)' }}>Private (invite only)</span>
-          <input
-            type="checkbox"
-            checked={isPrivate}
-            onChange={(e) => setIsPrivate(e.target.checked)}
-            className="h-5 w-5"
-            style={{ accentColor: 'var(--fs-gold)' }}
-          />
-        </label>
-      </div>
-
-      {/* Title */}
-      <div className="fs-card fs-card-body">
-        <label className="fs-label">Title (optional)</label>
-        <input
-          type="text"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder={`${igName}'s ${gameMode} Match`}
-          className="fs-input"
-        />
-      </div>
-
-      {/* Bottom */}
-      <div className="text-center text-xs" style={{ color: 'var(--fs-text-3)' }}>
-        Make sure you have entered correct information
-      </div>
-      <p className="text-center text-xs" style={{ color: 'var(--fs-amber)' }}>
-        Rs {entryFee} will be deducted from your wallet
-      </p>
-
-      <button
-        onClick={submit}
-        disabled={submitting}
-        className="fs-btn fs-btn-primary fs-btn-full fixed bottom-0 left-0 right-0 z-40"
-        style={{
-          borderRadius: '14px 14px 0 0',
-          height: '56px',
-          fontSize: '15px',
-          paddingBottom: 'calc(8px + var(--fs-safe-bottom))',
-        }}
-      >
-        <ButtonLoading loading={submitting} loadingText="Creating contest...">
-          CREATE CONTEST
-        </ButtonLoading>
-      </button>
     </div>
   );
 }
 
-function StepDot({ active }: { active: boolean }) {
+function SectionCard({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children: ReactNode;
+}) {
   return (
-    <div
-      className="h-3 w-3 rounded-full"
-      style={{ background: active ? 'var(--fs-red)' : 'var(--fs-surface-3)' }}
-    />
+    <section className="rounded-[24px] border border-white/8 bg-[#111126] p-5 shadow-[0_16px_50px_rgba(0,0,0,0.18)]">
+      <div className="mb-4">
+        <p className="label">{title}</p>
+        {description && <p className="mt-1 text-sm text-white/55">{description}</p>}
+      </div>
+      {children}
+    </section>
   );
 }
 
-function OptSection({ label, children }: { label: string; children: React.ReactNode }) {
+function MetricCard({
+  label,
+  value,
+  helper,
+}: {
+  label: string;
+  value: string;
+  helper?: string;
+}) {
   return (
-    <div className="fs-card fs-card-body">
-      <label className="fs-label">{label}</label>
-      <div className="mt-2">{children}</div>
+    <div className="rounded-2xl border border-white/8 bg-[#111126] p-4">
+      <p className="label">{label}</p>
+      <p className="mt-2 font-display text-2xl text-white">{value}</p>
+      {helper && <p className="mt-1 text-xs leading-5 text-white/50">{helper}</p>}
     </div>
   );
 }
 
-function YesNo({
-  label, value, onChange, reversed = false,
-}: { label: string; value: boolean; onChange: (v: boolean) => void; reversed?: boolean }) {
+function ChoiceGroup({
+  label,
+  children,
+  className = "",
+}: {
+  label: string;
+  children: ReactNode;
+  className?: string;
+}) {
   return (
-    <div className="fs-card fs-card-body">
-      <label className="fs-label">{label}</label>
-      <div className="grid grid-cols-2 gap-2 mt-2">
+    <div className={className}>
+      <label className="label mb-2 block">{label}</label>
+      {children}
+    </div>
+  );
+}
+
+function ChoiceButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-2xl border px-3 py-3 text-left text-sm transition ${
+        active
+          ? "border-[#E53935]/60 bg-[#E53935]/12 text-white shadow-[0_0_0_1px_rgba(229,57,53,0.2)]"
+          : "border-white/8 bg-white/5 text-white/72 hover:border-white/15 hover:bg-white/8"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function ToggleCard({
+  label,
+  value,
+  onChange,
+  reversed = false,
+}: {
+  label: string;
+  value: boolean;
+  onChange: (v: boolean) => void;
+  reversed?: boolean;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <span className="label mb-0">{label}</span>
+        <span className={`text-xs ${value ? "text-neon-green" : "text-white/45"}`}>
+          {value ? "Enabled" : "Disabled"}
+        </span>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
         {reversed ? (
           <>
-            <button type="button" className={`fs-opt ${!value ? "active" : ""}`} onClick={() => onChange(false)}>No</button>
-            <button type="button" className={`fs-opt ${value ? "active" : ""}`} onClick={() => onChange(true)}>Yes</button>
+            <ChoiceButton active={!value} onClick={() => onChange(false)}>No</ChoiceButton>
+            <ChoiceButton active={value} onClick={() => onChange(true)}>Yes</ChoiceButton>
           </>
         ) : (
           <>
-            <button type="button" className={`fs-opt ${value ? "active" : ""}`} onClick={() => onChange(true)}>Yes</button>
-            <button type="button" className={`fs-opt ${!value ? "active" : ""}`} onClick={() => onChange(false)}>No</button>
+            <ChoiceButton active={value} onClick={() => onChange(true)}>Yes</ChoiceButton>
+            <ChoiceButton active={!value} onClick={() => onChange(false)}>No</ChoiceButton>
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+function PreviewRow({
+  label,
+  value,
+  accent = false,
+}: {
+  label: string;
+  value: string;
+  accent?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/8 bg-white/5 px-4 py-3">
+      <span className="text-xs uppercase tracking-wider text-white/45">{label}</span>
+      <span className={`text-sm font-semibold ${accent ? "text-[#FFD166]" : "text-white"}`}>{value}</span>
     </div>
   );
 }
