@@ -105,22 +105,20 @@ export class PrizeService {
   }
 
   /**
-   * For winner-takes-all modes, calculates prize per winning team member.
-   * Formula: (entryFee × actualTeams - platform10%) ÷ winningTeamSize
-   * Example: 2 teams × 50 NPR = 100 → 10 NPR fee → 90 NPR for winners ÷ 4 = 22.5 per player
+   * For winner-takes-all modes (CS/LW), the entire net pool goes to the
+   * winning team's captain (the player who registered and paid for the team).
+   * Formula: (entryFee × actualTeams) - platformFee%
+   * Example: 2 teams × Rs 50 = 100 → 10% fee = Rs 10 → captain gets Rs 90
    */
   calculateWinnerTakesAllPrize(
     entryFeePerTeam: number,
     actualTeamsJoined: number,
-    winningTeamSize: number,
   ): number {
-    if (actualTeamsJoined <= 0 || winningTeamSize <= 0) return 0;
+    if (actualTeamsJoined <= 0) return 0;
     const sysFee = this.config.getNumber("SYSTEM_FEE_PERCENT");
     const gross = entryFeePerTeam * actualTeamsJoined;
     const cut = Math.floor((gross * sysFee) / 100);
-    const netPool = gross - cut;
-    const prizePerWinner = Math.floor(netPool / winningTeamSize);
-    return prizePerWinner;
+    return gross - cut;
   }
 
   calculatePrizeStructure(
@@ -132,9 +130,9 @@ export class PrizeService {
     const sysFee = this.config.getNumber("SYSTEM_FEE_PERCENT");
 
     // Check if this is a winner-takes-all mode (CS/LW)
+    // In these modes: 1 captain registers & pays for the whole team.
+    // The winning team's captain receives the entire net pool.
     if (this.isWinnerTakesAllMode(tournament.mode)) {
-      // For team modes: entryFee is PER TEAM, actualPlayers includes all players
-      // actualTeamsJoined = actualPlayers / teamSize
       let teamSize = 4; // CS_4V4 default
       if (tournament.mode === "LW_1V1") teamSize = 1;
       else if (tournament.mode === "LW_2V2") teamSize = 2;
@@ -143,7 +141,6 @@ export class PrizeService {
       const gross = entryFee * actualTeamsJoined;
       const cut = Math.floor((gross * sysFee) / 100);
       const net = gross - cut;
-      const prizePerWinner = Math.floor(net / teamSize);
 
       return {
         entryFee,
@@ -159,10 +156,10 @@ export class PrizeService {
         killRewardPercent: 0,
         booyahNote: "",
         platformNote: `Rs ${cut} platform fee (${sysFee}%)`,
-        scalingNote: `${actualTeamsJoined} teams × Rs${entryFee} = Rs${gross}`,
-        exampleEarning: `Winner gets Rs ${prizePerWinner} per player`,
+        scalingNote: `${actualTeamsJoined} teams × Rs${entryFee}/team = Rs${gross} total`,
+        exampleEarning: `Winning captain gets Rs ${net}`,
         isWinnerTakesAll: true,
-        prizePerWinner,
+        prizePerWinner: net,
       };
     }
 
@@ -238,7 +235,7 @@ export class PrizeService {
 
     // Notify participants with appropriate message based on prize model
     const notificationBody = structure.isWinnerTakesAll
-      ? `${actualPlayers} players confirmed. Winner takes all: Rs ${structure.prizePerWinner} per winning player.`
+      ? `${actualPlayers} players confirmed. Winning captain takes Rs ${structure.prizePerWinner}.`
       : `${actualPlayers} players confirmed. Per kill: Rs ${structure.perKillReward}, Booyah: Rs ${structure.booyahPrize}.`;
 
     for (const p of t.participants) {
@@ -257,12 +254,76 @@ export class PrizeService {
   // ---- Distribute prizes ----
   async distributePrizes(tournamentId: string, results: DistributeResult[]) {
     return this.prisma.$transaction(async (tx: any) => {
-      const t = await tx.tournament.findUnique({ where: { id: tournamentId } });
+      const t = await tx.tournament.findUnique({
+        where: { id: tournamentId },
+        include: { participants: { where: { paid: true } } },
+      });
       if (!t) throw new NotFoundException();
 
+      const credits: { userId: string; amount: number; note: string }[] = [];
+
+      // Winner-takes-all modes: entire net pool goes to winning team's captain
+      if (this.isWinnerTakesAllMode(t.mode)) {
+        const structure = t.prizeStructure as any;
+        const netPool = structure?.netPool ?? 0;
+        if (netPool <= 0) return { ok: true, credits };
+
+        // Find the winner — gotBooyah marks the winning team's captain
+        const winner = results.find((r) => r.gotBooyah);
+        if (!winner) return { ok: true, credits };
+
+        const note = `Match ${t.id} — Winner takes all: Rs${netPool}`;
+        credits.push({ userId: winner.userId, amount: netPool, note });
+
+        await tx.botRollback.create({
+          data: {
+            jobName: "MANUAL_PRIZE",
+            jobLogId: t.id,
+            action: "REFUND",
+            targetType: "USER",
+            targetId: winner.userId,
+            beforeState: { userId: winner.userId, refundAmount: netPool } as any,
+            afterState: { userId: winner.userId, refundAmount: netPool } as any,
+          },
+        });
+
+        const wallet = await tx.wallet.upsert({
+          where: { userId: winner.userId },
+          create: { userId: winner.userId, balanceNpr: netPool },
+          update: { balanceNpr: { increment: netPool } },
+        });
+        await tx.walletTransaction.create({
+          data: {
+            walletId: wallet.id,
+            type: "CREDIT",
+            reason: "PRIZE",
+            amountNpr: netPool,
+            note,
+          },
+        });
+        await tx.tournamentParticipant.updateMany({
+          where: { tournamentId, userId: winner.userId },
+          data: { prizeEarned: netPool, placement: 1 },
+        });
+        await tx.notification.create({
+          data: {
+            userId: winner.userId,
+            type: "WALLET",
+            title: `Prize: Rs ${netPool}`,
+            body: note,
+          },
+        });
+
+        await tx.tournament.update({
+          where: { id: tournamentId },
+          data: { status: "COMPLETED" },
+        });
+        return { ok: true, credits };
+      }
+
+      // BR / per-kill model
       const perKill = t.perKillReward ?? 0;
       const booyah = t.booyahPrize ?? 0;
-      const credits: { userId: string; amount: number; note: string }[] = [];
 
       for (const r of results) {
         const earning =

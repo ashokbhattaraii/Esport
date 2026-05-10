@@ -33,6 +33,8 @@ export default function TournamentDetailClient() {
   const [t, setT] = useState<any>(null);
   const [eligibility, setEligibility] = useState<any>(null);
   const [showFail, setShowFail] = useState(false);
+  const [showRosterForm, setShowRosterForm] = useState(false);
+  const [rosterUids, setRosterUids] = useState<string[]>([]);
   const [joining, setJoining] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -47,6 +49,12 @@ export default function TournamentDetailClient() {
     }
   }, [id, user]);
 
+  useEffect(() => {
+    if (!t?.mode) return;
+    const count = t.mode === "CS_4V4" ? 4 : t.mode === "LW_2V2" ? 2 : t.mode === "LW_1V1" ? 1 : 0;
+    setRosterUids(Array.from({ length: count }, () => ""));
+  }, [t?.mode]);
+
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { roomJustPublished } = useTournamentRealtime(id, {
     onRoomPublished: () => {
@@ -56,7 +64,7 @@ export default function TournamentDetailClient() {
     onStatusChanged: () => load(),
   });
 
-  async function join() {
+  async function join(payload?: { playerUids: string[] }) {
     if (!user) return router.push("/login");
     if (eligibility && !eligibility.eligible) {
       setShowFail(true);
@@ -64,29 +72,11 @@ export default function TournamentDetailClient() {
     }
     setJoining(true);
     try {
-      const requiredCaptainRosterCount =
-        t.mode === "CS_4V4" ? 4 : t.mode === "LW_2V2" ? 2 : t.mode === "LW_1V1" ? 1 : 0;
-
-      let payload: any = undefined;
-      if (requiredCaptainRosterCount > 0) {
-        const uids: string[] = [];
-        for (let i = 1; i <= requiredCaptainRosterCount; i += 1) {
-          const entered = window.prompt(
-            `${t.mode}: Enter player ${i} Free Fire UID${i === 1 ? " (include your own UID)" : ""}`,
-          );
-          if (!entered) {
-            setJoining(false);
-            return;
-          }
-          uids.push(entered.trim());
-        }
-        payload = { playerUids: uids };
-      }
-
       await api(`/tournaments/${id}/join`, {
         method: "POST",
         ...(payload ? { body: JSON.stringify(payload) } : {}),
       });
+      setShowRosterForm(false);
       toast.success("Joined! Upload payment proof to confirm.");
       load();
     } catch (e: any) {
@@ -103,11 +93,14 @@ export default function TournamentDetailClient() {
 
   if (!t) return <PageLoading label="Loading tournament..." />;
 
+  const requiredCaptainRosterCount =
+    t.mode === "CS_4V4" ? 4 : t.mode === "LW_2V2" ? 2 : t.mode === "LW_1V1" ? 1 : 0;
+
   const rules: MatchRules = (t.matchRules as MatchRules) ?? {
     entryFee: t.entryFeeNpr,
-    perKillReward: t.perKillReward ?? 0,
-    booyahPrize: t.booyahPrize ?? 0,
-    booyahNote: "Scales with actual players",
+    perKillReward: (t.mode === "CS_4V4" || t.mode === "LW_1V1" || t.mode === "LW_2V2") ? 0 : (t.perKillReward ?? 0),
+    booyahPrize: (t.mode === "CS_4V4" || t.mode === "LW_1V1" || t.mode === "LW_2V2") ? 0 : (t.booyahPrize ?? 0),
+    booyahNote: (t.mode === "CS_4V4" || t.mode === "LW_1V1" || t.mode === "LW_2V2") ? "" : "Scales with actual players",
     eligibility: { minLevel: t.minLevel ?? 40, maxHeadshotRate: t.maxHeadshotRate ?? 70, noEmulator: !t.allowEmulator },
     strictlyProhibited: [],
     violation: "No reward + Instant ban",
@@ -151,8 +144,17 @@ export default function TournamentDetailClient() {
         {/* Match Info Chips */}
         <div className="mt-4 grid grid-cols-4 gap-2">
           <InfoChip label="Entry" value={`Rs ${rules.entryFee}`} />
-          <InfoChip label="Per Kill" value={`Rs ${rules.perKillReward}`} />
-          <InfoChip label="Booyah" value={`Rs ${rules.booyahPrize}`} />
+           {(t.mode === "CS_4V4" || t.mode === "LW_1V1" || t.mode === "LW_2V2") ? (
+             <>
+               <InfoChip label="Fee/Team" value={`Rs ${t.entryFeeNpr}`} />
+               <InfoChip label="Winner Prize" value={t.prizeStructure?.netPool ? `Rs ${t.prizeStructure.netPool}` : "TBD"} />
+             </>
+           ) : (
+             <>
+               <InfoChip label="Per Kill" value={`Rs ${rules.perKillReward}`} />
+               <InfoChip label="Booyah" value={`Rs ${rules.booyahPrize}`} />
+             </>
+           )}
           <InfoChip label="Players" value={`${t.filledSlots}/${t.maxSlots}`} />
         </div>
 
@@ -201,16 +203,22 @@ export default function TournamentDetailClient() {
 
       {/* Sticky Join Button */}
       <div
-        className="fixed bottom-0 left-0 right-0 z-50 p-4"
+        className="fixed left-0 right-0 z-[100] p-4"
         style={{
-          background: 'rgba(11,11,20,0.95)',
+          bottom: 'calc(64px + var(--fs-safe-bottom))',
+          background: 'rgba(11,11,20,0.98)',
           backdropFilter: 'blur(12px)',
-          borderTop: '0.5px solid var(--fs-border)',
-          paddingBottom: 'calc(16px + var(--fs-safe-bottom))',
+          borderTop: '1px solid var(--fs-border)',
         }}
       >
         <button
-          onClick={join}
+          onClick={() => {
+            if (requiredCaptainRosterCount > 0) {
+              setShowRosterForm(true);
+              return;
+            }
+            void join();
+          }}
           disabled={joining || t.status !== "UPCOMING" || alreadyJoined}
           className="fs-btn fs-btn-primary fs-btn-full"
           style={{
@@ -225,7 +233,9 @@ export default function TournamentDetailClient() {
               ? "Already Joined ✓"
               : t.status !== "UPCOMING"
                 ? t.status
-                : `JOIN NOW · Rs ${t.entryFeeNpr}`}
+                : requiredCaptainRosterCount > 0
+                  ? `JOIN TEAM · Rs ${t.entryFeeNpr}/team`
+                  : `JOIN NOW · Rs ${t.entryFeeNpr}`}
           </ButtonLoading>
         </button>
         {msg && <p className="mt-2 text-center text-xs" style={{ color: 'var(--fs-text-3)' }}>{msg}</p>}
@@ -240,6 +250,32 @@ export default function TournamentDetailClient() {
             document
               .querySelector("[data-section='ELIGIBILITY']")
               ?.scrollIntoView({ behavior: "smooth" });
+          }}
+        />
+      )}
+
+      {showRosterForm && requiredCaptainRosterCount > 0 && (
+        <RosterUidModal
+          mode={t.mode}
+          count={requiredCaptainRosterCount}
+          uids={rosterUids}
+          joining={joining}
+          onClose={() => setShowRosterForm(false)}
+          onChange={(index, value) => {
+            setRosterUids((prev) => prev.map((uid, i) => (i === index ? value : uid)));
+          }}
+          onSubmit={() => {
+            const normalized = rosterUids.map((x) => x.trim()).filter(Boolean);
+            if (normalized.length !== requiredCaptainRosterCount) {
+              toast.error(`Please enter all ${requiredCaptainRosterCount} UID fields`);
+              return;
+            }
+            const unique = new Set(normalized);
+            if (unique.size !== normalized.length) {
+              toast.error("Player UIDs must be unique");
+              return;
+            }
+            void join({ playerUids: normalized });
           }}
         />
       )}
@@ -305,6 +341,61 @@ function FailModal({ message, onClose, onView }: { message: string; onClose: () 
         <p className="mt-2 text-sm" style={{ color: 'var(--fs-text-2)' }}>{message}</p>
         <button onClick={onView} className="fs-btn fs-btn-outline fs-btn-full mt-4">
           View Requirements
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function RosterUidModal({
+  mode,
+  count,
+  uids,
+  joining,
+  onClose,
+  onChange,
+  onSubmit,
+}: {
+  mode: string;
+  count: number;
+  uids: string[];
+  joining: boolean;
+  onClose: () => void;
+  onChange: (index: number, value: string) => void;
+  onSubmit: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.72)" }}>
+      <div className="fs-card fs-card-body relative w-full" style={{ maxWidth: "420px" }}>
+        <button onClick={onClose} className="absolute right-3 top-3" style={{ color: "var(--fs-text-3)" }}>
+          <X size={18} />
+        </button>
+        <h3 className="fs-h3">Enter Team UIDs</h3>
+        <p className="mt-1 text-xs" style={{ color: "var(--fs-text-2)" }}>
+          {mode} requires {count} player UID{count > 1 ? "s" : ""}. Include your own UID in player 1.
+        </p>
+        <div className="mt-2 rounded-md px-3 py-2 text-xs" style={{ background: "var(--fs-surface-2)", border: "1px solid var(--fs-border)" }}>
+          <p style={{ color: "var(--fs-text-2)" }}>
+            You pay <strong style={{ color: "var(--fs-text-1)" }}>1 fee for the whole team</strong>.
+            If your team wins, you (the captain) receive the entire prize pool.
+          </p>
+        </div>
+
+        <div className="mt-3 space-y-2">
+          {Array.from({ length: count }).map((_, i) => (
+            <input
+              key={i}
+              className="input"
+              placeholder={`Player ${i + 1} UID${i === 0 ? " (Captain)" : ""}`}
+              value={uids[i] ?? ""}
+              onChange={(e) => onChange(i, e.target.value)}
+              autoComplete="off"
+            />
+          ))}
+        </div>
+
+        <button onClick={onSubmit} className="fs-btn fs-btn-primary fs-btn-full mt-4" disabled={joining}>
+          <ButtonLoading loading={joining} loadingText="Joining...">Confirm Join</ButtonLoading>
         </button>
       </div>
     </div>
