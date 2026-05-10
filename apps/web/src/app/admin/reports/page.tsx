@@ -90,6 +90,17 @@ export default function AdminReportsPage() {
           <button className="btn-primary" onClick={generate} disabled={loadingState}>
             {loadingState ? "Generating..." : "Generate Report"}
           </button>
+          <button
+            className="btn-ghost"
+            onClick={() => {
+              if (!report) return;
+              const csv = buildDetailedCsv(report);
+              downloadCsv(`financial-report-${new Date().toISOString().slice(0, 10)}.csv`, csv);
+            }}
+            disabled={!report}
+          >
+            Export CSV (Detailed)
+          </button>
           <span className="text-xs text-white/60">
             Range: {fmtDate(reportRange.from)} - {fmtDate(reportRange.to)}
           </span>
@@ -177,6 +188,17 @@ export default function AdminReportsPage() {
                   Download JSON
                 </button>
               )}
+              {report && (
+                <button
+                  className="btn-ghost text-xs"
+                  onClick={() => {
+                    const csv = buildDetailedCsv(report);
+                    downloadCsv(`financial-report-${new Date().toISOString().slice(0, 10)}.csv`, csv);
+                  }}
+                >
+                  Export CSV
+                </button>
+              )}
             </div>
             <div className="mt-4 overflow-x-auto">
               <table className="data-table">
@@ -209,4 +231,87 @@ function Metric({ title, value, accent }: { title: string; value: string; accent
       <p className={`mt-2 text-2xl font-bold ${accent}`}>{value}</p>
     </div>
   );
+}
+
+function downloadCsv(filename: string, csv: string) {
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function escapeCsv(v: any) {
+  if (v === null || v === undefined) return "";
+  const s = typeof v === "string" ? v : String(v);
+  if (s.includes(",") || s.includes("\n") || s.includes('"')) {
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+  return s;
+}
+
+function buildDetailedCsv(report: any) {
+  const rows: string[][] = [];
+
+  // Summary block
+  rows.push(["Section", "Key", "Value"]);
+  const summary = report?.summary ?? report?.data?.summary ?? {};
+  for (const [key, val] of Object.entries(summary || {})) {
+    if (val && typeof val === "object" && "amount" in (val as any)) {
+      rows.push(["Summary", key, String((val as any).amount ?? "")]);
+    } else {
+      rows.push(["Summary", key, String(val ?? "")]);
+    }
+  }
+
+  // Daily breakdown with calculated totals & percentages
+  rows.push([]);
+  rows.push(["Daily Breakdown", "Date", "Deposits", "Withdrawals", "Prizes", "Deposits % of Activity", "Withdrawals % of Activity"]);
+  const daily = report?.dailyBreakdown ?? report?.data?.dailyBreakdown ?? [];
+  let aggDeposits = 0, aggWithdrawals = 0, aggPrizes = 0;
+  for (const d of daily) {
+    const dep = Number(d.deposits || 0);
+    const wit = Number(d.withdrawals || 0);
+    const pri = Number(d.prizes || 0);
+    aggDeposits += dep;
+    aggWithdrawals += wit;
+    aggPrizes += pri;
+    const total = dep + wit + pri || 1;
+    rows.push(["Daily", d.date, String(dep), String(wit), String(pri), `${((dep / total) * 100).toFixed(2)}%`, `${((wit / total) * 100).toFixed(2)}%`]);
+  }
+  rows.push(["Daily", "TOTAL", String(aggDeposits), String(aggWithdrawals), String(aggPrizes), "", ""]);
+
+  // Top Earners
+  rows.push([]);
+  rows.push(["Top Earners", "Rank", "User Email", "Amount", "Tournaments Won"]);
+  const earners = report?.topEarners ?? report?.data?.topEarners ?? [];
+  for (let i = 0; i < earners.length; i++) {
+    const r = earners[i];
+    rows.push(["TopEarners", String(i + 1), r.email ?? r.userId ?? "", String(r.amount ?? 0), String(r.count ?? 0)]);
+  }
+
+  // Top Depositors
+  rows.push([]);
+  rows.push(["Top Depositors", "Rank", "User Email", "Total Deposited", "Last Deposit At", "% of Total Deposits"]);
+  const depositors = report?.topDepositors ?? report?.data?.topDepositors ?? [];
+  const totalDeposits = aggDeposits || depositors.reduce((s: number, r: any) => s + Number(r.amount || 0), 0) || 1;
+  for (let i = 0; i < depositors.length; i++) {
+    const r = depositors[i];
+    const pct = ((Number(r.amount || 0) / totalDeposits) * 100).toFixed(2) + "%";
+    rows.push(["TopDepositors", String(i + 1), r.email ?? r.userId ?? "", String(r.amount ?? 0), r.lastDepositAt ?? "", pct]);
+  }
+
+  // Risk list
+  rows.push([]);
+  rows.push(["Risk Summary", "Metric", "Value"]);
+  const risk = report?.risk ?? report?.data?.risk ?? {};
+  for (const [k, v] of Object.entries(risk || {})) rows.push(["Risk", k, String(v ?? "")]);
+
+  // Flatten rows to CSV
+  const csv = rows
+    .map((r) => r.map((c) => escapeCsv(c)).join(","))
+    .join("\n");
+  return csv;
 }

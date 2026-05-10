@@ -22,6 +22,7 @@ export class AdminNavController {
     if (await check("*", "*")) {
       return [
         "overview", "tournaments", "payments", "results", "withdrawals",
+        "reports", "risk-profiles",
         "users", "banners", "config", "schedule", "flags", "support",
         "bot", "roles", "logs", "apk-releases", "apk-test",
       ];
@@ -31,6 +32,8 @@ export class AdminNavController {
     if (await check("payments", "read")) nav.push("payments");
     if (await check("results", "read")) nav.push("results");
     if (await check("withdrawals", "read")) nav.push("withdrawals");
+    if (await check("reports", "read")) nav.push("reports");
+    if (await check("finance", "read") || await check("risk-profiles", "read")) nav.push("risk-profiles");
     if (await check("users", "read")) nav.push("users");
     if (await check("banners", "read")) nav.push("banners");
     if (await check("config", "read")) {
