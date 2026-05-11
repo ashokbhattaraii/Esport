@@ -4,9 +4,9 @@
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "next build",
-    "cap:sync": "npx cap sync android",
-    "build:apk": "npx cap sync android && cd android && ./gradlew assembleDebug",
-    "build:apk:release": "npx cap sync android && cd android && ./gradlew assembleRelease",
+    "cap:sync": "pnpm exec cap sync android",
+    "build:apk": "./scripts/build-apk.sh debug",
+    "build:apk:release": "./scripts/build-apk.sh release",
     "start": "next start -p 3000",
     "lint": "next lint"
   },

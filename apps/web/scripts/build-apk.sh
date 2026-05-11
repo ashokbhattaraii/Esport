@@ -1,43 +1,58 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
 
-echo "=== FireSlot Nepal APK Build ==="
-
-# Step 1: Clean previous build
-rm -rf apps/web/out
-echo "✓ Cleaned old build"
-
-# Step 2: Build with capacitor flag
-cd apps/web
-BUILD_TARGET=capacitor NEXT_PUBLIC_APP_URL=https://fireslot.vercel.app pnpm build
-echo "✓ Next.js static build complete"
-
-# Step 3: Sync to Android
-npx cap sync android
-echo "✓ Capacitor synced"
-
-# Step 4: Build APK
-cd android
-./gradlew assembleRelease
-echo "✓ APK built"
-
-# Step 5: Copy APK
-APK="app/build/outputs/apk/release/app-release-unsigned.apk"
-mkdir -p ../../public/downloads
-cp $APK ../../public/downloads/fireslot-nepal.apk
-echo "✓ APK copied to public/downloads/fireslot-nepal.apk"
-echo "=== Build complete ==="
-  cat android/app/src/main/assets/capacitor.config.json
+MODE="${1:-debug}"
+if [[ "$MODE" != "debug" && "$MODE" != "release" ]]; then
+  echo "Usage: scripts/build-apk.sh [debug|release]"
   exit 1
 fi
 
-echo "Building APK..."
-cd android
-APP_VERSION_NAME="$VERSION_NAME" APP_VERSION_CODE="$VERSION_CODE" ./gradlew assembleDebug
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WEB_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO_ROOT="$(cd "$WEB_DIR/../.." && pwd)"
 
-APK_PATH="app/build/outputs/apk/debug/app-debug.apk"
+pushd "$REPO_ROOT" >/dev/null
+
+GIT_SHORT_SHA="$(git rev-parse --short HEAD 2>/dev/null || echo dev)"
+# Commit count gives a monotonic integer compatible with Android versionCode.
+APP_VERSION_CODE="$(git rev-list --count HEAD 2>/dev/null || echo 1)"
+APP_VERSION_NAME="1.0.${APP_VERSION_CODE}-${GIT_SHORT_SHA}"
+
+APK_VARIANT="assembleDebug"
+APK_SOURCE="$WEB_DIR/android/app/build/outputs/apk/debug/app-debug.apk"
+if [[ "$MODE" == "release" ]]; then
+  APK_VARIANT="assembleRelease"
+  APK_SOURCE="$WEB_DIR/android/app/build/outputs/apk/release/app-release-unsigned.apk"
+fi
+
+echo "=== FireSlot Nepal APK Build ($MODE) ==="
+echo "Version name: $APP_VERSION_NAME"
+echo "Version code: $APP_VERSION_CODE"
+
+echo "1) Syncing Capacitor Android project..."
+pushd "$WEB_DIR" >/dev/null
+pnpm exec cap sync android
+
+echo "2) Building Android APK..."
+pushd android >/dev/null
+APP_VERSION_NAME="$APP_VERSION_NAME" APP_VERSION_CODE="$APP_VERSION_CODE" ./gradlew "$APK_VARIANT"
+popd >/dev/null
+
+if [[ ! -f "$APK_SOURCE" ]]; then
+  echo "ERROR: APK not found at $APK_SOURCE"
+  exit 1
+fi
+
+echo "3) Copying artifacts..."
 mkdir -p "$REPO_ROOT/apps/api/public/downloads" "$REPO_ROOT/public/downloads"
-cp "$APK_PATH" "$REPO_ROOT/apps/api/public/downloads/fireslot-nepal.apk"
-cp "$APK_PATH" "$REPO_ROOT/public/downloads/fireslot-nepal.apk"
-echo "APK copied to apps/api/public/downloads/fireslot-nepal.apk and public/downloads/fireslot-nepal.apk"
-echo "Build complete."
+cp "$APK_SOURCE" "$REPO_ROOT/apps/api/public/downloads/fireslot-nepal.apk"
+cp "$APK_SOURCE" "$REPO_ROOT/public/downloads/fireslot-nepal.apk"
+cp "$APK_SOURCE" "$REPO_ROOT/public/downloads/fireslot-nepal-${APP_VERSION_NAME}.apk"
+
+echo "APK copied:"
+echo "- apps/api/public/downloads/fireslot-nepal.apk"
+echo "- public/downloads/fireslot-nepal.apk"
+echo "- public/downloads/fireslot-nepal-${APP_VERSION_NAME}.apk"
+echo "=== Build complete ==="
+
+popd >/dev/null
