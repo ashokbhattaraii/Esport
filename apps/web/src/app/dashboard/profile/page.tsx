@@ -153,14 +153,16 @@ export default function ProfilePage() {
           <div>
             <label className="label">Level</label>
             <input
-              type="number"
-              min={1}
-              max={100}
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
               className="input"
               value={form.level}
-              onChange={(e) =>
-                setForm({ ...form, level: Number(e.target.value) })
-              }
+              onChange={(e) => {
+                const digits = e.target.value.replace(/\D/g, "");
+                const next = digits ? Number(digits) : 1;
+                setForm({ ...form, level: Math.max(1, Math.min(100, next)) });
+              }}
             />
           </div>
           <div>
@@ -176,15 +178,19 @@ export default function ProfilePage() {
           <div>
             <label className="label">BR Headshot Rate %</label>
             <input
-              type="number"
-              min={0}
-              max={100}
-              step={1}
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
               className="input"
               value={form.headshotRate}
-              onChange={(e) =>
-                setForm({ ...form, headshotRate: Number(e.target.value) })
-              }
+              onChange={(e) => {
+                const digits = e.target.value.replace(/\D/g, "");
+                const next = digits ? Number(digits) : 0;
+                setForm({
+                  ...form,
+                  headshotRate: Math.max(0, Math.min(100, next)),
+                });
+              }}
             />
             <p className="mt-1 text-[10px] text-white/40">
               From your Free Fire career stats. Tournaments with a headshot rate

@@ -9,8 +9,8 @@ export default function AdminReferralsPage() {
   const [data, setData] = useState<any>(null);
   const [draft, setDraft] = useState({
     enabled: true,
-    signupRewardNpr: 10,
-    referrerDepositRewardNpr: 10,
+    signupRewardNpr: "10",
+    referrerDepositRewardNpr: "10",
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -25,8 +25,8 @@ export default function AdminReferralsPage() {
       setData(next);
       setDraft({
         enabled: !!next.enabled,
-        signupRewardNpr: Number(next.signupRewardNpr ?? 10),
-        referrerDepositRewardNpr: Number(next.referrerDepositRewardNpr ?? 10),
+        signupRewardNpr: String(next.signupRewardNpr ?? 10),
+        referrerDepositRewardNpr: String(next.referrerDepositRewardNpr ?? 10),
       });
       setMsg(null);
     } catch (e: any) {
@@ -43,14 +43,14 @@ export default function AdminReferralsPage() {
   async function save() {
     setErr(null);
     setMsg(null);
-    if (!Number.isFinite(draft.signupRewardNpr) || draft.signupRewardNpr < 0) {
+    const signupReward = parseRewardInput(draft.signupRewardNpr);
+    const depositReward = parseRewardInput(draft.referrerDepositRewardNpr);
+
+    if (signupReward === null) {
       setErr("New user bonus must be a non-negative number");
       return;
     }
-    if (
-      !Number.isFinite(draft.referrerDepositRewardNpr) ||
-      draft.referrerDepositRewardNpr < 0
-    ) {
+    if (depositReward === null) {
       setErr("Referrer first deposit reward must be a non-negative number");
       return;
     }
@@ -61,17 +61,15 @@ export default function AdminReferralsPage() {
         method: "PUT",
         body: JSON.stringify({
           enabled: !!draft.enabled,
-          signupRewardNpr: Math.floor(Number(draft.signupRewardNpr)),
-          referrerDepositRewardNpr: Math.floor(
-            Number(draft.referrerDepositRewardNpr),
-          ),
+          signupRewardNpr: signupReward,
+          referrerDepositRewardNpr: depositReward,
         }),
       });
       setData(next);
       setDraft({
         enabled: !!next.enabled,
-        signupRewardNpr: Number(next.signupRewardNpr ?? 10),
-        referrerDepositRewardNpr: Number(next.referrerDepositRewardNpr ?? 10),
+        signupRewardNpr: String(next.signupRewardNpr ?? 10),
+        referrerDepositRewardNpr: String(next.referrerDepositRewardNpr ?? 10),
       });
       setMsg("Referral settings updated successfully.");
       await load();
@@ -85,8 +83,8 @@ export default function AdminReferralsPage() {
   const isDirty =
     !!data &&
     (draft.enabled !== !!data.enabled ||
-      Number(draft.signupRewardNpr) !== Number(data.signupRewardNpr ?? 10) ||
-      Number(draft.referrerDepositRewardNpr) !==
+      parseRewardInput(draft.signupRewardNpr) !== Number(data.signupRewardNpr ?? 10) ||
+      parseRewardInput(draft.referrerDepositRewardNpr) !==
         Number(data.referrerDepositRewardNpr ?? 10));
 
   return (
@@ -131,20 +129,48 @@ export default function AdminReferralsPage() {
             <span className="label">New User Bonus</span>
             <input
               className="input mt-1"
-              type="number"
-              min={0}
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              placeholder="10"
               value={draft.signupRewardNpr}
-              onChange={(e) => setDraft((d) => ({ ...d, signupRewardNpr: Number(e.target.value) }))}
+              onChange={(e) =>
+                setDraft((d) => ({
+                  ...d,
+                  signupRewardNpr: sanitizeRewardInput(e.target.value),
+                }))
+              }
+              onBlur={(e) => {
+                const parsed = parseRewardInput(e.target.value);
+                setDraft((d) => ({
+                  ...d,
+                  signupRewardNpr: String(parsed ?? 0),
+                }));
+              }}
             />
           </label>
           <label>
             <span className="label">Referrer First Deposit Reward</span>
             <input
               className="input mt-1"
-              type="number"
-              min={0}
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              placeholder="10"
               value={draft.referrerDepositRewardNpr}
-              onChange={(e) => setDraft((d) => ({ ...d, referrerDepositRewardNpr: Number(e.target.value) }))}
+              onChange={(e) =>
+                setDraft((d) => ({
+                  ...d,
+                  referrerDepositRewardNpr: sanitizeRewardInput(e.target.value),
+                }))
+              }
+              onBlur={(e) => {
+                const parsed = parseRewardInput(e.target.value);
+                setDraft((d) => ({
+                  ...d,
+                  referrerDepositRewardNpr: String(parsed ?? 0),
+                }));
+              }}
             />
           </label>
         </div>
@@ -195,6 +221,18 @@ export default function AdminReferralsPage() {
       </div>
     </div>
   );
+}
+
+function sanitizeRewardInput(value: string) {
+  return value.replace(/[^0-9]/g, "").slice(0, 6);
+}
+
+function parseRewardInput(value: string): number | null {
+  const normalized = sanitizeRewardInput(value);
+  if (!normalized) return 0;
+  const n = Number(normalized);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return Math.floor(n);
 }
 
 function Stat({ label, value, icon }: { label: string; value: any; icon: React.ReactNode }) {

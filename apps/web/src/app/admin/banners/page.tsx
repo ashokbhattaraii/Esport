@@ -448,10 +448,15 @@ function BannerPanel({
             <div>
               <label className="label">Sort Order</label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 className="input"
                 value={draft.sortOrder}
-                onChange={(e) => setDraft((d) => ({ ...d, sortOrder: Number(e.target.value) }))}
+                onChange={(e) => {
+                  const digits = e.target.value.replace(/\D/g, "");
+                  setDraft((d) => ({ ...d, sortOrder: digits ? Number(digits) : 0 }));
+                }}
               />
             </div>
             <label className="flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-3 text-sm text-white">

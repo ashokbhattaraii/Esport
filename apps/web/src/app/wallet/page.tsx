@@ -238,11 +238,15 @@ export default function WalletPage() {
               <div>
                 <label className="fs-label">Amount (NPR)</label>
                 <input
-                  type="number"
-                  min={50}
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   className="fs-input"
                   value={deposit.amountNpr}
-                  onChange={(e) => setDeposit({ ...deposit, amountNpr: Number(e.target.value) })}
+                  onChange={(e) => {
+                    const digits = e.target.value.replace(/\D/g, "");
+                    setDeposit({ ...deposit, amountNpr: digits ? Number(digits) : 0 });
+                  }}
                 />
               </div>
               <div>
@@ -304,8 +308,17 @@ export default function WalletPage() {
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div>
               <label className="fs-label">Amount (NPR)</label>
-              <input type="number" min={100} className="fs-input" value={form.amountNpr}
-                onChange={(e) => setForm({ ...form, amountNpr: Number(e.target.value) })} />
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                className="fs-input"
+                value={form.amountNpr}
+                onChange={(e) => {
+                  const digits = e.target.value.replace(/\D/g, "");
+                  setForm({ ...form, amountNpr: digits ? Number(digits) : 0 });
+                }}
+              />
             </div>
             <div>
               <label className="fs-label">Method</label>

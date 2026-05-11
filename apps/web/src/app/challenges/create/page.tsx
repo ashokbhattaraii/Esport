@@ -363,11 +363,15 @@ export default function CreateChallengePage() {
                     <div className="mt-3 flex items-center gap-2 rounded-xl border border-white/8 bg-white/5 px-4 py-3">
                       <span className="text-xs uppercase tracking-wider text-white/45">Target kills</span>
                       <input
-                        type="number"
-                        min={1}
-                        max={50}
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                         value={brTargetKills}
-                        onChange={(e) => setBrTargetKills(Number(e.target.value))}
+                        onChange={(e) => {
+                          const digits = e.target.value.replace(/\D/g, "");
+                          const next = digits ? Number(digits) : 1;
+                          setBrTargetKills(Math.max(1, Math.min(50, next)));
+                        }}
                         className="input !w-24"
                       />
                     </div>

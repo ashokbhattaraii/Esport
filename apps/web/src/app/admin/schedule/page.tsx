@@ -92,10 +92,31 @@ export default function SchedulePage() {
             <input className="input" value={draft.windowEnd} onChange={(e) => setDraft({ ...draft, windowEnd: e.target.value })} />
           </Field>
           <Field label="Prize Pool">
-            <input type="number" className="input" value={draft.prizePool} onChange={(e) => setDraft({ ...draft, prizePool: +e.target.value })} />
+            <input
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              className="input"
+              value={draft.prizePool}
+              onChange={(e) => {
+                const digits = e.target.value.replace(/\D/g, "");
+                setDraft({ ...draft, prizePool: digits ? Number(digits) : 0 });
+              }}
+            />
           </Field>
           <Field label="Max Winners">
-            <input type="number" className="input" value={draft.maxWinners} onChange={(e) => setDraft({ ...draft, maxWinners: +e.target.value })} />
+            <input
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              className="input"
+              value={draft.maxWinners}
+              onChange={(e) => {
+                const digits = e.target.value.replace(/\D/g, "");
+                const next = digits ? Number(digits) : 1;
+                setDraft({ ...draft, maxWinners: Math.max(1, next) });
+              }}
+            />
           </Field>
           <Field label="Days">
             <div className="flex flex-wrap gap-1">

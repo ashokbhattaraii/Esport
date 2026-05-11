@@ -370,11 +370,31 @@ export default function ChallengeDetailPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-[11px] font-medium text-white/60">Kills</label>
-                  <input type="number" min={0} value={result.kills} onChange={(e) => setResult({ ...result, kills: +e.target.value })} className="input mt-1" />
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={result.kills}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/\D/g, "");
+                      setResult({ ...result, kills: digits ? Number(digits) : 0 });
+                    }}
+                    className="input mt-1"
+                  />
                 </div>
                 <div>
                   <label className="text-[11px] font-medium text-white/60">Headshots</label>
-                  <input type="number" min={0} value={result.headshots} onChange={(e) => setResult({ ...result, headshots: +e.target.value })} className="input mt-1" />
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={result.headshots}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/\D/g, "");
+                      setResult({ ...result, headshots: digits ? Number(digits) : 0 });
+                    }}
+                    className="input mt-1"
+                  />
                 </div>
               </div>
               <label className="flex items-center gap-2 text-sm text-white/80">

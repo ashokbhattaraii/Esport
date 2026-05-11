@@ -355,9 +355,18 @@ export default function AdminBot() {
                 <div className="mt-3 flex flex-wrap gap-2 items-center text-xs">
                   <span className="text-white/60">Every</span>
                   <input
-                    type="number" min={5} max={1440}
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     value={intervalDrafts[j.name] ?? j.intervalMins}
-                    onChange={(e) => setIntervalDrafts((d) => ({ ...d, [j.name]: parseInt(e.target.value) || 5 }))}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/\D/g, "");
+                      const next = digits ? Number(digits) : 5;
+                      setIntervalDrafts((d) => ({
+                        ...d,
+                        [j.name]: Math.max(5, Math.min(1440, next)),
+                      }));
+                    }}
                     className="input w-20"
                   />
                   <span className="text-white/60">mins</span>
@@ -372,9 +381,18 @@ export default function AdminBot() {
                   </button>
                   <span className="text-white/60 ml-2">Max actions</span>
                   <input
-                    type="number" min={1} max={10000}
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     value={maxActDrafts[j.name] ?? j.maxActionsPerRun}
-                    onChange={(e) => setMaxActDrafts((d) => ({ ...d, [j.name]: parseInt(e.target.value) || 1 }))}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/\D/g, "");
+                      const next = digits ? Number(digits) : 1;
+                      setMaxActDrafts((d) => ({
+                        ...d,
+                        [j.name]: Math.max(1, Math.min(10000, next)),
+                      }));
+                    }}
                     className="input w-20"
                   />
                   <button

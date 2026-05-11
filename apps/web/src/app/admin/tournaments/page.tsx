@@ -510,12 +510,24 @@ function NumberInput({
       <label className="label">{label}</label>
       <input
         className="input"
-        type="number"
-        step={step}
-        min={min}
-        max={max}
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
         value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
+        onChange={(e) => {
+          const digits = e.target.value.replace(/\D/g, "");
+          let next = digits ? Number(digits) : min;
+          if (!Number.isFinite(next)) next = min;
+          if (typeof max === "number") {
+            next = Math.min(max, Math.max(min, next));
+          } else {
+            next = Math.max(min, next);
+          }
+          if (step > 1) {
+            next = Math.round(next / step) * step;
+          }
+          onChange(next);
+        }}
       />
     </div>
   );
