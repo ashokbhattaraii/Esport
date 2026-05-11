@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
@@ -12,6 +12,7 @@ import { TeamJoinSection, getTeamSizeFromTournament } from "@/components/TeamJoi
 import {
   Trophy, AlertTriangle, Settings, BookOpen, ShieldCheck, X, ArrowLeft,
 } from "lucide-react";
+import Link from "next/link";
 
 interface MatchRules {
   entryFee: number;
@@ -41,17 +42,29 @@ export default function TournamentDetailClient() {
   const [teammates, setTeammates] = useState<{freefireUid:string;igName:string}[]>([]);
   const [joining, setJoining] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     const url = user ? `/tournaments/${id}/full` : `/tournaments/${id}`;
-    setT(await api(url));
-  }
+    setLoadError(null);
+    try {
+      setT(await api(url));
+    } catch (e: any) {
+      setT(null);
+      setLoadError(e?.message ?? "Tournament could not be loaded");
+    } finally {
+      setLoading(false);
+    }
+  }, [id, user]);
+
   useEffect(() => {
+    setLoading(true);
     load();
     if (user) {
       api(`/tournaments/${id}/eligibility`).then(setEligibility).catch(() => {});
     }
-  }, [id, user]);
+  }, [id, user, load]);
 
   useEffect(() => {
     if (!t?.mode) return;
@@ -109,7 +122,26 @@ export default function TournamentDetailClient() {
 
   const alreadyJoined = !!t?.participants?.some((p: any) => p.userId === user?.id);
 
-  if (!t) return <PageLoading label="Loading tournament..." />;
+  if (loading) return <PageLoading label="Loading tournament..." />;
+  if (loadError || !t) {
+    return (
+      <div className="space-y-4 py-8 text-center">
+        <div className="fs-card fs-card-body">
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full" style={{ background: "var(--fs-red-glow)" }}>
+            <AlertTriangle size={22} style={{ color: "var(--fs-red)" }} />
+          </div>
+          <h1 className="fs-h3">Tournament not available</h1>
+          <p className="mt-2 text-sm" style={{ color: "var(--fs-text-3)" }}>
+            {loadError ?? "This tournament may have been removed or the link is invalid."}
+          </p>
+          <div className="mt-4 flex gap-2">
+            <button onClick={() => router.back()} className="fs-btn fs-btn-outline flex-1">Go Back</button>
+            <Link href="/tournaments" className="fs-btn fs-btn-primary flex-1">View Tournaments</Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const requiredCaptainRosterCount =
     t.mode === "CS_4V4" ? 4 : t.mode === "LW_2V2" ? 2 : t.mode === "LW_1V1" ? 1 : 0;

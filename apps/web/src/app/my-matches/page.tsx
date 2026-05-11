@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Swords, Trophy } from "lucide-react";
+import { ArrowRight, CalendarClock, CheckCircle2, Clock, Coins, KeyRound, Swords, Trophy, UserRound } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { fmtDate, npr } from "@/lib/utils";
@@ -171,27 +171,57 @@ function TournamentRow({ entry }: { entry: any }) {
   const t = entry.tournament;
   if (!t) return null;
   const statusColor = STATUS_COLORS[t.status] ?? "var(--fs-text-3)";
+  const isLive = ["LIVE", "ONGOING", "PENDING_RESULTS"].includes(t.status);
+  const resultLabel = entry.placement
+    ? `Placed #${entry.placement}`
+    : entry.prizeEarned > 0
+      ? `Won ${npr(entry.prizeEarned)}`
+      : t.status === "COMPLETED"
+        ? "Result posted"
+        : "Result pending";
+  const roomLabel = t.status === "UPCOMING"
+    ? "Room later"
+    : isLive
+      ? "Check room"
+      : "Room closed";
   return (
     <Link
       href={`/tournaments/${t.id}`}
-      className="flex items-center gap-3 rounded-xl p-3"
+      className="block rounded-xl p-3 transition hover:border-[var(--fs-red)]"
       style={{ background: "var(--fs-surface-1)", border: "1px solid var(--fs-border)" }}
     >
-      <div
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
-        style={{ background: "rgba(229,57,53,0.1)" }}
-      >
-        <Trophy size={16} style={{ color: "var(--fs-red)" }} />
+      <div className="flex items-start gap-3">
+        <div
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
+          style={{ background: "rgba(229,57,53,0.1)" }}
+        >
+          <Trophy size={18} style={{ color: "var(--fs-red)" }} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold" style={{ color: "var(--fs-text-1)" }}>{t.title}</p>
+              <p className="text-xs" style={{ color: "var(--fs-text-3)" }}>
+                Tournament · {t.mode?.replaceAll("_", " ") ?? "Match"}
+              </p>
+            </div>
+            <StatusPill status={t.status} color={statusColor} />
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <InfoLine icon={<CalendarClock size={12} />} label="Time" value={fmtDate(t.dateTime)} />
+            <InfoLine icon={<Coins size={12} />} label="Entry" value={npr(t.entryFeeNpr ?? 0)} />
+            <InfoLine icon={<UserRound size={12} />} label="Slots" value={`${t.filledSlots ?? 0}/${t.maxSlots ?? 0}`} />
+            <InfoLine icon={<CheckCircle2 size={12} />} label="Result" value={resultLabel} />
+          </div>
+        </div>
       </div>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold" style={{ color: "var(--fs-text-1)" }}>{t.title}</p>
-        <p className="text-xs" style={{ color: "var(--fs-text-3)" }}>
-          {fmtDate(t.dateTime)} · {npr(t.entryFeeNpr ?? 0)}
-        </p>
-      </div>
-      <div className="flex shrink-0 items-center gap-1.5">
-        <span className="h-2 w-2 rounded-full" style={{ background: statusColor }} />
-        <span className="text-[11px] font-medium" style={{ color: statusColor }}>{t.status}</span>
+      <div className="mt-3 flex items-center justify-between rounded-lg px-3 py-2" style={{ background: "var(--fs-surface-2)" }}>
+        <span className="flex items-center gap-1.5 text-xs" style={{ color: "var(--fs-text-2)" }}>
+          <KeyRound size={12} /> {roomLabel}
+        </span>
+        <span className="flex items-center gap-1 text-xs font-semibold" style={{ color: "var(--fs-red)" }}>
+          Details <ArrowRight size={13} />
+        </span>
       </div>
     </Link>
   );
@@ -199,28 +229,84 @@ function TournamentRow({ entry }: { entry: any }) {
 
 function ChallengeRow({ challenge, role }: { challenge: any; role: string }) {
   const statusColor = STATUS_COLORS[challenge.status] ?? "var(--fs-text-3)";
+  const opponent = role === "Creator"
+    ? challenge.opponent?.profile?.ign ?? challenge.opponent?.name ?? "Open Slot"
+    : challenge.creator?.profile?.ign ?? challenge.creator?.name ?? "Creator";
+  const myResult = challenge.results?.[0];
+  const roomLabel = challenge.roomId
+    ? "ID/password shared"
+    : challenge.status === "MATCHED"
+      ? "Room pending"
+      : challenge.status === "OPEN"
+        ? "Waiting opponent"
+        : "Room closed";
+  const resultLabel = challenge.winnerId
+    ? "Winner released"
+    : myResult
+      ? "Result submitted"
+      : ["ROOM_SHARED", "ONGOING", "PENDING_RESULTS"].includes(challenge.status)
+        ? "Submit result"
+        : "Result pending";
+  const matchTime = challenge.scheduledAt ?? challenge.startedAt ?? challenge.matchedAt ?? challenge.createdAt;
   return (
     <Link
       href={`/challenges/${challenge.id}`}
-      className="flex items-center gap-3 rounded-xl p-3"
+      className="block rounded-xl p-3 transition hover:border-[var(--fs-amber)]"
       style={{ background: "var(--fs-surface-1)", border: "1px solid var(--fs-border)" }}
     >
-      <div
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
-        style={{ background: "rgba(255,170,0,0.1)" }}
-      >
-        <Swords size={16} style={{ color: "var(--fs-amber)" }} />
+      <div className="flex items-start gap-3">
+        <div
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
+          style={{ background: "rgba(255,170,0,0.1)" }}
+        >
+          <Swords size={18} style={{ color: "var(--fs-amber)" }} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold" style={{ color: "var(--fs-text-1)" }}>{challenge.title}</p>
+              <p className="text-xs" style={{ color: "var(--fs-text-3)" }}>
+                {role} · vs {opponent}
+              </p>
+            </div>
+            <StatusPill status={challenge.status} color={statusColor} />
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <InfoLine icon={<Swords size={12} />} label="Mode" value={challenge.gameMode ?? challenge.challengeNumber} />
+            <InfoLine icon={<Clock size={12} />} label="Time" value={matchTime ? fmtDate(matchTime) : "TBD"} />
+            <InfoLine icon={<Coins size={12} />} label="Stake" value={`${npr(challenge.entryFee ?? 0)} / ${npr(challenge.prizeToWinner ?? 0)}`} />
+            <InfoLine icon={<CheckCircle2 size={12} />} label="Result" value={resultLabel} />
+          </div>
+        </div>
       </div>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold" style={{ color: "var(--fs-text-1)" }}>{challenge.title}</p>
-        <p className="text-xs" style={{ color: "var(--fs-text-3)" }}>
-          {role} · {challenge.gameMode ?? challenge.challengeNumber}
-        </p>
-      </div>
-      <div className="flex shrink-0 items-center gap-1.5">
-        <span className="h-2 w-2 rounded-full" style={{ background: statusColor }} />
-        <span className="text-[11px] font-medium" style={{ color: statusColor }}>{challenge.status}</span>
+      <div className="mt-3 flex items-center justify-between rounded-lg px-3 py-2" style={{ background: "var(--fs-surface-2)" }}>
+        <span className="flex items-center gap-1.5 text-xs" style={{ color: "var(--fs-text-2)" }}>
+          <KeyRound size={12} /> {roomLabel}
+        </span>
+        <span className="flex items-center gap-1 text-xs font-semibold" style={{ color: "var(--fs-amber)" }}>
+          Details <ArrowRight size={13} />
+        </span>
       </div>
     </Link>
+  );
+}
+
+function StatusPill({ status, color }: { status: string; color: string }) {
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-1 text-[10px] font-semibold" style={{ background: "var(--fs-surface-2)", color }}>
+      <span className="h-1.5 w-1.5 rounded-full" style={{ background: color }} />
+      {status}
+    </span>
+  );
+}
+
+function InfoLine({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <div className="min-w-0 rounded-lg px-2 py-2" style={{ background: "rgba(255,255,255,0.025)", border: "0.5px solid var(--fs-border)" }}>
+      <p className="flex items-center gap-1 text-[9px] uppercase font-semibold" style={{ color: "var(--fs-text-3)" }}>
+        {icon} {label}
+      </p>
+      <p className="mt-0.5 truncate text-xs font-semibold" style={{ color: "var(--fs-text-1)" }}>{value}</p>
+    </div>
   );
 }

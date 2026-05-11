@@ -1,8 +1,8 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
-import { Coins, Plus, Swords, Gamepad2 } from "lucide-react";
+import { Coins, Plus, Swords, Gamepad2, Clock, UserRound, Trophy } from "lucide-react";
 import { useToast, handleJoinError } from "@/lib/toast";
 import { useAuth } from "@/lib/auth-context";
 import { useFlags } from "@/lib/flags";
@@ -23,7 +23,7 @@ export default function ChallengesPage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     const params = new URLSearchParams();
     if (gameMode !== "ALL") params.set("gameMode", gameMode);
     if (status !== "ALL") params.set("status", status);
@@ -36,8 +36,9 @@ export default function ChallengesPage() {
     } finally {
       setLoading(false);
     }
-  }
-  useEffect(() => { load().catch(() => {}); }, [gameMode, status]);
+  }, [gameMode, status]);
+
+  useEffect(() => { load().catch(() => {}); }, [load]);
 
   if (!isEnabled("CHALLENGE_ENABLED")) {
     return <FeatureDisabledPage name="Challenges" />;
@@ -115,7 +116,7 @@ export default function ChallengesPage() {
               : "fs-badge-red";
 
             return (
-              <div key={c.id} className="fs-card fs-card-body">
+              <div key={c.id} className="fs-card fs-card-body transition hover:border-[var(--fs-red)]">
                 {/* Top row */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -138,36 +139,53 @@ export default function ChallengesPage() {
                   </span>
                 </div>
 
-                {/* VS Row */}
-                <div className="mt-3 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div
-                      className="flex h-9 w-9 items-center justify-center rounded-full"
-                      style={{ background: 'var(--fs-surface-3)' }}
-                    >
-                      <Gamepad2 size={16} style={{ color: 'var(--fs-text-2)' }} />
+                <Link href={`/challenges/${c.id}`} className="mt-3 block">
+                  <h2 className="truncate text-base font-bold" style={{ color: "var(--fs-text-1)" }}>
+                    {c.title}
+                  </h2>
+
+                  {/* VS Row */}
+                  <div className="mt-3 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div
+                        className="flex h-9 w-9 items-center justify-center rounded-full"
+                        style={{ background: 'var(--fs-surface-3)' }}
+                      >
+                        <Gamepad2 size={16} style={{ color: 'var(--fs-text-2)' }} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold" style={{ color: 'var(--fs-text-1)' }}>{ign}</p>
+                        <p className="text-[10px]" style={{ color: 'var(--fs-text-3)' }}>
+                          {lvl ? `Lv ${lvl}` : "Level hidden"}
+                          {c.minLevel > 0 ? ` · Need Lv${c.minLevel}+` : ""}
+                        </p>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold" style={{ color: 'var(--fs-text-1)' }}>{ign}</p>
+                    <span className="text-lg font-bold" style={{ color: 'var(--fs-text-3)' }}>VS</span>
+                    <div className="min-w-0 text-right">
+                      <p className="truncate text-sm font-semibold" style={{ color: c.opponent ? "var(--fs-text-1)" : "var(--fs-text-3)" }}>
+                        {c.opponent?.profile?.ign ?? c.opponent?.name ?? "Open Slot"}
+                      </p>
                       <p className="text-[10px]" style={{ color: 'var(--fs-text-3)' }}>
-                        {lvl ? `Lv ${lvl}` : "—"}
-                        {c.minLevel > 0 ? ` · Need Lv${c.minLevel}+` : ""}
+                        {c.opponent ? "Opponent locked" : "Waiting"}
                       </p>
                     </div>
                   </div>
-                  <span className="text-lg font-bold" style={{ color: 'var(--fs-text-3)' }}>VS</span>
-                  <div className="text-right">
-                    <span className="text-sm" style={{ color: 'var(--fs-text-3)' }}>???</span>
+
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    <MiniStat icon={<Coins size={12} />} label="Entry" value={`Rs ${c.entryFee}`} />
+                    <MiniStat icon={<Trophy size={12} />} label="Prize" value={`Rs ${c.prizeToWinner}`} />
+                    <MiniStat icon={<Clock size={12} />} label="Time" value={c.scheduledAt ? new Date(c.scheduledAt).toLocaleDateString() : "Now"} />
                   </div>
-                </div>
+                </Link>
 
                 {/* Bottom row */}
                 <div className="mt-3 flex items-center justify-between" style={{ borderTop: '0.5px solid var(--fs-border)', paddingTop: '10px' }}>
-                  <div className="flex items-center gap-3 text-xs">
-                    <span style={{ color: 'var(--fs-text-3)' }}>
-                      <Coins size={12} className="inline mr-1" />Entry Rs {c.entryFee}
+                  <div className="flex min-w-0 items-center gap-2 text-xs" style={{ color: 'var(--fs-text-3)' }}>
+                    <UserRound size={12} className="shrink-0" />
+                    <span className="truncate">
+                      {c.opponent ? "Ready to play" : "Accepting opponent"}
                     </span>
-                    <span style={{ color: 'var(--fs-green)' }}>Prize Rs {c.prizeToWinner}</span>
                   </div>
                   <div className="flex gap-2">
                     <Link href={`/challenges/${c.id}`} className="fs-btn fs-btn-outline fs-btn-sm">Details</Link>
@@ -194,6 +212,17 @@ export default function ChallengesPage() {
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+function MiniStat({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <div className="rounded-lg px-2 py-2" style={{ background: "var(--fs-surface-1)", border: "0.5px solid var(--fs-border)" }}>
+      <p className="flex items-center gap-1 text-[9px] uppercase font-semibold" style={{ color: "var(--fs-text-3)" }}>
+        {icon} {label}
+      </p>
+      <p className="mt-0.5 truncate text-xs font-bold" style={{ color: "var(--fs-text-1)" }}>{value}</p>
     </div>
   );
 }

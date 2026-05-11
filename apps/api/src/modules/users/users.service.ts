@@ -95,6 +95,16 @@ export class UsersService {
         include: {
           creator: { select: { id: true, name: true, profile: true } },
           opponent: { select: { id: true, name: true, profile: true } },
+          results: {
+            where: { userId },
+            select: {
+              userId: true,
+              outcome: true,
+              kills: true,
+              submittedAt: true,
+              isDisputed: true,
+            },
+          },
         },
         orderBy: { createdAt: 'desc' },
       }),

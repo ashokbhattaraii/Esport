@@ -3,7 +3,8 @@ export const dynamic = 'force-dynamic'
 
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Gamepad2, Swords, Trophy, ShieldCheck, AlertTriangle, X, Clock } from "lucide-react";
+import Link from "next/link";
+import { Gamepad2, Swords, Trophy, ShieldCheck, AlertTriangle, X, Clock, ArrowLeft } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { useToast, handleJoinError } from "@/lib/toast";
@@ -41,6 +42,7 @@ export default function ChallengeDetailPage() {
   const [agreed, setAgreed] = useState(false);
   const [joining, setJoining] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [roomSubmitting, setRoomSubmitting] = useState(false);
   const [resultSubmitting, setResultSubmitting] = useState(false);
   const [disputeSubmitting, setDisputeSubmitting] = useState(false);
@@ -55,9 +57,15 @@ export default function ChallengeDetailPage() {
   const [room, setRoom] = useState({ roomId: "", password: "" });
 
   const load = useCallback(async () => {
-    try { setC(await api(`/challenges/${id}`)); }
-    catch (e: any) { toast.error(e.message); }
-    finally { setLoading(false); }
+    setLoadError(null);
+    try {
+      setC(await api(`/challenges/${id}`));
+    } catch (e: any) {
+      setC(null);
+      setLoadError(e?.message ?? "Challenge could not be loaded");
+    } finally {
+      setLoading(false);
+    }
   }, [id]);
 
   useEffect(() => { load(); }, [load]);
@@ -69,9 +77,30 @@ export default function ChallengeDetailPage() {
     if (Date.now() > deadline) {
       api(`/challenges/${c.id}/check-timeout`, { method: "POST" }).then(() => load());
     }
-  }, [c]);
+  }, [c, load]);
 
-  if (loading || !c) return <PageLoading label="Loading challenge..." />;
+  if (loading) return <PageLoading label="Loading challenge..." />;
+  if (loadError || !c) {
+    return (
+      <div className="space-y-4 py-8 text-center">
+        <div className="card">
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-red-500/10">
+            <AlertTriangle size={22} className="text-red-400" />
+          </div>
+          <h1 className="font-display text-lg text-white">Challenge not available</h1>
+          <p className="mt-2 text-sm text-white/60">
+            {loadError ?? "This challenge may have been removed or the link is invalid."}
+          </p>
+          <div className="mt-4 flex gap-2">
+            <button onClick={() => router.back()} className="btn-outline flex-1">
+              <ArrowLeft size={14} /> Back
+            </button>
+            <Link href="/challenges" className="btn-primary flex-1">View Challenges</Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const isCreator = user?.id === c.creatorId;
   const isOpponent = user?.id === c.opponentId;
