@@ -485,6 +485,18 @@ async function seedRolesAndSuperAdmin() {
         { resource: "tournaments", action: "read" },
       ],
     },
+    TOURNAMENT_HANDLER: {
+      isSystem: true,
+      permissions: [
+        { resource: "tournaments", action: "read" },
+        { resource: "tournaments", action: "write" },
+        { resource: "tournaments", action: "approve" },
+        { resource: "results", action: "read" },
+        { resource: "results", action: "approve" },
+        { resource: "challenges", action: "read" },
+        { resource: "challenges", action: "write" },
+      ],
+    },
     PLAYER: { isSystem: true, permissions: [] },
   };
 

@@ -113,6 +113,7 @@ export class SystemConfigService implements OnModuleInit {
     APP_PUBLIC_WEB_URL: { value: "", type: "STRING", category: "FEATURE_FLAG", label: "Public Web URL" },
     APP_DOWNLOAD_ENABLED: { value: "true", type: "BOOLEAN", category: "FEATURE_FLAG", label: "APK Download Enabled" },
     APP_SUPPORT_URL: { value: "/support", type: "STRING", category: "FEATURE_FLAG", label: "App Support URL" },
+    RESULT_SUBMIT_DELAY_MINS: { value: "10", type: "NUMBER", category: "TOURNAMENT", label: "Result Submit Delay After Room Share (mins)" },
   };
 
   get(key: string): string {

@@ -1,7 +1,9 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Param,
   Post,
@@ -119,6 +121,17 @@ export class ChallengesController {
     );
   }
 
+  @Get("config/result-delay")
+  resultDelay() {
+    return this.svc.getResultSubmitDelay().then((mins) => ({ resultSubmitDelayMins: mins }));
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post(":id/check-timeout")
+  checkTimeout(@Param("id") id: string) {
+    return this.svc.handleRoomTimeout(id);
+  }
+
   @UseGuards(JwtAuthGuard)
   @Delete(":id")
   cancel(@CurrentUser() u: any, @Param("id") id: string) {
@@ -173,6 +186,28 @@ export class AdminChallengesController {
 export class AdminDisputesController {
   constructor(private readonly svc: ChallengesService) {}
 
+  @RequirePermission("tournaments", "read")
+  @Get(":id")
+  detail(@Param("id") id: string) {
+    return this.svc.getDisputeDetail(id);
+  }
+
+  @RequirePermission("tournaments", "read")
+  @Get(":id/notes")
+  notes(@Param("id") id: string) {
+    return this.svc.getDisputeNotes(id);
+  }
+
+  @RequirePermission("tournaments", "write")
+  @Post(":id/notes")
+  addNote(
+    @CurrentUser() u: any,
+    @Param("id") id: string,
+    @Body() body: { message: string },
+  ) {
+    return this.svc.addDisputeNote(id, u.sub, "TOURNAMENT_HANDLER", body.message);
+  }
+
   @RequirePermission("tournaments", "approve")
   @Put(":id/resolve")
   resolve(
@@ -182,5 +217,39 @@ export class AdminDisputesController {
     body: { resolution: "CREATOR" | "OPPONENT" | "REFUND"; note?: string },
   ) {
     return this.svc.resolveDispute(id, u.sub, body.resolution, body.note);
+  }
+}
+
+// Players can also add notes to their own disputes
+@UseGuards(JwtAuthGuard)
+@Controller("challenges")
+export class ChallengeDisputeNotesController {
+  constructor(private readonly svc: ChallengesService) {}
+
+  @Post(":id/dispute/notes")
+  async addNote(
+    @CurrentUser() u: any,
+    @Param("id") challengeId: string,
+    @Body() body: { message: string },
+  ) {
+    const c = await this.svc.getById(challengeId);
+    if (c.creatorId !== u.sub && c.opponentId !== u.sub) {
+      throw new ForbiddenException("Not part of this challenge");
+    }
+    if (!c.disputeId) throw new BadRequestException("No dispute on this challenge");
+    return this.svc.addDisputeNote(c.disputeId, u.sub, "PLAYER", body.message);
+  }
+
+  @Get(":id/dispute/notes")
+  async getNotes(
+    @CurrentUser() u: any,
+    @Param("id") challengeId: string,
+  ) {
+    const c = await this.svc.getById(challengeId);
+    if (c.creatorId !== u.sub && c.opponentId !== u.sub) {
+      throw new ForbiddenException("Not part of this challenge");
+    }
+    if (!c.disputeId) return [];
+    return this.svc.getDisputeNotes(c.disputeId);
   }
 }

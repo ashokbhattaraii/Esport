@@ -637,13 +637,15 @@ model Challenge {
   reportWindowMins   Int           @default(60)
 
   // Room
-  roomId       String?
-  roomPassword String?
-  scheduledAt  DateTime?
-  startedAt    DateTime?
-  endedAt      DateTime?
-  winnerId     String?
-  disputeId    String?
+  roomId         String?
+  roomPassword   String?
+  matchedAt      DateTime?
+  roomDeadline   DateTime?
+  scheduledAt    DateTime?
+  startedAt      DateTime?
+  endedAt        DateTime?
+  winnerId       String?
+  disputeId      String?
 
   results   ChallengeResult[]
   createdAt DateTime          @default(now())
@@ -664,6 +666,7 @@ model ChallengeResult {
   damage           Int       @default(0)
   survivalTimeSecs Int       @default(0)
   gotBooyah        Boolean   @default(false)
+  outcome          String?   // WIN | LOSE — self-reported
   screenshotUrl    String?
   povUrl           String?
   submittedAt      DateTime  @default(now())
@@ -689,8 +692,21 @@ model ChallengeDispute {
   resolution   String?
   createdAt    DateTime      @default(now())
   resolvedAt   DateTime?
+  notes        DisputeNote[]
 
   @@index([status, createdAt])
+}
+
+model DisputeNote {
+  id        String           @id @default(cuid())
+  disputeId String
+  dispute   ChallengeDispute @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+  authorId  String
+  authorRole String          @default("PLAYER")
+  message   String
+  createdAt DateTime         @default(now())
+
+  @@index([disputeId, createdAt])
 }
 
 model ChallengeInvite {

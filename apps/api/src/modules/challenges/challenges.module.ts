@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import {
   AdminChallengesController,
   AdminDisputesController,
+  ChallengeDisputeNotesController,
   ChallengesController,
 } from "./challenges.controller";
 import { ChallengesService } from "./challenges.service";
@@ -12,6 +13,7 @@ import { ProfileModule } from "../profile/profile.module";
   imports: [AdminModule, ProfileModule],
   controllers: [
     ChallengesController,
+    ChallengeDisputeNotesController,
     AdminChallengesController,
     AdminDisputesController,
   ],

@@ -135,30 +135,28 @@ export default function HomePage() {
       <div className="mt-4 space-y-5">
         {/* Quick Stats Bar */}
         <div
-          className="flex items-center justify-center gap-4 rounded-full px-4 py-2.5 mx-auto w-fit"
+          className="grid grid-cols-4 gap-0 rounded-xl overflow-hidden"
           style={{ background: 'var(--fs-surface-1)', border: '0.5px solid var(--fs-border)' }}
         >
-          <div className="flex items-center gap-1.5 text-xs">
-            <span className="h-2 w-2 rounded-full" style={{ background: 'var(--fs-green)' }} />
-            <span className="font-semibold" style={{ color: 'var(--fs-text-1)' }}>{activeCount}</span>
-            <span style={{ color: 'var(--fs-text-3)' }}>Live</span>
+          <div className="flex flex-col items-center py-2.5 px-1 text-center">
+            <span className="h-2 w-2 rounded-full mb-1" style={{ background: 'var(--fs-green)' }} />
+            <span className="text-xs font-semibold" style={{ color: 'var(--fs-text-1)' }}>{activeCount}</span>
+            <span className="text-[9px]" style={{ color: 'var(--fs-text-3)' }}>Live</span>
           </div>
-          <div className="h-3 w-px" style={{ background: 'var(--fs-border-md)' }} />
-          <div className="flex items-center gap-1.5 text-xs">
-            <span style={{ color: 'var(--fs-text-3)' }}>👥</span>
-            <span className="font-semibold" style={{ color: 'var(--fs-text-1)' }}>{stats?.activeUsers ?? tournaments.length * 3}</span>
-            <span style={{ color: 'var(--fs-text-3)' }}>Active Users</span>
+          <div className="flex flex-col items-center py-2.5 px-1 text-center" style={{ borderLeft: '0.5px solid var(--fs-border)' }}>
+            <span className="mb-1 text-[10px]">👥</span>
+            <span className="text-xs font-semibold" style={{ color: 'var(--fs-text-1)' }}>{stats?.activeUsers ?? 0}</span>
+            <span className="text-[9px]" style={{ color: 'var(--fs-text-3)' }}>Users</span>
           </div>
-          <div className="h-3 w-px" style={{ background: 'var(--fs-border-md)' }} />
-          <div className="flex items-center gap-1.5 text-xs">
-            <span style={{ color: 'var(--fs-text-3)' }}>⬇️</span>
-            <span className="font-semibold" style={{ color: 'var(--fs-text-1)' }}>{stats?.totalDownloads ?? '—'}</span>
-            <span style={{ color: 'var(--fs-text-3)' }}>Downloads</span>
+          <div className="flex flex-col items-center py-2.5 px-1 text-center" style={{ borderLeft: '0.5px solid var(--fs-border)' }}>
+            <span className="mb-1 text-[10px]">⬇️</span>
+            <span className="text-xs font-semibold" style={{ color: 'var(--fs-text-1)' }}>{stats?.totalDownloads ?? '—'}</span>
+            <span className="text-[9px]" style={{ color: 'var(--fs-text-3)' }}>Downloads</span>
           </div>
-          <div className="h-3 w-px" style={{ background: 'var(--fs-border-md)' }} />
-          <div className="flex items-center gap-1.5 text-xs">
-            <span style={{ color: 'var(--fs-text-3)' }}>🏆</span>
-            <span className="font-semibold" style={{ color: 'var(--fs-gold)' }}>Rs {totalPrize}</span>
+          <div className="flex flex-col items-center py-2.5 px-1 text-center" style={{ borderLeft: '0.5px solid var(--fs-border)' }}>
+            <span className="mb-1 text-[10px]">🏆</span>
+            <span className="text-xs font-semibold" style={{ color: 'var(--fs-gold)' }}>Rs {totalPrize}</span>
+            <span className="text-[9px]" style={{ color: 'var(--fs-text-3)' }}>Prize</span>
           </div>
         </div>
 

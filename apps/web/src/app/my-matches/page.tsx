@@ -2,28 +2,33 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Clock3, ShieldCheck, Swords, Trophy, Users, Wallet } from "lucide-react";
+import { ArrowRight, Swords, Trophy } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { fmtDate, npr } from "@/lib/utils";
 import { GoogleAuthPanel } from "@/components/GoogleAuthPanel";
 import { EmptyState, PageLoading } from "@/components/ui";
 
-const CHALLENGE_TONES: Record<string, string> = {
-  OPEN: "fs-badge-green",
-  MATCHED: "fs-badge-amber",
-  ROOM_SHARED: "fs-badge-amber",
-  ONGOING: "fs-badge-red",
-  PENDING_RESULTS: "fs-badge-amber",
-  COMPLETED: "fs-badge-gray",
-  CANCELLED: "fs-badge-gray",
-  DISPUTED: "fs-badge-red",
+type Tab = "tournaments" | "created" | "joined";
+
+const STATUS_COLORS: Record<string, string> = {
+  UPCOMING: "var(--fs-green)",
+  LIVE: "var(--fs-green)",
+  ONGOING: "var(--fs-green)",
+  OPEN: "var(--fs-green)",
+  MATCHED: "var(--fs-amber)",
+  ROOM_SHARED: "var(--fs-amber)",
+  PENDING_RESULTS: "var(--fs-amber)",
+  COMPLETED: "var(--fs-text-3)",
+  CANCELLED: "var(--fs-text-3)",
+  DISPUTED: "var(--fs-red)",
 };
 
 export default function MyMatchesPage() {
   const { user, loading } = useAuth();
   const [data, setData] = useState<any>(null);
   const [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState<Tab>("tournaments");
 
   useEffect(() => {
     if (!user) return;
@@ -37,11 +42,11 @@ export default function MyMatchesPage() {
   const joinedTournaments = useMemo(() => data?.tournaments ?? [], [data]);
   const challenges = useMemo(() => data?.challenges ?? [], [data]);
   const createdChallenges = useMemo(
-    () => challenges.filter((challenge: any) => challenge.creatorId === user?.id),
+    () => challenges.filter((c: any) => c.creatorId === user?.id),
     [challenges, user?.id],
   );
   const joinedChallenges = useMemo(
-    () => challenges.filter((challenge: any) => challenge.opponentId === user?.id),
+    () => challenges.filter((c: any) => c.opponentId === user?.id),
     [challenges, user?.id],
   );
 
@@ -49,14 +54,10 @@ export default function MyMatchesPage() {
     () =>
       joinedTournaments
         .map((item: any) => item.tournament)
-        .filter((item: any) => item && new Date(item.dateTime).getTime() >= Date.now())
-        .sort(
-          (a: any, b: any) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime(),
-        )[0],
+        .filter((t: any) => t && new Date(t.dateTime).getTime() >= Date.now())
+        .sort((a: any, b: any) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime())[0],
     [joinedTournaments],
   );
-
-  const latestChallenge = challenges[0];
 
   if (loading || busy) return <PageLoading label="Loading your matches..." />;
   if (!user) {
@@ -67,187 +68,158 @@ export default function MyMatchesPage() {
     );
   }
 
+  const tabItems: { key: Tab; label: string; count: number }[] = [
+    { key: "tournaments", label: "Tournaments", count: joinedTournaments.length },
+    { key: "created", label: "Created", count: createdChallenges.length },
+    { key: "joined", label: "Joined", count: joinedChallenges.length },
+  ];
+
   return (
-    <div className="space-y-4 pb-8">
-      <section className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))] p-5">
-        <p className="text-[10px] uppercase tracking-[0.28em] text-[var(--fs-text-3)]">Match hub</p>
-        <h1 className="mt-2 text-2xl font-bold text-[var(--fs-text-1)]">My Matches</h1>
-        <p className="mt-2 max-w-2xl text-sm text-[var(--fs-text-3)]">
-          Track every tournament join and challenge room in one place. You can see what is waiting, what is matched, and what needs action next.
+    <div className="space-y-4 pb-20">
+      {/* Header */}
+      <div style={{ padding: "4px 0" }}>
+        <h1 className="text-lg font-bold" style={{ color: "var(--fs-text-1)" }}>My Matches</h1>
+        <p className="text-xs" style={{ color: "var(--fs-text-3)", marginTop: 2 }}>
+          {joinedTournaments.length} tournament{joinedTournaments.length !== 1 ? "s" : ""} · {challenges.length} challenge{challenges.length !== 1 ? "s" : ""}
         </p>
+      </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-          <Stat label="Tournaments" value={data?.counts?.tournaments ?? 0} icon={<Trophy size={16} />} />
-          <Stat label="Challenges" value={data?.counts?.challenges ?? 0} icon={<Swords size={16} />} />
-          <Stat label="Created" value={data?.counts?.createdChallenges ?? 0} icon={<Users size={16} />} />
-          <Stat label="Joined" value={data?.counts?.joinedChallenges ?? 0} icon={<Wallet size={16} />} />
-        </div>
-      </section>
-
-      <section className="grid gap-3 md:grid-cols-2">
-        <InfoCard
-          icon={<ShieldCheck size={18} />}
-          title="Transparent flow"
-          text="Joined matches move through open, matched, room shared, live, results, and dispute states so you always know what happens next."
-        />
-        <InfoCard
-          icon={<Clock3 size={18} />}
-          title="Fast follow-up"
-          text="Room IDs, opponent assignment, and result review are all surfaced here instead of being hidden in the join screen."
-        />
-      </section>
-
+      {/* Next tournament banner */}
       {nextTournament && (
         <Link
           href={`/tournaments/${nextTournament.id}`}
-          className="block rounded-2xl border border-[rgba(34,197,94,0.18)] bg-[rgba(34,197,94,0.08)] p-4"
+          className="flex items-center justify-between gap-3 rounded-xl p-3"
+          style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.2)" }}
         >
-          <p className="text-[10px] uppercase tracking-[0.28em] text-[var(--fs-text-3)]">Next tournament</p>
-          <div className="mt-2 flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="truncate font-semibold text-[var(--fs-text-1)]">{nextTournament.title}</p>
-              <p className="text-sm text-[var(--fs-text-3)]">{fmtDate(nextTournament.dateTime)}</p>
-            </div>
-            <ArrowRight className="text-[var(--fs-green)]" size={18} />
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-semibold uppercase" style={{ color: "var(--fs-green)", letterSpacing: "0.05em" }}>Next up</p>
+            <p className="mt-0.5 truncate text-sm font-semibold" style={{ color: "var(--fs-text-1)" }}>{nextTournament.title}</p>
+            <p className="text-xs" style={{ color: "var(--fs-text-3)" }}>{fmtDate(nextTournament.dateTime)}</p>
           </div>
+          <ArrowRight size={16} style={{ color: "var(--fs-green)", flexShrink: 0 }} />
         </Link>
       )}
 
-      <section className="space-y-3">
-        <SectionHeader title="Created by you" count={createdChallenges.length} />
-        {createdChallenges.length === 0 ? (
-          <EmptyState
-            title="No created challenges yet"
-            description="Create a challenge and it will appear here as soon as it is live."
-          />
-        ) : (
-          <div className="space-y-3">
-            {createdChallenges.map((challenge: any) => (
-              <ChallengeRow key={challenge.id} challenge={challenge} roleLabel="Creator" />
-            ))}
-          </div>
-        )}
-      </section>
+      {/* Tab bar */}
+      <div
+        className="flex rounded-lg p-1"
+        style={{ background: "var(--fs-surface-1)", border: "1px solid var(--fs-border)" }}
+      >
+        {tabItems.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className="flex-1 rounded-md px-2 py-2 text-xs font-semibold transition-colors"
+            style={{
+              background: tab === t.key ? "var(--fs-surface-2)" : "transparent",
+              color: tab === t.key ? "var(--fs-text-1)" : "var(--fs-text-3)",
+              border: tab === t.key ? "1px solid var(--fs-border)" : "1px solid transparent",
+            }}
+          >
+            {t.label}
+            <span
+              className="ml-1 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[10px]"
+              style={{ background: tab === t.key ? "var(--fs-red)" : "var(--fs-surface-2)", color: tab === t.key ? "#fff" : "var(--fs-text-3)" }}
+            >
+              {t.count}
+            </span>
+          </button>
+        ))}
+      </div>
 
-      <section className="space-y-3">
-        <SectionHeader title="Joined challenges" count={joinedChallenges.length} />
-        {joinedChallenges.length === 0 ? (
-          <EmptyState
-            title="No joined challenges yet"
-            description="When you accept a challenge, the full room and result flow will show up here."
-          />
-        ) : (
-          <div className="space-y-3">
-            {joinedChallenges.map((challenge: any) => (
-              <ChallengeRow key={challenge.id} challenge={challenge} roleLabel="Opponent" />
-            ))}
-          </div>
-        )}
-      </section>
+      {/* Tab content */}
+      {tab === "tournaments" && (
+        <div className="space-y-2">
+          {joinedTournaments.length === 0 ? (
+            <EmptyState title="No tournaments joined" description="Join a tournament and it'll show up here." />
+          ) : (
+            joinedTournaments.map((entry: any) => (
+              <TournamentRow key={entry.id} entry={entry} />
+            ))
+          )}
+        </div>
+      )}
 
-      <section className="space-y-3">
-        <SectionHeader title="Joined tournaments" count={joinedTournaments.length} />
-        {joinedTournaments.length === 0 ? (
-          <EmptyState
-            title="No tournament joins yet"
-            description="Join a tournament and the details will appear here for quick access."
-          />
-        ) : (
-          <div className="space-y-3">
-            {joinedTournaments.map((entry: any) => (
-              <Link
-                key={entry.id}
-                href={`/tournaments/${entry.tournament.id}`}
-                className="block rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] p-4"
-              >
-                <p className="text-[10px] uppercase tracking-[0.24em] text-[var(--fs-text-3)]">Tournament</p>
-                <div className="mt-2 flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate font-semibold text-[var(--fs-text-1)]">{entry.tournament.title}</p>
-                    <p className="text-sm text-[var(--fs-text-3)]">
-                      {fmtDate(entry.tournament.dateTime)} · {npr(entry.tournament.entryFeeNpr ?? 0)} entry
-                    </p>
-                  </div>
-                  <span className="fs-badge fs-badge-green">{entry.tournament.status}</span>
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
-      </section>
+      {tab === "created" && (
+        <div className="space-y-2">
+          {createdChallenges.length === 0 ? (
+            <EmptyState title="No challenges created" description="Create a challenge to get started." />
+          ) : (
+            createdChallenges.map((c: any) => (
+              <ChallengeRow key={c.id} challenge={c} role="Creator" />
+            ))
+          )}
+        </div>
+      )}
 
-      {latestChallenge && (
-        <section className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] p-4">
-          <p className="text-[10px] uppercase tracking-[0.24em] text-[var(--fs-text-3)]">Latest challenge</p>
-          <Link href={`/challenges/${latestChallenge.id}`} className="mt-2 block">
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className="truncate font-semibold text-[var(--fs-text-1)]">{latestChallenge.title}</p>
-                <p className="text-sm text-[var(--fs-text-3)]">
-                  {latestChallenge.status} · {latestChallenge.creatorId === user.id ? "created by you" : "joined by you"}
-                </p>
-              </div>
-              <span className={CHALLENGE_TONES[latestChallenge.status] ?? "fs-badge"}>{latestChallenge.status}</span>
-            </div>
-          </Link>
-        </section>
+      {tab === "joined" && (
+        <div className="space-y-2">
+          {joinedChallenges.length === 0 ? (
+            <EmptyState title="No challenges joined" description="Accept a challenge and it'll appear here." />
+          ) : (
+            joinedChallenges.map((c: any) => (
+              <ChallengeRow key={c.id} challenge={c} role="Opponent" />
+            ))
+          )}
+        </div>
       )}
     </div>
   );
 }
 
-function Stat({ label, value, icon }: { label: string; value: number; icon: React.ReactNode }) {
+function TournamentRow({ entry }: { entry: any }) {
+  const t = entry.tournament;
+  if (!t) return null;
+  const statusColor = STATUS_COLORS[t.status] ?? "var(--fs-text-3)";
   return (
-    <div className="rounded-xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] p-3">
-      <div className="flex items-center gap-2 text-[var(--fs-red)]">
-        {icon}
-        <span className="text-xs uppercase tracking-[0.2em] text-[var(--fs-text-3)]">{label}</span>
+    <Link
+      href={`/tournaments/${t.id}`}
+      className="flex items-center gap-3 rounded-xl p-3"
+      style={{ background: "var(--fs-surface-1)", border: "1px solid var(--fs-border)" }}
+    >
+      <div
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+        style={{ background: "rgba(229,57,53,0.1)" }}
+      >
+        <Trophy size={16} style={{ color: "var(--fs-red)" }} />
       </div>
-      <p className="mt-2 text-2xl font-bold text-[var(--fs-text-1)]">{value}</p>
-    </div>
-  );
-}
-
-function InfoCard({ icon, title, text }: { icon: React.ReactNode; title: string; text: string }) {
-  return (
-    <div className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] p-4">
-      <div className="flex items-center gap-2 text-[var(--fs-red)]">
-        {icon}
-        <p className="font-semibold text-[var(--fs-text-1)]">{title}</p>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold" style={{ color: "var(--fs-text-1)" }}>{t.title}</p>
+        <p className="text-xs" style={{ color: "var(--fs-text-3)" }}>
+          {fmtDate(t.dateTime)} · {npr(t.entryFeeNpr ?? 0)}
+        </p>
       </div>
-      <p className="mt-2 text-sm text-[var(--fs-text-3)]">{text}</p>
-    </div>
+      <div className="flex shrink-0 items-center gap-1.5">
+        <span className="h-2 w-2 rounded-full" style={{ background: statusColor }} />
+        <span className="text-[11px] font-medium" style={{ color: statusColor }}>{t.status}</span>
+      </div>
+    </Link>
   );
 }
 
-function SectionHeader({ title, count }: { title: string; count: number }) {
-  return (
-    <div className="flex items-center justify-between">
-      <h2 className="text-sm font-semibold uppercase tracking-[0.22em] text-[var(--fs-text-2)]">{title}</h2>
-      <span className="fs-badge">{count}</span>
-    </div>
-  );
-}
-
-function ChallengeRow({ challenge, roleLabel }: { challenge: any; roleLabel: string }) {
+function ChallengeRow({ challenge, role }: { challenge: any; role: string }) {
+  const statusColor = STATUS_COLORS[challenge.status] ?? "var(--fs-text-3)";
   return (
     <Link
       href={`/challenges/${challenge.id}`}
-      className="block rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] p-4 transition hover:border-[rgba(255,255,255,0.16)]"
+      className="flex items-center gap-3 rounded-xl p-3"
+      style={{ background: "var(--fs-surface-1)", border: "1px solid var(--fs-border)" }}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[10px] uppercase tracking-[0.24em] text-[var(--fs-text-3)]">{roleLabel}</p>
-          <p className="mt-1 truncate font-semibold text-[var(--fs-text-1)]">{challenge.title}</p>
-          <p className="mt-1 text-sm text-[var(--fs-text-3)]">
-            {challenge.challengeNumber ?? challenge.gameMode} · {challenge.opponentId ? "Head-to-head" : "Waiting for opponent"}
-          </p>
-        </div>
-        <span className={CHALLENGE_TONES[challenge.status] ?? "fs-badge"}>{challenge.status}</span>
+      <div
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+        style={{ background: "rgba(255,170,0,0.1)" }}
+      >
+        <Swords size={16} style={{ color: "var(--fs-amber)" }} />
       </div>
-      <div className="mt-3 flex items-center justify-between text-xs text-[var(--fs-text-3)]">
-        <span>{fmtDate(challenge.createdAt)}</span>
-        <span>{challenge.opponentId ? "Opponent assigned" : "Waiting"}</span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold" style={{ color: "var(--fs-text-1)" }}>{challenge.title}</p>
+        <p className="text-xs" style={{ color: "var(--fs-text-3)" }}>
+          {role} · {challenge.gameMode ?? challenge.challengeNumber}
+        </p>
+      </div>
+      <div className="flex shrink-0 items-center gap-1.5">
+        <span className="h-2 w-2 rounded-full" style={{ background: statusColor }} />
+        <span className="text-[11px] font-medium" style={{ color: statusColor }}>{challenge.status}</span>
       </div>
     </Link>
   );

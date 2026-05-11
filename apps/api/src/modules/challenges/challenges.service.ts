@@ -99,6 +99,8 @@ const CHALLENGE_DETAIL_SELECT = {
   ...CHALLENGE_LIST_SELECT,
   roomId: true,
   roomPassword: true,
+  matchedAt: true,
+  roomDeadline: true,
   disputeId: true,
   opponent: { select: PLAYER_SELECT },
   results: true,
@@ -420,21 +422,41 @@ export class ChallengesService {
           note: `Challenge ${c.challengeNumber} join`,
         },
       });
+      const matchedAt = new Date();
+      const roomDeadline = new Date(matchedAt.getTime() + 10 * 60 * 1000);
       const updated = await tx.challenge.update({
         where: { id: challengeId },
-        data: { opponentId: userId, status: "MATCHED" },
+        data: { opponentId: userId, status: "MATCHED", matchedAt, roomDeadline },
       });
+
+      // Notify creator: opponent found, share room within 10 min
       await tx.notification.create({
         data: {
           userId: c.creatorId,
           type: "CHALLENGE",
-          title: `Opponent found for ${c.challengeNumber}`,
-          body: "Share room details now.",
+          title: `Opponent found! ${c.challengeNumber}`,
+          body: "Share room ID & password within 10 minutes.",
         },
       });
+      // Notify joiner: matched, waiting for room
+      await tx.notification.create({
+        data: {
+          userId,
+          type: "CHALLENGE",
+          title: `Matched! ${c.challengeNumber}`,
+          body: "Waiting for room details from creator (10 min deadline).",
+        },
+      });
+
       this.realtime.emitToUser(c.creatorId, "challenge_matched", {
         challengeId: c.id,
         challengeNumber: c.challengeNumber,
+        roomDeadline: roomDeadline.toISOString(),
+      });
+      this.realtime.emitToUser(userId, "challenge_matched", {
+        challengeId: c.id,
+        challengeNumber: c.challengeNumber,
+        roomDeadline: roomDeadline.toISOString(),
       });
       this.realtime.emitToUser(userId, "wallet_updated", {});
       return updated;
@@ -455,19 +477,31 @@ export class ChallengesService {
     if (c.creatorId !== userId && role !== "ADMIN")
       throw new ForbiddenException("Only creator or admin can share room");
     if (!c.opponentId) throw new BadRequestException("No opponent yet");
+    if (c.status !== "MATCHED")
+      throw new BadRequestException("Room can only be shared when status is MATCHED");
+
+    // Check deadline (10 min window) — admin can bypass
+    if (role !== "ADMIN" && c.roomDeadline && new Date() > c.roomDeadline) {
+      throw new BadRequestException("Room sharing deadline expired (10 minutes). Contact support.");
+    }
 
     const updated = await this.prisma.challenge.update({
       where: { id: challengeId },
-      data: { roomId, roomPassword: password, status: "ROOM_SHARED" },
+      data: { roomId, roomPassword: password, status: "ROOM_SHARED", startedAt: new Date() },
     });
     for (const uid of [c.creatorId, c.opponentId]) {
       await this.prisma.notification.create({
         data: {
           userId: uid,
           type: "CHALLENGE",
-          title: `${c.challengeNumber} room ready`,
-          body: `Room ID: ${roomId} • Password: ${password}`,
+          title: `${c.challengeNumber} — Room Ready!`,
+          body: `Room ID: ${roomId} • Password: ${password}. Join now!`,
         },
+      });
+      this.realtime.emitToUser(uid, "challenge_room_shared", {
+        challengeId: c.id,
+        roomId,
+        roomPassword: password,
       });
     }
     this.invalidateChallengeCaches(challengeId);
@@ -478,6 +512,7 @@ export class ChallengesService {
     challengeId: string,
     userId: string,
     dto: {
+      outcome?: string;
       kills?: number;
       headshots?: number;
       damage?: number;
@@ -494,16 +529,37 @@ export class ChallengesService {
     if (!c) throw new NotFoundException();
     if (c.creatorId !== userId && c.opponentId !== userId)
       throw new ForbiddenException("Not part of this challenge");
-    if (c.screenshotRequired && !dto.screenshotUrl)
-      throw new BadRequestException("Screenshot is required");
-    if (c.povRequired && !dto.povUrl)
-      throw new BadRequestException("POV recording link is required");
+
+    // Enforce result submit delay after room was shared
+    if (c.startedAt) {
+      const delayMins = this.config.getNumber("RESULT_SUBMIT_DELAY_MINS");
+      const earliest = new Date(c.startedAt.getTime() + delayMins * 60_000);
+      if (new Date() < earliest) {
+        const remainSecs = Math.ceil((earliest.getTime() - Date.now()) / 1000);
+        throw new BadRequestException(
+          `Result submission opens in ${Math.ceil(remainSecs / 60)} minute(s). Play the match first.`,
+        );
+      }
+    }
+
+    const outcome = dto.outcome?.toUpperCase();
+    if (!outcome || !["WIN", "LOSE"].includes(outcome))
+      throw new BadRequestException("outcome must be WIN or LOSE");
+
+    // If WIN: require proof
+    if (outcome === "WIN") {
+      if (c.screenshotRequired && !dto.screenshotUrl)
+        throw new BadRequestException("Screenshot is required when claiming win");
+      if (c.povRequired && !dto.povUrl)
+        throw new BadRequestException("POV recording link is required when claiming win");
+    }
 
     await this.prisma.challengeResult.upsert({
       where: { challengeId_userId: { challengeId, userId } },
       create: {
         challengeId,
         userId,
+        outcome,
         kills: dto.kills ?? 0,
         headshots: dto.headshots ?? 0,
         damage: dto.damage ?? 0,
@@ -513,6 +569,7 @@ export class ChallengesService {
         povUrl: dto.povUrl,
       },
       update: {
+        outcome,
         kills: dto.kills ?? 0,
         headshots: dto.headshots ?? 0,
         damage: dto.damage ?? 0,
@@ -696,6 +753,52 @@ export class ChallengesService {
     return dispute;
   }
 
+  async handleRoomTimeout(challengeId: string) {
+    const c = await this.prisma.challenge.findUnique({ where: { id: challengeId } });
+    if (!c) return;
+    if (c.status !== "MATCHED") return;
+    if (!c.roomDeadline || new Date() < c.roomDeadline) return;
+
+    // Refund both players and cancel
+    const participants = [c.creatorId, c.opponentId].filter(Boolean) as string[];
+    await this.prisma.$transaction(async (tx: any) => {
+      for (const uid of participants) {
+        const w = await tx.wallet.upsert({
+          where: { userId: uid },
+          create: { userId: uid, balanceNpr: c.entryFee },
+          update: { balanceNpr: { increment: c.entryFee } },
+        });
+        await tx.walletTransaction.create({
+          data: {
+            walletId: w.id,
+            type: "CREDIT",
+            reason: "REFUND",
+            amountNpr: c.entryFee,
+            note: `${c.challengeNumber} — room not shared in time, auto-refund`,
+          },
+        });
+      }
+      await tx.challenge.update({
+        where: { id: challengeId },
+        data: { status: "CANCELLED" },
+      });
+    });
+
+    for (const uid of participants) {
+      await this.prisma.notification.create({
+        data: {
+          userId: uid,
+          type: "CHALLENGE",
+          title: `${c.challengeNumber} cancelled`,
+          body: "Room was not shared within 10 minutes. Entry fee refunded.",
+        },
+      });
+      this.realtime.emitToUser(uid, "challenge_timeout", { challengeId: c.id });
+      this.realtime.emitToUser(uid, "wallet_updated", {});
+    }
+    this.invalidateChallengeCaches(challengeId);
+  }
+
   async cancelChallenge(challengeId: string, userId: string) {
     const c = await this.prisma.challenge.findUnique({ where: { id: challengeId } });
     if (!c) throw new NotFoundException();
@@ -781,6 +884,42 @@ export class ChallengesService {
     });
     this.invalidateChallengeCaches(c.id);
     return updated;
+  }
+
+  async addDisputeNote(disputeId: string, authorId: string, authorRole: string, message: string) {
+    const d = await this.prisma.challengeDispute.findUnique({ where: { id: disputeId } });
+    if (!d) throw new NotFoundException("Dispute not found");
+    return this.prisma.disputeNote.create({
+      data: { disputeId, authorId, authorRole, message },
+    });
+  }
+
+  async getDisputeNotes(disputeId: string) {
+    return this.prisma.disputeNote.findMany({
+      where: { disputeId },
+      orderBy: { createdAt: "asc" },
+    });
+  }
+
+  async getDisputeDetail(disputeId: string) {
+    const d = await this.prisma.challengeDispute.findUnique({
+      where: { id: disputeId },
+      include: { notes: { orderBy: { createdAt: "asc" } } },
+    });
+    if (!d) throw new NotFoundException();
+    const challenge = await this.prisma.challenge.findUnique({
+      where: { id: d.challengeId },
+      include: {
+        creator: { select: PLAYER_SELECT },
+        opponent: { select: PLAYER_SELECT },
+        results: true,
+      },
+    });
+    return { ...d, challenge };
+  }
+
+  async getResultSubmitDelay(): Promise<number> {
+    return this.config.getNumber("RESULT_SUBMIT_DELAY_MINS");
   }
 
   async getStats() {
