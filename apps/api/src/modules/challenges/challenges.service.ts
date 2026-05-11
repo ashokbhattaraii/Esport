@@ -964,10 +964,31 @@ export class ChallengesService {
   }
 
   async listDisputes() {
-    return this.prisma.challengeDispute.findMany({
+    const disputes = await this.prisma.challengeDispute.findMany({
       where: { status: { in: ["OPEN", "UNDER_REVIEW"] } },
       orderBy: { createdAt: "desc" },
     });
+    const challenges = disputes.length
+      ? await this.prisma.challenge.findMany({
+          where: { id: { in: disputes.map((d) => d.challengeId) } },
+          select: {
+            id: true,
+            challengeNumber: true,
+            title: true,
+            gameMode: true,
+            entryFee: true,
+            prizeToWinner: true,
+            status: true,
+            creator: { select: PLAYER_SELECT },
+            opponent: { select: PLAYER_SELECT },
+          },
+        })
+      : [];
+    const byId = new Map(challenges.map((challenge) => [challenge.id, challenge]));
+    return disputes.map((dispute) => ({
+      ...dispute,
+      challenge: byId.get(dispute.challengeId) ?? null,
+    }));
   }
 
   private randomCode(len: number) {

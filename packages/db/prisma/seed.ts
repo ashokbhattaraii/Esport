@@ -483,6 +483,7 @@ async function seedRolesAndSuperAdmin() {
         { resource: "users", action: "read" },
         { resource: "payments", action: "read" },
         { resource: "tournaments", action: "read" },
+        { resource: "challenges", action: "read" },
       ],
     },
     TOURNAMENT_HANDLER: {

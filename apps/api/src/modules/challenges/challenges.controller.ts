@@ -158,7 +158,7 @@ export class AdminChallengesController {
     });
   }
 
-  @RequirePermission("tournaments", "read")
+  @RequirePermission("support", "read")
   @Get("disputes")
   disputes() {
     return this.svc.listDisputes();
@@ -186,29 +186,29 @@ export class AdminChallengesController {
 export class AdminDisputesController {
   constructor(private readonly svc: ChallengesService) {}
 
-  @RequirePermission("tournaments", "read")
+  @RequirePermission("support", "read")
   @Get(":id")
   detail(@Param("id") id: string) {
     return this.svc.getDisputeDetail(id);
   }
 
-  @RequirePermission("tournaments", "read")
+  @RequirePermission("support", "read")
   @Get(":id/notes")
   notes(@Param("id") id: string) {
     return this.svc.getDisputeNotes(id);
   }
 
-  @RequirePermission("tournaments", "write")
+  @RequirePermission("support", "write")
   @Post(":id/notes")
   addNote(
     @CurrentUser() u: any,
     @Param("id") id: string,
     @Body() body: { message: string },
   ) {
-    return this.svc.addDisputeNote(id, u.sub, "TOURNAMENT_HANDLER", body.message);
+    return this.svc.addDisputeNote(id, u.sub, "SUPPORT", body.message);
   }
 
-  @RequirePermission("tournaments", "approve")
+  @RequirePermission("support", "approve")
   @Put(":id/resolve")
   resolve(
     @CurrentUser() u: any,
