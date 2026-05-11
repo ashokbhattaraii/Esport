@@ -130,7 +130,7 @@ export default function ChallengesPage() {
                       <span className="fs-badge fs-badge-gray">{c.csTeamMode}</span>
                     ) : c.gameMode === "LW" ? (
                       <span className="fs-badge fs-badge-gray">{c.lwTeamMode}</span>
-                    )}
+                    ) : null}
                   </div>
                   <span className={`fs-badge ${statusBadgeClass}`}>
                     {c.status}

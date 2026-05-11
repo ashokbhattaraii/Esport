@@ -13,17 +13,17 @@ export function PageHeader({
   action?: ReactNode;
 }) {
   return (
-    <div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-end">
-      <div>
+    <div className="mb-5 flex flex-col gap-3 sm:mb-6 sm:gap-4 md:flex-row md:items-end md:justify-between">
+      <div className="min-w-0">
         {eyebrow && <p className="label">{eyebrow}</p>}
-        <h1 className="font-display text-3xl text-white md:text-4xl">
+        <h1 className="break-words font-display text-2xl text-white sm:text-3xl md:text-4xl">
           {title}
         </h1>
         {description && (
-          <p className="mt-2 max-w-2xl text-sm text-white/60">{description}</p>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-white/60">{description}</p>
         )}
       </div>
-      {action}
+      {action ? <div className="w-full md:w-auto md:max-w-[50%]">{action}</div> : null}
     </div>
   );
 }

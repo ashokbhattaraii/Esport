@@ -122,38 +122,77 @@ export default function CreateChallengePage() {
     }
   }
 
-  return (
-    <div className="mx-auto max-w-6xl px-3 py-4 pb-24 sm:px-4 sm:py-6 sm:pb-32">
-      <PageHeader
-        eyebrow="Challenges"
-        title="Create Challenge"
-        description="Build a room with the same visual language used across the rest of the app, then publish it in one pass."
-        action={
-          <div className="flex flex-wrap gap-2 text-xs">
-            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-white/70">{modeTitle}</span>
-            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-white/70">Rs {entryFee} entry</span>
-            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-white/70">{isPrivate ? "Private" : "Public"}</span>
-          </div>
-        }
-      />
+  const [step, setStep] = useState<"configure" | "confirm">("configure");
 
-      <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        <MetricCard label="Current mode" value={modeTitle} helper={modeDescription} />
-        <MetricCard label="Entry fee" value={`Rs ${entryFee}`} helper="Live payout preview updates instantly." />
-        <MetricCard
-          label="Winner preview"
-          value={`Rs ${prizeToWinner}`}
-          helper={gameMode === "CS" ? `${csPlayerCount} players in the current bracket.` : `Estimated for a ${gameMode === "LW" ? "duel" : "solo"} room.`}
-        />
+  if (step === "confirm") {
+    return (
+      <div className="mx-auto max-w-md pb-24">
+        <div className="rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(21,14,41,0.98),rgba(12,9,24,0.98))] p-5">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] uppercase tracking-wider text-white/50">Confirm & Create</p>
+              <h2 className="mt-1 break-words text-lg font-bold text-white">{title || `${igName}'s ${modeTitle}`}</h2>
+            </div>
+          </div>
+
+          <div className="mt-4 space-y-2">
+            <PreviewRow label="Mode" value={modeTitle} />
+            <PreviewRow label="Entry fee" value={`Rs ${entryFee}`} />
+            <PreviewRow label="Winner gets" value={`Rs ${prizeToWinner}`} accent />
+            <PreviewRow label="Visibility" value={isPrivate ? "Private" : "Public"} />
+            <PreviewRow label="Players" value={`${totalPlayers}`} />
+          </div>
+
+          <div className="mt-4 rounded-xl border border-white/8 bg-white/5 p-3">
+            <p className="text-[10px] uppercase tracking-wider text-white/45 mb-2">Rules</p>
+            <div className="flex flex-wrap gap-1.5 text-[11px] text-white/70">
+              <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5">{gameMode}</span>
+              {gameMode === "CS" && <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5">{csTeamMode}</span>}
+              {gameMode === "CS" && <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5">R{csRounds}</span>}
+              {gameMode === "LW" && <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5">{lwTeamMode}</span>}
+              <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5">{isPrivate ? "Invite only" : "Open"}</span>
+              <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5">Lvl {minLevel || "Any"}</span>
+              {noEmulator && <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5">No emu</span>}
+              {povRequired && <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5">POV req</span>}
+              {screenshotRequired && <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5">SS req</span>}
+            </div>
+          </div>
+
+          <p className="mt-4 text-xs text-white/50 text-center">
+            Rs {entryFee} will be deducted from your wallet immediately.
+          </p>
+
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <button onClick={() => setStep("configure")} className="btn-outline">Back</button>
+            <button onClick={submit} disabled={submitting} className="btn-primary">
+              <ButtonLoading loading={submitting} loadingText="Creating...">
+                Create
+              </ButtonLoading>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto max-w-2xl pb-24">
+      <div style={{ marginBottom: 16 }}>
+        <h1 className="text-lg font-bold" style={{ color: "var(--fs-text-1)" }}>Create Challenge</h1>
+        <p className="text-xs" style={{ color: "var(--fs-text-3)", marginTop: 2 }}>
+          {modeTitle} · Rs {entryFee} entry · Winner gets Rs {prizeToWinner}
+        </p>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,380px)] lg:gap-5">
-        <div className="space-y-5">
+      <div className="space-y-4">
           <SectionCard
             title="Match blueprint"
             description="Set the room title, wallet cost, and visibility before configuring the ruleset."
           >
-            <div className="grid gap-4 md:grid-cols-2">
+            <div
+              className="grid gap-4"
+              style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 240px), 1fr))" }}
+            >
               <div className="md:col-span-2">
                 <label className="label mb-2 block">Title</label>
                 <input
@@ -176,7 +215,7 @@ export default function CreateChallengePage() {
                   onChange={(e) => setEntryFee(Number(e.target.value))}
                   className="w-full accent-[#E53935]"
                 />
-                <div className="mt-2 flex items-center justify-between text-xs text-white/70">
+                <div className="mt-2 flex flex-col gap-1 text-xs text-white/70 sm:flex-row sm:items-center sm:justify-between">
                   <span>Rs {entryFee}</span>
                   <span className="text-[#FFD166]">Winner preview Rs {prizeToWinner}</span>
                 </div>
@@ -187,7 +226,7 @@ export default function CreateChallengePage() {
                 <button
                   type="button"
                   onClick={() => setIsPrivate((v) => !v)}
-                  className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-sm transition ${
+                  className={`flex w-full flex-col items-start gap-2 rounded-xl border px-4 py-3 text-sm transition sm:flex-row sm:items-center sm:justify-between ${
                     isPrivate
                       ? "border-[#E53935]/50 bg-[#E53935]/10 text-white"
                       : "border-white/10 bg-black/20 text-white/70"
@@ -333,53 +372,14 @@ export default function CreateChallengePage() {
               </ChoiceGroup>
             </div>
           </SectionCard>
-        </div>
 
-        <aside className="order-first h-fit lg:order-last lg:sticky lg:top-6">
-          <div className="rounded-[20px] border border-white/10 bg-[linear-gradient(180deg,rgba(21,14,41,0.98),rgba(12,9,24,0.98))] p-4 shadow-[0_20px_60px_rgba(0,0,0,0.35)] sm:rounded-[24px] sm:p-5">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="label">Live summary</p>
-                <h2 className="mt-1 break-words font-display text-xl text-white sm:text-2xl">{title || `${igName}'s ${modeTitle}`}</h2>
-              </div>
-              <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-white/60">
-                Draft
-              </div>
-            </div>
-
-            <div className="mt-4 grid gap-3">
-              <PreviewRow label="Mode" value={modeTitle} />
-              <PreviewRow label="Entry fee" value={`Rs ${entryFee}`} />
-              <PreviewRow label="Winner preview" value={`Rs ${prizeToWinner}`} accent />
-              <PreviewRow label="Visibility" value={isPrivate ? "Private" : "Public"} />
-              <PreviewRow label="Players" value={`${totalPlayers}`} />
-            </div>
-
-            <div className="mt-5 rounded-2xl border border-white/8 bg-white/5 p-4">
-              <p className="label mb-2">Applied rules</p>
-              <div className="flex flex-wrap gap-2 text-xs text-white/70">
-                <span className="rounded-full border border-white/10 bg-black/20 px-2 py-1">{gameMode}</span>
-                <span className="rounded-full border border-white/10 bg-black/20 px-2 py-1">{isPrivate ? "Invite only" : "Open room"}</span>
-                <span className="rounded-full border border-white/10 bg-black/20 px-2 py-1">Min lvl {minLevel || "Any"}</span>
-                <span className="rounded-full border border-white/10 bg-black/20 px-2 py-1">{noEmulator ? "No emulator" : "Emulator allowed"}</span>
-              </div>
-            </div>
-
-            <p className="mt-4 text-xs leading-5 text-white/55">
-              Double-check the mode and eligibility before publishing. Once this room is created, players will use the persisted rules immediately.
-            </p>
-
-            <button onClick={submit} disabled={submitting} className="btn-primary mt-5 w-full">
-              <ButtonLoading loading={submitting} loadingText="Creating contest...">
-                CREATE CONTEST
-              </ButtonLoading>
-            </button>
-
-            <p className="mt-3 text-center text-xs text-white/45">
-              Rs {entryFee} will be deducted from your wallet when the challenge is published.
-            </p>
-          </div>
-        </aside>
+        {/* Review button */}
+        <button
+          onClick={() => setStep("confirm")}
+          className="btn-primary w-full"
+        >
+          Review &amp; Create · Rs {entryFee}
+        </button>
       </div>
     </div>
   );
@@ -408,17 +408,14 @@ function SectionCard({
 function MetricCard({
   label,
   value,
-  helper,
 }: {
   label: string;
   value: string;
-  helper?: string;
 }) {
   return (
-    <div className="rounded-2xl border border-white/8 bg-[#111126] p-4">
-      <p className="label">{label}</p>
-      <p className="mt-2 font-display text-xl text-white sm:text-2xl">{value}</p>
-      {helper && <p className="mt-1 text-xs leading-5 text-white/50">{helper}</p>}
+    <div className="rounded-xl border border-white/8 bg-[#111126] p-3 text-center">
+      <p className="text-[9px] uppercase tracking-wider text-white/45">{label}</p>
+      <p className="mt-1 text-sm font-bold text-white">{value}</p>
     </div>
   );
 }
@@ -510,9 +507,9 @@ function PreviewRow({
   accent?: boolean;
 }) {
   return (
-    <div className="flex flex-col items-start gap-1 rounded-2xl border border-white/8 bg-white/5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-      <span className="text-xs uppercase tracking-wider text-white/45">{label}</span>
-      <span className={`text-sm font-semibold sm:text-right ${accent ? "text-[#FFD166]" : "text-white"}`}>{value}</span>
+    <div className="flex items-center justify-between rounded-xl border border-white/8 bg-white/5 px-3 py-2.5">
+      <span className="text-[10px] uppercase tracking-wider text-white/45">{label}</span>
+      <span className={`text-sm font-semibold ${accent ? "text-[#FFD166]" : "text-white"}`}>{value}</span>
     </div>
   );
 }
