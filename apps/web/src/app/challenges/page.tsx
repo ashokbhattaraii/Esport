@@ -9,7 +9,7 @@ import { useFlags } from "@/lib/flags";
 import { FeatureDisabledPage } from "@/components/FeatureDisabledPage";
 import { ButtonLoading, CardSkeleton, LoadingState } from "@/components/ui";
 
-type GameMode = "BR" | "CS" | "LW" | "ALL";
+type GameMode = "CS" | "LW" | "ALL";
 type Status = "OPEN" | "MATCHED" | "COMPLETED" | "ALL";
 
 export default function ChallengesPage() {
@@ -76,7 +76,7 @@ export default function ChallengesPage() {
       <div className="fs-card fs-card-body">
         <div className="flex flex-wrap gap-2">
           <FilterPills
-            options={["ALL", "BR", "CS", "LW"]}
+            options={["ALL", "CS", "LW"]}
             value={gameMode}
             onChange={(v) => setGameMode(v as GameMode)}
           />
@@ -96,7 +96,7 @@ export default function ChallengesPage() {
         </div>
       ) : err ? (
         <LoadingState label={err} />
-      ) : items.length === 0 ? (
+      ) : items.filter((c) => c.gameMode === "CS" || c.gameMode === "LW").length === 0 ? (
         <p className="py-12 text-center text-sm" style={{ color: 'var(--fs-text-3)' }}>No challenges in this filter</p>
       ) : (
         <div
@@ -107,7 +107,7 @@ export default function ChallengesPage() {
             gap: 12,
           }}
         >
-          {items.map((c) => {
+          {items.filter((c) => c.gameMode === "CS" || c.gameMode === "LW").map((c) => {
             const ign = c.creator?.profile?.ign ?? c.creator?.name ?? c.creator?.email;
             const lvl = c.creator?.profile?.level;
             const statusBadgeClass = c.status === "OPEN" ? "fs-badge-green"
@@ -123,15 +123,13 @@ export default function ChallengesPage() {
                     <span className="fs-badge" style={{ background: 'rgba(156,39,176,0.15)', color: '#CE93D8' }}>
                       CH-{c.challengeNumber}
                     </span>
-                    <span className={`fs-badge ${c.gameMode === "BR" ? "fs-badge-red" : c.gameMode === "CS" ? "fs-badge-gold" : "fs-badge-gray"}`}>
+                    <span className={`fs-badge ${c.gameMode === "CS" ? "fs-badge-gold" : "fs-badge-gray"}`}>
                       {c.gameMode}
                     </span>
                     {c.gameMode === "CS" ? (
                       <span className="fs-badge fs-badge-gray">{c.csTeamMode}</span>
                     ) : c.gameMode === "LW" ? (
                       <span className="fs-badge fs-badge-gray">{c.lwTeamMode}</span>
-                    ) : (
-                      <span className="fs-badge fs-badge-gray">{c.brMap}</span>
                     )}
                   </div>
                   <span className={`fs-badge ${statusBadgeClass}`}>

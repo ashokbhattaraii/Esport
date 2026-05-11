@@ -192,6 +192,12 @@ export class ChallengesService {
     if (dto.entryFee < min || dto.entryFee > max)
       throw new BadRequestException(`Entry fee must be Rs ${min}–${max}`);
 
+    if (dto.gameMode === "BR") {
+      throw new BadRequestException(
+        "Battle Royale challenges are disabled. Use Clash Squad or Lone Wolf. Battle Royale remains available in tournaments.",
+      );
+    }
+
     if (dto.gameMode === "CS") {
       if (!dto.csTeamMode || !CS_TEAM_MODES.includes(dto.csTeamMode))
         throw new BadRequestException("csTeamMode required: 1v1/2v2/3v3/4v4");
@@ -314,6 +320,7 @@ export class ChallengesService {
   }) {
     const where: any = { isPrivate: false };
     if (filters.gameMode) where.gameMode = filters.gameMode;
+    else where.gameMode = { in: ["CS", "LW"] };
     if (filters.status) where.status = filters.status;
     else where.status = "OPEN";
     const items = await this.prisma.challenge.findMany({
