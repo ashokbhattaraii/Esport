@@ -3,40 +3,20 @@ import { CapacitorConfig } from '@capacitor/cli'
 const config: CapacitorConfig = {
   appId: 'com.fireslot.nepal',
   appName: 'FireSlot Nepal',
-  webDir: 'public',   // ← changed from 'out' to 'public'
-  // 'public' folder has no index.html — forces Capacitor to use server.url ALWAYS
-  // Never falls back to file:// because there is no index.html in /public
-
+  webDir: 'capacitor-shell',
   server: {
-    // App loads live website — NO file:// routing issues
-    url: process.env.CAPACITOR_SERVER_URL || 'https://fireslot.vercel.app',
+    url: 'https://esport-web-rho.vercel.app',
     cleartext: false,
     androidScheme: 'https',
-    hostname: 'fireslot.vercel.app',
-    // Allow navigation to any path on this domain
-    allowNavigation: [
-      'fireslot.vercel.app',
-      '*.fireslot.vercel.app',
-    ],
+    allowNavigation: ['esport-web-rho.vercel.app','esport-api-rho.vercel.app','accounts.google.com','*.googleapis.com'],
+    hostname: 'esport-web-rho.vercel.app',
   },
-
   plugins: {
-    SplashScreen: {
-      launchShowDuration: 500,
-      backgroundColor: '#0f0f0f',
-      showSpinner: false,
-      autoHide: true,
-    },
-    StatusBar: {
-      style: 'DARK',
-      backgroundColor: '#0f0f0f',
-      overlaysWebView: false,
-    },
-    LocalNotifications: {
-      smallIcon: 'ic_stat_icon_config_sample',
-      iconColor: '#E53935',
-    },
+    SplashScreen: { launchShowDuration: 0, backgroundColor: '#0B0B14', showSpinner: false },
+    StatusBar: { style: 'DARK', backgroundColor: '#0B0B14', overlaysWebView: false },
+    LocalNotifications: { smallIcon: 'ic_stat_notification', iconColor: '#E53935' },
   },
+  android: { allowMixedContent: false, captureInput: true, webContentsDebuggingEnabled: false },
 }
 
 export default config
