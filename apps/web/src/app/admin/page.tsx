@@ -3,10 +3,14 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Banknote, Bell, ShieldCheck, Trophy, Users } from "lucide-react";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
+import { useAdminNav } from "@/lib/useAdminNav";
 import { fmtDate, npr } from "@/lib/utils";
 import { PageLoading } from "@/components/ui";
 
 export default function AdminOverview() {
+  const { user } = useAuth();
+  const { nav } = useAdminNav();
   const [stats, setStats] = useState<any>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -19,11 +23,33 @@ export default function AdminOverview() {
   if (err) return <p style={{ color: "var(--fs-red)" }}>{err}</p>;
   if (!stats) return <PageLoading label="Loading admin overview..." />;
 
+  const roleName = String(user?.roleRef?.name ?? user?.role ?? "ADMIN").toUpperCase();
+  const workspaceTitle =
+    roleName === "SUPPORT"
+      ? "Support & Dispute Desk"
+      : roleName === "FINANCE"
+        ? "Finance Operations"
+        : "Operations Overview";
+
   const queue = [
     { label: "Payments", value: stats.pendingPayments, href: "/admin/payments" },
     { label: "Withdrawals", value: stats.pendingWithdrawals, href: "/admin/withdrawals" },
     { label: "Results", value: stats.pendingResults, href: "/admin/results" },
   ];
+
+  const sectionMap: Record<string, { title: string; hint: string; href: string }> = {
+    support: { title: "Support & Disputes", hint: "Handle tickets, disputes, and escalations", href: "/admin/support" },
+    payments: { title: "Payment Queue", hint: "Review pending deposits and proofs", href: "/admin/payments" },
+    withdrawals: { title: "Withdrawal Queue", hint: "Approve or reject withdrawal requests", href: "/admin/withdrawals" },
+    results: { title: "Result Verification", hint: "Review submitted match outcomes", href: "/admin/results" },
+    referrals: { title: "Referral Program", hint: "Manage rewards and referral settings", href: "/admin/referrals" },
+    users: { title: "User Control", hint: "Manage bans, roles, and account actions", href: "/admin/users" },
+  };
+
+  const workspaceTiles = (nav ?? ["support", "payments", "withdrawals", "results", "referrals", "users"])
+    .filter((key) => key in sectionMap)
+    .map((key) => sectionMap[key])
+    .slice(0, 4);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
@@ -34,16 +60,47 @@ export default function AdminOverview() {
             Admin Command Center
           </p>
           <h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 800, color: "var(--fs-text-1)", marginTop: 4 }}>
-            Operations Overview
+            {workspaceTitle}
           </h1>
         </div>
-        <Link
-          href="/admin/tournaments"
-          className="fs-btn fs-btn-primary fs-btn-sm"
-        >
-          + Create Tournament
-        </Link>
+        {roleName === "SUPPORT" ? (
+          <Link href="/admin/support" className="fs-btn fs-btn-primary fs-btn-sm">
+            Open Support Queue
+          </Link>
+        ) : (
+          <Link href="/admin/tournaments" className="fs-btn fs-btn-primary fs-btn-sm">
+            + Create Tournament
+          </Link>
+        )}
       </div>
+
+      {workspaceTiles.length > 0 && (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 210px), 1fr))",
+            gap: 10,
+          }}
+        >
+          {workspaceTiles.map((tile) => (
+            <Link
+              key={tile.href}
+              href={tile.href}
+              style={{
+                textDecoration: "none",
+                borderRadius: 12,
+                border: "1px solid var(--fs-border)",
+                background: "var(--fs-surface-1)",
+                padding: 12,
+                display: "block",
+              }}
+            >
+              <p style={{ fontSize: 13, fontWeight: 700, color: "var(--fs-text-1)" }}>{tile.title}</p>
+              <p style={{ marginTop: 4, fontSize: 11, color: "var(--fs-text-3)" }}>{tile.hint}</p>
+            </Link>
+          ))}
+        </div>
+      )}
 
       {/* Stats Grid */}
       <div

@@ -133,14 +133,16 @@ export class ReferralsService {
     const referral = await tx.referral.findUnique({ where: { referredId } });
     if (!referral || referral.depositRewardedAt) return null;
 
-    const approvedWalletDeposits = await tx.payment.count({
+    const firstApprovedWalletDeposit = await tx.payment.findFirst({
       where: {
         userId: referredId,
         tournamentId: null,
         status: "APPROVED",
       },
+      orderBy: { createdAt: "asc" },
+      select: { id: true },
     });
-    if (approvedWalletDeposits !== 1) return null;
+    if (!firstApprovedWalletDeposit) return null;
 
     const amount = this.config.getNumber("REFERRAL_FIRST_DEPOSIT_REWARD_NPR");
     if (amount <= 0) return null;
@@ -164,7 +166,7 @@ export class ReferralsService {
       data: {
         referrerDepositRewardNpr: amount,
         depositRewardedAt: new Date(),
-        firstDepositPaymentId: paymentId,
+        firstDepositPaymentId: firstApprovedWalletDeposit.id || paymentId,
       },
     });
     await tx.notification.create({
@@ -217,6 +219,27 @@ export class ReferralsService {
       warning:
         "No multiple accounts. Self-referrals, fake accounts, and suspicious deposits can be reversed and may lead to a ban.",
     };
+  }
+
+  async claimSignupReferral(userId: string, code?: string | null) {
+    if (!this.config.getBool("REFERRAL_ENABLED")) {
+      throw new BadRequestException("Referral program is currently disabled");
+    }
+    const normalized = this.normalizeCode(code);
+    if (!normalized) {
+      throw new BadRequestException("Referral code is required");
+    }
+    if (!/^[A-Z0-9]{6}$/.test(normalized)) {
+      throw new BadRequestException("Referral code must be 6 letters or digits");
+    }
+
+    const existing = await this.prisma.referral.findUnique({ where: { referredId: userId } });
+    if (existing) {
+      throw new BadRequestException("Referral already claimed for this account");
+    }
+
+    await this.attachSignupReferral(userId, normalized);
+    return this.myReferral(userId);
   }
 
   async adminSummary() {

@@ -226,6 +226,7 @@ export class FinanceController {
         await tx.walletTransaction.create({
           data: { walletId: wallet.id, type: "CREDIT", reason: "ADJUSTMENT", amountNpr: payment.amountNpr, note: `Wallet deposit approved via ${payment.method}` },
         });
+        await this.rewardReferrerForFirstDeposit(tx, payment.userId, id);
       }
       await tx.notification.create({
         data: { userId: payment.userId, type: "PAYMENT", title: payment.tournamentId ? "Payment approved" : "Deposit approved", body: payment.tournamentId ? "Your payment has been approved. Room details are now visible." : `Your wallet deposit of NPR ${payment.amountNpr} has been approved.` },
@@ -235,6 +236,66 @@ export class FinanceController {
       });
     });
     return { ok: true };
+  }
+
+  private async rewardReferrerForFirstDeposit(tx: any, referredId: string, paymentId: string) {
+    const enabledConfig = await tx.systemConfig.findUnique({ where: { key: "REFERRAL_ENABLED" } });
+    const enabled = enabledConfig ? String(enabledConfig.value).toLowerCase() === "true" : true;
+    if (!enabled) return;
+
+    const referral = await tx.referral.findUnique({ where: { referredId } });
+    if (!referral || referral.depositRewardedAt) return;
+
+    const firstApprovedWalletDeposit = await tx.payment.findFirst({
+      where: {
+        userId: referredId,
+        tournamentId: null,
+        status: "APPROVED",
+      },
+      orderBy: { createdAt: "asc" },
+      select: { id: true },
+    });
+    if (!firstApprovedWalletDeposit) return;
+
+    const amountConfig = await tx.systemConfig.findUnique({
+      where: { key: "REFERRAL_FIRST_DEPOSIT_REWARD_NPR" },
+    });
+    const amount = Number(amountConfig?.value ?? 10);
+    if (!Number.isFinite(amount) || amount <= 0) return;
+
+    const referrerWallet = await tx.wallet.upsert({
+      where: { userId: referral.referrerId },
+      create: { userId: referral.referrerId, balanceNpr: amount },
+      update: { balanceNpr: { increment: amount } },
+    });
+
+    await tx.walletTransaction.create({
+      data: {
+        walletId: referrerWallet.id,
+        type: "CREDIT",
+        reason: "ADJUSTMENT",
+        amountNpr: amount,
+        note: "Referral first deposit reward",
+      },
+    });
+
+    await tx.referral.update({
+      where: { id: referral.id },
+      data: {
+        referrerDepositRewardNpr: amount,
+        depositRewardedAt: new Date(),
+        firstDepositPaymentId: firstApprovedWalletDeposit.id || paymentId,
+      },
+    });
+
+    await tx.notification.create({
+      data: {
+        userId: referral.referrerId,
+        type: "WALLET",
+        title: "Referral reward unlocked",
+        body: `Rs ${amount} added because your referred player made their first deposit.`,
+      },
+    });
   }
 
   @UseGuards(JwtAuthGuard, PermissionsGuard)

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Flame, Gift, Plus, Trophy, Wallet } from "lucide-react";
+import { Check, Copy, Flame, Gift, Plus, ShieldAlert, Trophy, Wallet } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { fmtDate, npr } from "@/lib/utils";
@@ -46,6 +46,8 @@ export default function HomePage() {
   const [challenges, setChallenges] = useState<any[]>([]);
   const [matches, setMatches] = useState<any>(null);
   const [wallet, setWallet] = useState<any>(null);
+  const [referral, setReferral] = useState<any>(null);
+  const [copiedReferral, setCopiedReferral] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [stats, setStats] = useState<{ activeUsers: number; totalDownloads: number } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -62,8 +64,16 @@ export default function HomePage() {
             .then(setWallet)
             .catch(() => null)
         : Promise.resolve(),
+      user ? api("/referrals/me").then(setReferral).catch(() => null) : Promise.resolve(),
     ]).finally(() => setLoading(false));
   }, [user]);
+
+  function copyReferralCode(code?: string) {
+    if (!code) return;
+    navigator.clipboard.writeText(code);
+    setCopiedReferral(true);
+    setTimeout(() => setCopiedReferral(false), 1500);
+  }
 
   const liveCounts = useMemo(() => {
     const map: Record<string, number> = {};
@@ -304,25 +314,54 @@ export default function HomePage() {
         )}
 
         <section>
-          <Link
-            href="/refer"
-            className="block overflow-hidden rounded-xl border border-[rgba(255,193,7,0.24)] bg-[linear-gradient(135deg,rgba(255,193,7,0.15),rgba(229,57,53,0.10),rgba(255,255,255,0.03))] p-4"
-          >
-            <div className="flex items-center justify-between gap-3">
+          <div className="overflow-hidden rounded-xl border border-[rgba(255,193,7,0.24)] bg-[linear-gradient(135deg,rgba(255,193,7,0.16),rgba(229,57,53,0.12),rgba(255,255,255,0.03))] p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-[10px] uppercase tracking-[0.22em] text-[var(--fs-gold)]">Refer & Earn</p>
                 <p className="mt-2 text-base font-bold text-[var(--fs-text-1)]">
-                  Give Rs 10. Earn Rs 10 after their first deposit.
+                  Friend gets Rs {referral?.signupRewardNpr ?? 10}. You earn Rs {referral?.referrerDepositRewardNpr ?? 10}.
                 </p>
-                <p className="mt-1 text-xs text-[var(--fs-text-3)]">
-                  No links. Share a 6-character code. Multiple accounts are not allowed.
+                <p className="mt-1 text-xs text-[var(--fs-text-2)]">
+                  First-signup only. Paste a 6-character code. No links needed.
                 </p>
               </div>
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[rgba(255,193,7,0.16)]">
                 <Gift size={22} className="text-[var(--fs-gold)]" />
               </div>
             </div>
-          </Link>
+
+            {user && referral?.code ? (
+              <div className="mt-3 rounded-lg border border-[rgba(255,255,255,0.1)] bg-[rgba(0,0,0,0.14)] p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="font-mono text-lg font-bold tracking-[0.18em] text-[var(--fs-text-1)]">
+                    {referral.code}
+                  </p>
+                  <button
+                    onClick={() => copyReferralCode(referral.code)}
+                    className="btn-primary text-xs"
+                    type="button"
+                  >
+                    {copiedReferral ? <Check size={14} /> : <Copy size={14} />}
+                    {copiedReferral ? "Copied" : "Copy code"}
+                  </button>
+                </div>
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-[var(--fs-text-3)]">
+                  <span>Invited: {referral.stats?.invited ?? 0}</span>
+                  <span>Deposits: {referral.stats?.firstDeposits ?? 0}</span>
+                  <span>Earned: Rs {referral.stats?.earnedNpr ?? 0}</span>
+                </div>
+              </div>
+            ) : (
+              <Link href="/refer" className="mt-3 inline-flex text-xs font-semibold text-[var(--fs-gold)] underline underline-offset-2">
+                Open Refer & Earn center
+              </Link>
+            )}
+
+            <p className="mt-3 flex items-start gap-2 text-[11px] text-amber-200/90">
+              <ShieldAlert size={14} className="mt-0.5 shrink-0" />
+              <span>{referral?.warning ?? "No multiple accounts. Self-referrals or fake accounts can be reversed and banned."}</span>
+            </p>
+          </div>
         </section>
 
         <DownloadBanner />

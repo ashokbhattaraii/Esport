@@ -14,9 +14,12 @@ export default function AdminReferralsPage() {
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
+    setErr(null);
     try {
       const next = await api<any>("/admin/referrals");
       setData(next);
@@ -25,6 +28,9 @@ export default function AdminReferralsPage() {
         signupRewardNpr: Number(next.signupRewardNpr ?? 10),
         referrerDepositRewardNpr: Number(next.referrerDepositRewardNpr ?? 10),
       });
+      setMsg(null);
+    } catch (e: any) {
+      setErr(e.message ?? "Could not load referral settings");
     } finally {
       setLoading(false);
     }
@@ -35,17 +41,53 @@ export default function AdminReferralsPage() {
   }, []);
 
   async function save() {
+    setErr(null);
+    setMsg(null);
+    if (!Number.isFinite(draft.signupRewardNpr) || draft.signupRewardNpr < 0) {
+      setErr("New user bonus must be a non-negative number");
+      return;
+    }
+    if (
+      !Number.isFinite(draft.referrerDepositRewardNpr) ||
+      draft.referrerDepositRewardNpr < 0
+    ) {
+      setErr("Referrer first deposit reward must be a non-negative number");
+      return;
+    }
+
     setSaving(true);
     try {
       const next = await api<any>("/admin/referrals/settings", {
         method: "PUT",
-        body: JSON.stringify(draft),
+        body: JSON.stringify({
+          enabled: !!draft.enabled,
+          signupRewardNpr: Math.floor(Number(draft.signupRewardNpr)),
+          referrerDepositRewardNpr: Math.floor(
+            Number(draft.referrerDepositRewardNpr),
+          ),
+        }),
       });
       setData(next);
+      setDraft({
+        enabled: !!next.enabled,
+        signupRewardNpr: Number(next.signupRewardNpr ?? 10),
+        referrerDepositRewardNpr: Number(next.referrerDepositRewardNpr ?? 10),
+      });
+      setMsg("Referral settings updated successfully.");
+      await load();
+    } catch (e: any) {
+      setErr(e.message ?? "Could not save referral settings");
     } finally {
       setSaving(false);
     }
   }
+
+  const isDirty =
+    !!data &&
+    (draft.enabled !== !!data.enabled ||
+      Number(draft.signupRewardNpr) !== Number(data.signupRewardNpr ?? 10) ||
+      Number(draft.referrerDepositRewardNpr) !==
+        Number(data.referrerDepositRewardNpr ?? 10));
 
   return (
     <div className="space-y-5">
@@ -109,11 +151,16 @@ export default function AdminReferralsPage() {
         <p className="mt-3 rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-200">
           No multiple accounts: self-referrals, fake accounts, and suspicious deposits can be reversed and banned.
         </p>
-        <button className="btn-primary mt-4" onClick={save} disabled={saving}>
+        {msg && <p className="mt-3 text-sm text-neon-green">{msg}</p>}
+        {err && <p className="mt-3 text-sm text-red-400">{err}</p>}
+        <button className="btn-primary mt-4" onClick={save} disabled={saving || !isDirty}>
           <ButtonLoading loading={saving} loadingText="Saving...">
             <Save size={14} /> Save Settings
           </ButtonLoading>
         </button>
+        {!isDirty && !saving && (
+          <p className="mt-2 text-xs text-white/45">No unsaved changes.</p>
+        )}
       </div>
 
       <div className="table-wrap">

@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useAdminNav } from "@/lib/useAdminNav";
 import { ViewportToggle } from "@/components/ViewportToggle";
@@ -23,7 +23,7 @@ const ALL_NAV = [
   { key: "roles", href: "/admin/roles", label: "Roles & Perms", icon: "🔐" },
   { key: "logs", href: "/admin/logs", label: "Audit Logs", icon: "📝" },
   { key: "bot", href: "/admin/bot", label: "Bot Control", icon: "🤖" },
-  { key: "support", href: "/admin/support", label: "Support", icon: "🎧" },
+  { key: "support", href: "/admin/support", label: "Support & Disputes", icon: "🎧" },
   { key: "referrals", href: "/admin/referrals", label: "Referrals", icon: "🎁" },
   { key: "apk-releases", href: "/admin/app-releases", label: "APK Releases", icon: "📱" },
   { key: "apk-test", href: "/admin/apk-test", label: "APK Testing", icon: "🧪" },
@@ -42,6 +42,24 @@ export default function AdminLayout({
 
   const loading = authLoading || navLoading;
 
+  const visibleNav = useMemo(() => {
+    if (!allowedNav) return ALL_NAV;
+    const navByKey = new Map(ALL_NAV.map((item) => [item.key, item]));
+    return allowedNav
+      .map((key) => navByKey.get(key))
+      .filter((item): item is (typeof ALL_NAV)[number] => Boolean(item));
+  }, [allowedNav]);
+
+  const roleName = String(user?.roleRef?.name ?? user?.role ?? "PLAYER").toUpperCase();
+  const workspaceLabel =
+    roleName === "SUPPORT"
+      ? "Support Workspace"
+      : roleName === "FINANCE"
+        ? "Finance Workspace"
+        : roleName === "SUPER_ADMIN"
+          ? "Super Admin Workspace"
+          : "Admin Workspace";
+
   useEffect(() => {
     if (!authLoading && !user) {
       router.replace("/login");
@@ -54,21 +72,34 @@ export default function AdminLayout({
     }
   }, [navLoading, allowedNav, router]);
 
+  useEffect(() => {
+    if (pathname !== "/admin" || !visibleNav.length) return;
+
+    let preferredKey = "overview";
+    if (roleName === "SUPPORT") preferredKey = "support";
+    else if (roleName === "FINANCE") preferredKey = "payments";
+
+    const preferred =
+      visibleNav.find((item) => item.key === preferredKey) ??
+      visibleNav.find((item) => item.key !== "overview") ??
+      visibleNav[0];
+
+    if (preferred?.href && preferred.href !== pathname) {
+      router.replace(preferred.href);
+    }
+  }, [pathname, roleName, router, visibleNav]);
+
   if (loading) return <PageLoading label="Checking admin access..." />;
   if (!user) return <p style={{ color: "var(--fs-red)" }}>Admin access required.</p>;
-
-  const visibleNav = allowedNav
-    ? ALL_NAV.filter((item) => allowedNav.includes(item.key))
-    : ALL_NAV;
 
   const SidebarContent = () => (
     <>
       <div style={{ padding: "16px 12px", borderBottom: "1px solid var(--fs-border)" }}>
         <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1, color: "var(--fs-text-3)", textTransform: "uppercase" }}>
-          Admin Panel
+          Control Center
         </p>
         <p style={{ fontSize: 13, fontWeight: 600, color: "var(--fs-text-1)", marginTop: 4 }}>
-          🔥 FireSlot Nepal
+          🔥 {workspaceLabel}
         </p>
       </div>
 
@@ -181,7 +212,7 @@ export default function AdminLayout({
           >
             ☰
           </button>
-          <span style={{ fontSize: 14, fontWeight: 700, color: "var(--fs-text-1)" }}>Admin Panel</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: "var(--fs-text-1)" }}>{workspaceLabel}</span>
         </div>
 
         {children}

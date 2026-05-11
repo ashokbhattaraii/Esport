@@ -145,10 +145,15 @@ export class AuthService {
       // Non-critical: role assignment failed, continue with existing role
     }
 
-    return this.issueToken(user.id, user.email, role, {
+    const issued = await this.issueToken(user.id, user.email, role, {
       name: user.name,
       avatarUrl: user.avatarUrl,
     });
+    return {
+      ...issued,
+      isNewUser: !existing,
+      needsReferralOnboarding: !existing && !referralCode,
+    };
   }
 
   private async ensureUserRole(

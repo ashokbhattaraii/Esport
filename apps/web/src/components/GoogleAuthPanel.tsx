@@ -30,11 +30,21 @@ export function GoogleAuthPanel({
     setErr(null);
     setLoading(true);
     try {
+      const normalizedReferral = referralCode
+        .trim()
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, "");
+      if (showReferral && normalizedReferral && !/^[A-Z0-9]{6}$/.test(normalizedReferral)) {
+        setErr("Referral code must be exactly 6 letters or digits");
+        setLoading(false);
+        return;
+      }
+
       const res = await api<any>("/auth/google", {
         method: "POST",
         body: JSON.stringify({
           credential,
-          referralCode: showReferral ? referralCode.trim().toUpperCase() || undefined : undefined,
+          referralCode: showReferral ? normalizedReferral || undefined : undefined,
         }),
       });
       const nextToken =
@@ -44,7 +54,22 @@ export function GoogleAuthPanel({
       }
       auth.setToken(nextToken);
       await refresh();
-      router.push(next);
+
+      if (res?.needsReferralOnboarding) {
+        router.push(`/onboarding/referral?next=${encodeURIComponent(next)}`);
+        return;
+      }
+
+      const roleName = String(res?.user?.roleRef?.name ?? res?.user?.role ?? "").toUpperCase();
+      const roleLanding =
+        roleName === "SUPPORT"
+          ? "/admin/support"
+          : roleName === "FINANCE"
+            ? "/admin/payments"
+            : roleName && roleName !== "PLAYER"
+              ? "/admin"
+              : next;
+      router.push(roleLanding);
     } catch (e: any) {
       setErr(e.message ?? "Google sign-in failed");
     } finally {
@@ -75,16 +100,17 @@ export function GoogleAuthPanel({
       </div>
       {showReferral && (
         <div className="rounded-lg border border-amber-400/30 bg-amber-400/10 p-3">
-          <label className="label">Referral code optional</label>
+          <label className="label">Referral code (6 letters/digits)</label>
           <input
             className="input mt-2 font-mono uppercase tracking-[0.2em]"
             maxLength={6}
             placeholder="ABC123"
+            autoComplete="off"
             value={referralCode}
             onChange={(e) => setReferralCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))}
           />
           <p className="mt-2 text-xs text-amber-100/80">
-            Paste a friend&apos;s 6 letters/digits code during first signup to get Rs 10. No multiple accounts.
+            Paste a friend&apos;s 6-character code now to get Rs 10. This only works during first signup. No multiple accounts.
           </p>
         </div>
       )}
