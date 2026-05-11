@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { fmtDate, npr } from "@/lib/utils";
-import { withdrawalSchema } from "@fireslot/shared";
 import { ButtonLoading, EmptyState, LoadingState, StatusBadge } from "@/components/ui";
 import { useAuth } from "@/lib/auth-context";
 import { useFlags } from "@/lib/flags";
@@ -19,7 +18,7 @@ export default function WalletPage() {
   const [payments, setPayments] = useState<any[]>([]);
   const [paymentConfig, setPaymentConfig] = useState<any>(null);
   const [form, setForm] = useState({ amountNpr: 100, method: "esewa" as const, account: "" });
-  const [deposit, setDeposit] = useState({ amountNpr: 100, method: "esewa", reference: "" });
+  const [deposit, setDeposit] = useState({ amountNpr: 20, method: "esewa", reference: "" });
   const [proof, setProof] = useState<File | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [dataLoading, setDataLoading] = useState(false);
@@ -65,11 +64,18 @@ export default function WalletPage() {
 
   async function withdraw(e: React.FormEvent) {
     e.preventDefault();
-    const parsed = withdrawalSchema.safeParse({ ...form, amountNpr: Number(form.amountNpr) });
-    if (!parsed.success) { setMsg(parsed.error.issues[0]?.message ?? "Invalid"); return; }
+    if (!form.method) { setMsg("Select a withdrawal method."); return; }
+    if (!form.account || form.account.trim().length < 3) { setMsg("Enter a valid account detail."); return; }
+    if (!Number.isFinite(Number(form.amountNpr)) || Number(form.amountNpr) < 1) {
+      setMsg("Enter a valid withdrawal amount.");
+      return;
+    }
     setWithdrawing(true);
     try {
-      await api("/wallet/withdraw", { method: "POST", body: JSON.stringify(parsed.data) });
+      await api("/wallet/withdraw", {
+        method: "POST",
+        body: JSON.stringify({ ...form, amountNpr: Number(form.amountNpr), account: form.account.trim() }),
+      });
       setMsg("Withdrawal request submitted.");
       load();
     } catch (e: any) { setMsg(e.message); }

@@ -385,6 +385,8 @@ async function seedSystemConfig() {
     { key: "MAX_ENTRY_FEE", value: "50", type: "NUMBER", category: "PRICING", label: "Max Entry Fee (NPR)" },
     { key: "MIN_ENTRY_FEE", value: "10", type: "NUMBER", category: "PRICING", label: "Min Entry Fee (NPR)" },
     { key: "SYSTEM_FEE_PERCENT", value: "20", type: "NUMBER", category: "PRICING", label: "Platform Cut %" },
+    { key: "MIN_DEPOSIT_AMOUNT_NPR", value: "20", type: "NUMBER", category: "PRICING", label: "Minimum Deposit Amount (NPR)" },
+    { key: "MIN_WITHDRAWAL_AMOUNT_NPR", value: "100", type: "NUMBER", category: "PRICING", label: "Minimum Withdrawal Amount (NPR)" },
     { key: "KILL_REWARD_PERCENT", value: "80", type: "NUMBER", category: "PRICING", label: "Kill+Booyah Pool %" },
     { key: "BOOYAH_COINS_PER_PLAYER", value: "1", type: "NUMBER", category: "PRICING", label: "Booyah Coins / Player" },
     { key: "MIN_PLAYERS_TO_START", value: "10", type: "NUMBER", category: "PRICING", label: "Min Players to Start" },

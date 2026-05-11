@@ -18,6 +18,9 @@ const PAYMENT_METHODS = [
   { key: "bank", label: "Bank Transfer", color: "#1565C0" },
 ];
 
+const FEE_KEYS = ["SYSTEM_FEE_PERCENT", "CHALLENGE_FEE_PERCENT", "WITHDRAWAL_FEE_PERCENT"];
+const WALLET_LIMIT_KEYS = ["MIN_DEPOSIT_AMOUNT_NPR", "MIN_WITHDRAWAL_AMOUNT_NPR"];
+
 export default function ConfigPage() {
   const [items, setItems] = useState<ConfigItem[]>([]);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
@@ -94,6 +97,9 @@ export default function ConfigPage() {
   }
 
   const otherConfigs = items.filter(i => !i.key.startsWith("deposit_qr_") && !["deposit_account_id", "deposit_account_name", "deposit_instructions"].includes(i.key));
+  const flatSysItems = Object.values(sysItems).flat();
+  const feeConfigs = flatSysItems.filter((config) => FEE_KEYS.includes(config.key));
+  const walletLimitConfigs = flatSysItems.filter((config) => WALLET_LIMIT_KEYS.includes(config.key));
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -210,18 +216,45 @@ export default function ConfigPage() {
           </div>
 
           {/* System Fee Settings */}
-          {Object.values(sysItems).flat().filter((config) => ["SYSTEM_FEE_PERCENT", "CHALLENGE_FEE_PERCENT", "WITHDRAWAL_FEE_PERCENT"].includes(config.key)).length > 0 && (
+          {feeConfigs.length > 0 && (
             <div style={{ background: "var(--fs-surface-1)", borderRadius: 14, border: "0.5px solid var(--fs-border)", overflow: "hidden" }}>
               <div style={{ padding: "14px 16px", borderBottom: "0.5px solid var(--fs-border)", background: "var(--fs-surface-2)" }}>
                 <p style={{ fontSize: 14, fontWeight: 700, color: "var(--fs-text-1)" }}>System Fee Settings</p>
                 <p style={{ fontSize: 11, color: "var(--fs-text-3)", marginTop: 2 }}>Configure the platform service cuts for tournaments, challenges, and withdrawals.</p>
               </div>
               <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 16 }}>
-                {Object.values(sysItems).flat().filter((config) => ["SYSTEM_FEE_PERCENT", "CHALLENGE_FEE_PERCENT", "WITHDRAWAL_FEE_PERCENT"].includes(config.key)).map((config) => (
+                {feeConfigs.map((config) => (
                   <ConfigField
                     key={config.key}
                     label={config.label}
                     description={config.key === "WITHDRAWAL_FEE_PERCENT" ? "Withdrawal fee is deducted from the requested amount." : "Percent of entry fee collected by the platform."}
+                    value={sysDrafts[config.key] ?? ""}
+                    onChange={(v) => setSysDrafts((d) => ({ ...d, [config.key]: v }))}
+                    onSave={() => saveSys(config.key)}
+                    saving={savingSysKey === config.key}
+                    changed={(sysDrafts[config.key] ?? "") !== config.value}
+                    mono
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {walletLimitConfigs.length > 0 && (
+            <div style={{ background: "var(--fs-surface-1)", borderRadius: 14, border: "0.5px solid var(--fs-border)", overflow: "hidden" }}>
+              <div style={{ padding: "14px 16px", borderBottom: "0.5px solid var(--fs-border)", background: "var(--fs-surface-2)" }}>
+                <p style={{ fontSize: 14, fontWeight: 700, color: "var(--fs-text-1)" }}>Wallet Limits</p>
+                <p style={{ fontSize: 11, color: "var(--fs-text-3)", marginTop: 2 }}>Configure minimum allowed amounts for wallet deposits and withdrawals.</p>
+              </div>
+              <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 16 }}>
+                {walletLimitConfigs.map((config) => (
+                  <ConfigField
+                    key={config.key}
+                    label={config.label}
+                    description={config.key === "MIN_DEPOSIT_AMOUNT_NPR"
+                      ? "Users cannot submit wallet deposit requests below this amount."
+                      : "Users cannot submit withdrawal requests below this amount."
+                    }
                     value={sysDrafts[config.key] ?? ""}
                     onChange={(v) => setSysDrafts((d) => ({ ...d, [config.key]: v }))}
                     onSave={() => saveSys(config.key)}

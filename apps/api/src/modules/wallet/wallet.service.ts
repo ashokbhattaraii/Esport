@@ -12,7 +12,7 @@ import { SystemConfigService } from "../admin/system-config.service";
 import { FinancialRiskService } from "../finance/financial-risk.service";
 
 export class WithdrawDto {
-  @IsInt() @Min(100) amountNpr!: number;
+  @IsInt() @Min(1) amountNpr!: number;
   @IsString() method!: string;
   @IsString() account!: string;
 }
@@ -62,6 +62,11 @@ export class WalletService {
     return this.prisma.$transaction(async (tx: any) => {
       const wallet = await tx.wallet.findUnique({ where: { userId } });
       if (!wallet) throw new NotFoundException("Wallet not found");
+
+      const minWithdrawal = this.config.getNumber("MIN_WITHDRAWAL_AMOUNT_NPR");
+      if (!Number.isFinite(dto.amountNpr) || dto.amountNpr < minWithdrawal) {
+        throw new BadRequestException(`Minimum withdrawal is NPR ${minWithdrawal}`);
+      }
 
       const withdrawalFeePercent = this.config.getNumber("WITHDRAWAL_FEE_PERCENT") || 0;
       const feeAmount = Math.floor(dto.amountNpr * (withdrawalFeePercent / 100));

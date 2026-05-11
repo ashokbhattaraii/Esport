@@ -10,6 +10,7 @@ import { MemoryCacheService } from "../../common/cache/memory-cache.service";
 import { invalidateTournamentCaches } from "../tournaments/tournament-cache.keys";
 import { FinancialRiskService } from "../finance/financial-risk.service";
 import { ReferralsService } from "../referrals/referrals.service";
+import { SystemConfigService } from "../admin/system-config.service";
 
 @Injectable()
 export class PaymentsService {
@@ -18,6 +19,7 @@ export class PaymentsService {
     private cache: MemoryCacheService,
     private risk: FinancialRiskService,
     private referrals: ReferralsService,
+    private config: SystemConfigService,
   ) {}
 
   async submit(
@@ -52,8 +54,9 @@ export class PaymentsService {
     fileUrl: string,
   ) {
     const amountNpr = Number(body.amountNpr);
-    if (!Number.isFinite(amountNpr) || amountNpr < 50) {
-      throw new BadRequestException("Deposit amount must be at least NPR 50");
+    const minDeposit = this.config.getNumber("MIN_DEPOSIT_AMOUNT_NPR");
+    if (!Number.isFinite(amountNpr) || amountNpr < minDeposit) {
+      throw new BadRequestException(`Deposit amount must be at least NPR ${minDeposit}`);
     }
     return this.prisma.payment.create({
       data: {
