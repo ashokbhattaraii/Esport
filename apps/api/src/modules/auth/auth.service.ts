@@ -12,6 +12,7 @@ import { PrismaClient, Role } from "@fireslot/db";
 import { PRISMA } from "../../prisma/prisma.module";
 import { GoogleLoginDto, LoginDto, RegisterDto } from "./dto";
 import { jwtSecret } from "./jwt-secret";
+import { ReferralsService } from "../referrals/referrals.service";
 
 @Injectable()
 export class AuthService {
@@ -20,6 +21,7 @@ export class AuthService {
   constructor(
     @Inject(PRISMA) private prisma: PrismaClient,
     private jwt: JwtService,
+    private referrals: ReferralsService,
   ) {}
 
   private getGoogleClient(): OAuth2Client {
@@ -95,6 +97,10 @@ export class AuthService {
     const existing = await this.prisma.user.findFirst({
       where: { OR: [{ email }, { googleId }] },
     });
+    const referralCode = this.referrals.normalizeCode(dto.referralCode);
+    if (!existing && referralCode) {
+      await this.referrals.validateCodeForSignup(referralCode);
+    }
     const user = existing
       ? await this.prisma.user.update({
           where: { id: existing.id },
@@ -111,9 +117,14 @@ export class AuthService {
             googleId,
             name: payload.name,
             avatarUrl: payload.picture,
+            referralCode: await this.referrals.generateUniqueCode(),
             wallet: { create: {} },
           },
         });
+
+    if (!existing && referralCode) {
+      await this.referrals.attachSignupReferral(user.id, referralCode);
+    }
 
     if (user.isBanned) throw new UnauthorizedException("Account banned");
     await this.prisma.wallet.upsert({
@@ -186,6 +197,8 @@ export class AuthService {
         createdAt: true,
         profile: true,
         wallet: true,
+        roleRef: { select: { id: true, name: true } },
+        referralCode: true,
       },
     });
     if (!user) return null;

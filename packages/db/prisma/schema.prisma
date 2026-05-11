@@ -334,6 +334,7 @@ model User {
   phone         String?  @unique
   passwordHash  String?
   googleId      String?  @unique
+  referralCode  String?  @unique
   name          String?
   avatarUrl     String?
   role          Role     @default(PLAYER)
@@ -364,10 +365,32 @@ model User {
   pushTokens     UserPushToken[]
   financialRiskProfile FinancialRiskProfile?
   bannedFreeFireUids BannedFreeFireUid[]
+  referralsMade Referral[] @relation("ReferralReferrer")
+  referralReceived Referral? @relation("ReferralReferred")
 
   @@index([role])
   @@index([roleId])
   @@index([createdAt])
+}
+
+model Referral {
+  id                     String   @id @default(cuid())
+  referrerId             String
+  referredId             String   @unique
+  codeUsed               String
+  signupRewardNpr        Int      @default(0)
+  referrerDepositRewardNpr Int    @default(0)
+  signupRewardedAt       DateTime?
+  depositRewardedAt      DateTime?
+  firstDepositPaymentId  String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  referrer User @relation("ReferralReferrer", fields: [referrerId], references: [id], onDelete: Cascade)
+  referred User @relation("ReferralReferred", fields: [referredId], references: [id], onDelete: Cascade)
+
+  @@index([referrerId, createdAt])
+  @@index([codeUsed])
 }
 
 model UserPushToken {

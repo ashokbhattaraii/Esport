@@ -13,7 +13,7 @@ interface Role {
   userCount: number;
 }
 
-const RESOURCES = ["tournaments", "payments", "users", "withdrawals", "results", "config", "support", "challenges", "roles", "logs", "bot", "banners", "apk", "*"];
+const RESOURCES = ["tournaments", "payments", "users", "withdrawals", "results", "config", "support", "challenges", "referrals", "roles", "logs", "bot", "banners", "apk", "*"];
 const ACTIONS = ["read", "write", "approve", "delete", "ban", "toggle", "*"];
 
 export default function RolesPage() {

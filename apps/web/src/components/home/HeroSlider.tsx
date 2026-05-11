@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import useSWR from "swr";
-import { ArrowRight, Bolt, CreditCard, Trophy, type LucideIcon } from "lucide-react";
+import { ArrowRight, Bolt, CreditCard, Gift, Trophy, type LucideIcon } from "lucide-react";
 import { A11y, Autoplay, Pagination } from "swiper/modules";
 import { Swiper, SwiperSlide } from "swiper/react";
 import "swiper/css";
@@ -90,6 +90,27 @@ const FEATURE_SLIDES: FeatureSlide[] = [
     secondaryCtaLink: "/register",
     accent: "linear-gradient(135deg, rgba(255, 157, 43, 0.24), rgba(36, 18, 6, 0.96))",
     icon: CreditCard,
+    autoSlide: true,
+  },
+  {
+    kind: "feature",
+    id: "feature-referrals",
+    badge: "Refer & Earn",
+    title: "Share a 6-character code. Earn when your squad joins.",
+    subtitle:
+      "No links, no fuss. New players paste your code during first signup for Rs 10, and you unlock Rs 10 after their first deposit.",
+    highlights: ["6-character code", "Rs 10 signup bonus", "First deposit reward"],
+    stats: [
+      { value: "Rs 10", label: "friend bonus" },
+      { value: "Rs 10", label: "your reward" },
+      { value: "No link", label: "code only" },
+    ],
+    ctaText: "Get my code",
+    ctaLink: "/refer",
+    secondaryCtaText: "Create account",
+    secondaryCtaLink: "/register",
+    accent: "linear-gradient(135deg, rgba(255, 193, 7, 0.28), rgba(84, 27, 8, 0.96))",
+    icon: Gift,
     autoSlide: true,
   },
   {

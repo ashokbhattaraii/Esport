@@ -9,6 +9,7 @@ import { PRISMA } from "../../prisma/prisma.module";
 import { MemoryCacheService } from "../../common/cache/memory-cache.service";
 import { invalidateTournamentCaches } from "../tournaments/tournament-cache.keys";
 import { FinancialRiskService } from "../finance/financial-risk.service";
+import { ReferralsService } from "../referrals/referrals.service";
 
 @Injectable()
 export class PaymentsService {
@@ -16,6 +17,7 @@ export class PaymentsService {
     @Inject(PRISMA) private prisma: PrismaClient,
     private cache: MemoryCacheService,
     private risk: FinancialRiskService,
+    private referrals: ReferralsService,
   ) {}
 
   async submit(
@@ -155,6 +157,7 @@ export class PaymentsService {
             note: `Wallet deposit approved via ${p.method}`,
           },
         });
+        await this.referrals.rewardReferrerForFirstDeposit(tx, p.userId, p.id);
       }
 
       await tx.notification.create({

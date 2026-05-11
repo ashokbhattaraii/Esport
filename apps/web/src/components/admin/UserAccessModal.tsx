@@ -4,7 +4,7 @@ import { api } from "@/lib/api";
 import { X, ShieldCheck, ShieldX, Minus } from "lucide-react";
 import { ButtonLoading, LoadingState } from "@/components/ui";
 
-const RESOURCES = ["tournaments", "payments", "users", "withdrawals", "results", "config", "*"];
+const RESOURCES = ["tournaments", "payments", "users", "withdrawals", "results", "config", "support", "challenges", "referrals", "*"];
 const ACTIONS = ["read", "write", "approve", "delete", "ban", "*"];
 
 type Effect = "ALLOW" | "DENY" | "INHERIT";

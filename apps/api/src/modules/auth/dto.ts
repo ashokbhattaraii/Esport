@@ -13,4 +13,5 @@ export class LoginDto {
 
 export class GoogleLoginDto {
   @IsString() credential!: string;
+  @IsOptional() @IsString() referralCode?: string;
 }

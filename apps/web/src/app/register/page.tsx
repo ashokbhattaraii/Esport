@@ -8,6 +8,7 @@ export default function RegisterPage() {
       <GoogleAuthPanel
         title="Create your FireSlot account"
         next="/dashboard/profile"
+        showReferral
       />
     </div>
   );

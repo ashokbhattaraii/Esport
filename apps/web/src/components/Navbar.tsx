@@ -92,7 +92,7 @@ export function Navbar() {
               >
                 <ListChecks size={17} style={{ color: 'var(--fs-text-2)' }} />
               </Link>
-              {(user.role === "ADMIN" || user.role === "SUPER_ADMIN") && (
+              {user.role !== "PLAYER" && (
                 <Link
                   href="/admin"
                   className="flex h-9 w-9 items-center justify-center rounded-lg"

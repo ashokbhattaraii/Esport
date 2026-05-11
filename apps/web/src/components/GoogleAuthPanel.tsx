@@ -10,14 +10,17 @@ import { InlineLoading } from "@/components/ui";
 export function GoogleAuthPanel({
   title = "Continue with Google",
   next = "/dashboard",
+  showReferral = false,
 }: {
   title?: string;
   next?: string;
+  showReferral?: boolean;
 }) {
   const router = useRouter();
   const { refresh } = useAuth();
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [referralCode, setReferralCode] = useState("");
 
   async function signIn(credential?: string) {
     if (!credential) {
@@ -29,7 +32,10 @@ export function GoogleAuthPanel({
     try {
       const res = await api<any>("/auth/google", {
         method: "POST",
-        body: JSON.stringify({ credential }),
+        body: JSON.stringify({
+          credential,
+          referralCode: showReferral ? referralCode.trim().toUpperCase() || undefined : undefined,
+        }),
       });
       const nextToken =
         res?.token ?? res?.accessToken ?? res?.jwt ?? res?.data?.token;
@@ -67,6 +73,21 @@ export function GoogleAuthPanel({
           keeps sign-in passwordless.
         </p>
       </div>
+      {showReferral && (
+        <div className="rounded-lg border border-amber-400/30 bg-amber-400/10 p-3">
+          <label className="label">Referral code optional</label>
+          <input
+            className="input mt-2 font-mono uppercase tracking-[0.2em]"
+            maxLength={6}
+            placeholder="ABC123"
+            value={referralCode}
+            onChange={(e) => setReferralCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))}
+          />
+          <p className="mt-2 text-xs text-amber-100/80">
+            Paste a friend&apos;s 6 letters/digits code during first signup to get Rs 10. No multiple accounts.
+          </p>
+        </div>
+      )}
       {process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ? (
         <div className="relative overflow-hidden rounded-md bg-white">
           <GoogleLogin

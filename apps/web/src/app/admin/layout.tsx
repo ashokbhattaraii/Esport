@@ -24,6 +24,7 @@ const ALL_NAV = [
   { key: "logs", href: "/admin/logs", label: "Audit Logs", icon: "📝" },
   { key: "bot", href: "/admin/bot", label: "Bot Control", icon: "🤖" },
   { key: "support", href: "/admin/support", label: "Support", icon: "🎧" },
+  { key: "referrals", href: "/admin/referrals", label: "Referrals", icon: "🎁" },
   { key: "apk-releases", href: "/admin/app-releases", label: "APK Releases", icon: "📱" },
   { key: "apk-test", href: "/admin/apk-test", label: "APK Testing", icon: "🧪" },
 ];
@@ -54,8 +55,7 @@ export default function AdminLayout({
   }, [navLoading, allowedNav, router]);
 
   if (loading) return <PageLoading label="Checking admin access..." />;
-  if (!user || (user.role !== "ADMIN" && user.role !== "SUPER_ADMIN" && user.role !== "FINANCE"))
-    return <p style={{ color: "var(--fs-red)" }}>Admin access required.</p>;
+  if (!user) return <p style={{ color: "var(--fs-red)" }}>Admin access required.</p>;
 
   const visibleNav = allowedNav
     ? ALL_NAV.filter((item) => allowedNav.includes(item.key))

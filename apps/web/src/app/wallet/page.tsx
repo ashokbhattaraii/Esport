@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { api } from "@/lib/api";
 import { fmtDate, npr } from "@/lib/utils";
 import { withdrawalSchema } from "@fireslot/shared";
@@ -7,13 +8,14 @@ import { ButtonLoading, EmptyState, LoadingState, StatusBadge } from "@/componen
 import { useAuth } from "@/lib/auth-context";
 import { useFlags } from "@/lib/flags";
 import { GoogleAuthPanel } from "@/components/GoogleAuthPanel";
-import { ArrowUpRight, Plus, Copy, Check, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowUpRight, Plus, Copy, Check, ChevronDown, ChevronUp, Gift } from "lucide-react";
 
 export default function WalletPage() {
   const { user, loading } = useAuth();
   const { isEnabled } = useFlags();
   const [tab, setTab] = useState<"deposit" | "withdraw">("deposit");
   const [data, setData] = useState<any>(null);
+  const [referral, setReferral] = useState<any>(null);
   const [payments, setPayments] = useState<any[]>([]);
   const [paymentConfig, setPaymentConfig] = useState<any>(null);
   const [form, setForm] = useState({ amountNpr: 100, method: "esewa" as const, account: "" });
@@ -29,12 +31,14 @@ export default function WalletPage() {
   async function load() {
     setDataLoading(true);
     try {
-      const [walletData, paymentRows] = await Promise.all([
+      const [walletData, paymentRows, referralData] = await Promise.all([
         api("/wallet"),
         api("/payments/me"),
+        api("/referrals/me").catch(() => null),
       ]);
       setData(walletData);
       setPayments(paymentRows);
+      setReferral(referralData);
     } finally {
       setDataLoading(false);
     }
@@ -133,6 +137,29 @@ export default function WalletPage() {
           </div>
         </div>
       </div>
+
+      {referral && (
+        <Link
+          href="/refer"
+          className="block rounded-xl border p-4"
+          style={{ background: "rgba(255,193,7,0.08)", borderColor: "rgba(255,193,7,0.22)" }}
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--fs-gold)" }}>
+                Refer & Earn
+              </p>
+              <p className="mt-1 text-sm font-bold" style={{ color: "var(--fs-text-1)" }}>
+                Your code: <span className="font-mono tracking-[0.18em]">{referral.code}</span>
+              </p>
+              <p className="mt-1 text-xs" style={{ color: "var(--fs-text-3)" }}>
+                Earn Rs {referral.referrerDepositRewardNpr} when a referred user makes their first deposit.
+              </p>
+            </div>
+            <Gift size={22} style={{ color: "var(--fs-gold)" }} />
+          </div>
+        </Link>
+      )}
 
       {tab === "deposit" ? (
         <form onSubmit={submitDeposit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>

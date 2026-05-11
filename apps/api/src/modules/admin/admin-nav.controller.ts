@@ -23,7 +23,7 @@ export class AdminNavController {
       return [
         "overview", "tournaments", "payments", "results", "withdrawals",
         "reports", "risk-profiles",
-        "users", "banners", "config", "schedule", "flags", "support",
+        "users", "banners", "config", "schedule", "flags", "support", "referrals",
         "bot", "roles", "logs", "apk-releases", "apk-test",
       ];
     }
@@ -40,6 +40,7 @@ export class AdminNavController {
       nav.push("config", "schedule", "flags");
     }
     if (await check("support", "read")) nav.push("support");
+    if (await check("referrals", "read")) nav.push("referrals");
     if (await check("bot", "read")) nav.push("bot");
     if (await check("roles", "read") || await check("config", "read")) nav.push("roles");
     if (await check("logs", "read")) nav.push("logs");

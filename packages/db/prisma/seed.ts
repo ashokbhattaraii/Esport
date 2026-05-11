@@ -417,6 +417,9 @@ async function seedSystemConfig() {
     { key: "APP_PUBLIC_WEB_URL", value: "", type: "STRING", category: "FEATURE_FLAG", label: "Public Web URL" },
     { key: "APP_DOWNLOAD_ENABLED", value: "true", type: "BOOLEAN", category: "FEATURE_FLAG", label: "APK Download Enabled" },
     { key: "APP_SUPPORT_URL", value: "/support", type: "STRING", category: "FEATURE_FLAG", label: "App Support URL" },
+    { key: "REFERRAL_ENABLED", value: "true", type: "BOOLEAN", category: "FEATURE_FLAG", label: "Referral Program Enabled" },
+    { key: "REFERRAL_SIGNUP_REWARD_NPR", value: "10", type: "NUMBER", category: "FEATURE_FLAG", label: "Referral Signup Bonus (NPR)" },
+    { key: "REFERRAL_FIRST_DEPOSIT_REWARD_NPR", value: "10", type: "NUMBER", category: "FEATURE_FLAG", label: "Referrer First Deposit Reward (NPR)" },
   ];
 
   for (const c of defaults) {
@@ -446,6 +449,8 @@ async function seedRolesAndSuperAdmin() {
         { resource: "support", action: "approve" },
         { resource: "challenges", action: "read" },
         { resource: "challenges", action: "write" },
+        { resource: "referrals", action: "read" },
+        { resource: "referrals", action: "write" },
         { resource: "config", action: "toggle" },
       ],
     },
@@ -462,6 +467,7 @@ async function seedRolesAndSuperAdmin() {
         { resource: "support", action: "read" },
         { resource: "support", action: "write" },
         { resource: "support", action: "approve" },
+        { resource: "referrals", action: "read" },
       ],
     },
     FINANCE: {
@@ -553,6 +559,7 @@ async function seedFeatureFlags() {
     { key: "WITHDRAWAL_ENABLED", label: "Withdrawals", group: "PAYMENTS", enabled: true, description: "Allow withdrawal requests" },
     { key: "PAYMENT_PROOF_ENABLED", label: "Payment Proof Upload", group: "PAYMENTS", enabled: true, description: "Allow payment proof submissions" },
     { key: "SUPPORT_ENABLED", label: "Support Tickets", group: "SUPPORT", enabled: true, description: "Allow support ticket creation" },
+    { key: "REFERRAL_ENABLED", label: "Refer & Earn", group: "SYSTEM", enabled: true, description: "Allow referral signup and first-deposit rewards" },
     { key: "PUSH_NOTIFICATIONS_ENABLED", label: "Push Notifications", group: "NOTIFICATIONS", enabled: true, description: "Send push notifications" },
     { key: "LEADERBOARD_ENABLED", label: "Leaderboard", group: "SYSTEM", enabled: true, description: "Show leaderboard" },
     { key: "REGISTRATION_ENABLED", label: "New Registrations", group: "SYSTEM", enabled: true, description: "Allow new user registrations" },

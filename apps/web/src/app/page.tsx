@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Flame, Plus, Trophy, Wallet } from "lucide-react";
+import { Flame, Gift, Plus, Trophy, Wallet } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { fmtDate, npr } from "@/lib/utils";
@@ -302,6 +302,28 @@ export default function HomePage() {
             </Link>
           </section>
         )}
+
+        <section>
+          <Link
+            href="/refer"
+            className="block overflow-hidden rounded-xl border border-[rgba(255,193,7,0.24)] bg-[linear-gradient(135deg,rgba(255,193,7,0.15),rgba(229,57,53,0.10),rgba(255,255,255,0.03))] p-4"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[10px] uppercase tracking-[0.22em] text-[var(--fs-gold)]">Refer & Earn</p>
+                <p className="mt-2 text-base font-bold text-[var(--fs-text-1)]">
+                  Give Rs 10. Earn Rs 10 after their first deposit.
+                </p>
+                <p className="mt-1 text-xs text-[var(--fs-text-3)]">
+                  No links. Share a 6-character code. Multiple accounts are not allowed.
+                </p>
+              </div>
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[rgba(255,193,7,0.16)]">
+                <Gift size={22} className="text-[var(--fs-gold)]" />
+              </div>
+            </div>
+          </Link>
+        </section>
 
         <DownloadBanner />
 

@@ -114,6 +114,9 @@ export class SystemConfigService implements OnModuleInit {
     APP_DOWNLOAD_ENABLED: { value: "true", type: "BOOLEAN", category: "FEATURE_FLAG", label: "APK Download Enabled" },
     APP_SUPPORT_URL: { value: "/support", type: "STRING", category: "FEATURE_FLAG", label: "App Support URL" },
     RESULT_SUBMIT_DELAY_MINS: { value: "10", type: "NUMBER", category: "TOURNAMENT", label: "Result Submit Delay After Room Share (mins)" },
+    REFERRAL_ENABLED: { value: "true", type: "BOOLEAN", category: "FEATURE_FLAG", label: "Referral Program Enabled" },
+    REFERRAL_SIGNUP_REWARD_NPR: { value: "10", type: "NUMBER", category: "FEATURE_FLAG", label: "Referral Signup Bonus (NPR)" },
+    REFERRAL_FIRST_DEPOSIT_REWARD_NPR: { value: "10", type: "NUMBER", category: "FEATURE_FLAG", label: "Referrer First Deposit Reward (NPR)" },
   };
 
   get(key: string): string {
