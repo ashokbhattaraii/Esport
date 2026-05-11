@@ -5,6 +5,7 @@ import { AuthProvider } from "@/lib/auth-context";
 import { ViewportProvider } from "@/lib/viewport-context";
 import { ToastProvider } from "@/lib/toast";
 import { SWRProvider } from "@/lib/swr-config";
+import { UpdateProvider } from "@/lib/update-context";
 import { AppConfigGate } from "@/components/AppConfigGate";
 
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -16,7 +17,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <AuthProvider>
           <ViewportProvider>
             <ToastProvider>
-              <AppConfigGate>{children}</AppConfigGate>
+              <UpdateProvider>
+                <AppConfigGate>{children}</AppConfigGate>
+              </UpdateProvider>
             </ToastProvider>
           </ViewportProvider>
         </AuthProvider>

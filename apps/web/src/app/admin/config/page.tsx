@@ -20,6 +20,7 @@ const PAYMENT_METHODS = [
 
 const FEE_KEYS = ["SYSTEM_FEE_PERCENT", "CHALLENGE_FEE_PERCENT", "WITHDRAWAL_FEE_PERCENT"];
 const WALLET_LIMIT_KEYS = ["MIN_DEPOSIT_AMOUNT_NPR", "MIN_WITHDRAWAL_AMOUNT_NPR"];
+const APP_UPDATE_KEYS = ["APP_LATEST_VERSION", "APP_MIN_ANDROID_VERSION", "APP_FORCE_UPDATE_ENABLED", "APP_DOWNLOAD_ENABLED"];
 
 export default function ConfigPage() {
   const [items, setItems] = useState<ConfigItem[]>([]);
@@ -100,6 +101,7 @@ export default function ConfigPage() {
   const flatSysItems = Object.values(sysItems).flat();
   const feeConfigs = flatSysItems.filter((config) => FEE_KEYS.includes(config.key));
   const walletLimitConfigs = flatSysItems.filter((config) => WALLET_LIMIT_KEYS.includes(config.key));
+  const appUpdateConfigs = flatSysItems.filter((config) => APP_UPDATE_KEYS.includes(config.key));
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -254,6 +256,39 @@ export default function ConfigPage() {
                     description={config.key === "MIN_DEPOSIT_AMOUNT_NPR"
                       ? "Users cannot submit wallet deposit requests below this amount."
                       : "Users cannot submit withdrawal requests below this amount."
+                    }
+                    value={sysDrafts[config.key] ?? ""}
+                    onChange={(v) => setSysDrafts((d) => ({ ...d, [config.key]: v }))}
+                    onSave={() => saveSys(config.key)}
+                    saving={savingSysKey === config.key}
+                    changed={(sysDrafts[config.key] ?? "") !== config.value}
+                    mono
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* App Update Settings */}
+          {appUpdateConfigs.length > 0 && (
+            <div style={{ background: "var(--fs-surface-1)", borderRadius: 14, border: "0.5px solid var(--fs-border)", overflow: "hidden" }}>
+              <div style={{ padding: "14px 16px", borderBottom: "0.5px solid var(--fs-border)", background: "var(--fs-surface-2)" }}>
+                <p style={{ fontSize: 14, fontWeight: 700, color: "var(--fs-text-1)" }}>App Update Settings</p>
+                <p style={{ fontSize: 11, color: "var(--fs-text-3)", marginTop: 2 }}>Configure app version requirements and update behavior for the in-app update checker.</p>
+              </div>
+              <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 16 }}>
+                {appUpdateConfigs.map((config) => (
+                  <ConfigField
+                    key={config.key}
+                    label={config.label}
+                    description={
+                      config.key === "APP_LATEST_VERSION"
+                        ? "Latest available app version (e.g., 1.0.86-129a789). The app update checker will compare against this."
+                        : config.key === "APP_MIN_ANDROID_VERSION"
+                        ? "Minimum required Android app version. Users below this version will see a forced update prompt."
+                        : config.key === "APP_FORCE_UPDATE_ENABLED"
+                        ? "If enabled, users cannot dismiss the update prompt and must update to continue using the app."
+                        : "If disabled, the in-app update checker will not offer downloads to users."
                     }
                     value={sysDrafts[config.key] ?? ""}
                     onChange={(v) => setSysDrafts((d) => ({ ...d, [config.key]: v }))}
