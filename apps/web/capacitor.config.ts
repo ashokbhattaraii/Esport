@@ -8,7 +8,7 @@ const config: CapacitorConfig = {
     url: 'https://esport-web-rho.vercel.app',
     cleartext: false,
     androidScheme: 'https',
-    allowNavigation: ['esport-web-rho.vercel.app','esport-api-rho.vercel.app','accounts.google.com','*.googleapis.com'],
+    allowNavigation: ['esport-web-rho.vercel.app','esport-api-steel.vercel.app','accounts.google.com','*.googleapis.com'],
     hostname: 'esport-web-rho.vercel.app',
   },
   plugins: {
