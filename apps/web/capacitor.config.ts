@@ -1,6 +1,6 @@
 import { CapacitorConfig } from '@capacitor/cli'
 
-const serverUrl = process.env.CAPACITOR_SERVER_URL || 'https://fireslot.vercel.app'
+const serverUrl = process.env.CAPACITOR_SERVER_URL || 'https://esport-web-rho.vercel.app'
 const serverHost = new URL(serverUrl).hostname
 
 const config: CapacitorConfig = {
@@ -11,7 +11,7 @@ const config: CapacitorConfig = {
     url: serverUrl,
     cleartext: false,
     androidScheme: 'https',
-    allowNavigation: [serverHost, '*.fireslot.vercel.app', 'esport-api-steel.vercel.app', 'accounts.google.com', '*.googleapis.com'],
+    allowNavigation: [serverHost, '*.esport-web-rho.vercel.app', '*.fireslot.vercel.app', 'esport-api-steel.vercel.app', 'accounts.google.com', '*.googleapis.com'],
     hostname: serverHost,
   },
   plugins: {

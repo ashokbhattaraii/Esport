@@ -4,7 +4,7 @@ const apiOrigin = isProd
   ? 'https://esport-api-steel.vercel.app'
   : 'http://localhost:4000'
 const appOrigin = process.env.NEXT_PUBLIC_APP_URL
-  ?? (isProd ? 'https://fireslot.vercel.app' : 'http://localhost:3000')
+  ?? (isProd ? 'https://esport-web-rho.vercel.app' : 'http://localhost:3000')
 
 const nextConfig = {
   trailingSlash: true,
