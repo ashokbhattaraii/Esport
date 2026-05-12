@@ -75,23 +75,53 @@ export class AuthService {
     const clientId = this.googleClientId;
     if (!clientId)
       throw new InternalServerErrorException("Google OAuth is not configured");
-    if (!dto?.credential)
+    if (!dto?.credential && !dto?.accessToken)
       throw new UnauthorizedException("Missing Google credential");
 
-    let ticket;
-    try {
-      ticket = await this.getGoogleClient().verifyIdToken({
-        idToken: dto.credential,
-        audience: clientId,
-      });
-    } catch {
-      throw new UnauthorizedException("Invalid or expired Google credential");
-    }
-    const payload = ticket.getPayload();
-    const email = payload?.email?.toLowerCase();
-    const googleId = payload?.sub;
-    if (!email || !googleId || payload.email_verified === false) {
-      throw new UnauthorizedException("Google account could not be verified");
+    let email: string | undefined;
+    let googleId: string | undefined;
+    let name: string | undefined;
+    let picture: string | undefined;
+
+    if (dto.credential) {
+      // ID token flow (iframe button on web browser)
+      let ticket;
+      try {
+        ticket = await this.getGoogleClient().verifyIdToken({
+          idToken: dto.credential,
+          audience: clientId,
+        });
+      } catch {
+        throw new UnauthorizedException("Invalid or expired Google credential");
+      }
+      const payload = ticket.getPayload();
+      email = payload?.email?.toLowerCase();
+      googleId = payload?.sub;
+      name = payload?.name;
+      picture = payload?.picture;
+      if (!email || !googleId || payload?.email_verified === false) {
+        throw new UnauthorizedException("Google account could not be verified");
+      }
+    } else {
+      // Access token flow (popup button — works in Capacitor WebView)
+      let userInfo: any;
+      try {
+        const res = await fetch(
+          `https://www.googleapis.com/oauth2/v3/userinfo`,
+          { headers: { Authorization: `Bearer ${dto.accessToken}` } },
+        );
+        if (!res.ok) throw new Error(`Google userinfo ${res.status}`);
+        userInfo = await res.json();
+      } catch {
+        throw new UnauthorizedException("Invalid or expired Google access token");
+      }
+      email = userInfo.email?.toLowerCase();
+      googleId = userInfo.sub;
+      name = userInfo.name;
+      picture = userInfo.picture;
+      if (!email || !googleId || userInfo.email_verified === false) {
+        throw new UnauthorizedException("Google account could not be verified");
+      }
     }
 
     const existing = await this.prisma.user.findFirst({
@@ -107,16 +137,16 @@ export class AuthService {
           data: {
             email,
             googleId,
-            name: payload.name,
-            avatarUrl: payload.picture,
+            name,
+            avatarUrl: picture,
           },
         })
       : await this.prisma.user.create({
           data: {
             email,
             googleId,
-            name: payload.name,
-            avatarUrl: payload.picture,
+            name,
+            avatarUrl: picture,
             referralCode: await this.referrals.generateUniqueCode(),
             wallet: { create: {} },
           },

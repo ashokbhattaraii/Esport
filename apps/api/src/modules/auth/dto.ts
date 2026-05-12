@@ -12,6 +12,7 @@ export class LoginDto {
 }
 
 export class GoogleLoginDto {
-  @IsString() credential!: string;
+  @IsOptional() @IsString() credential?: string;   // ID token from iframe button (web)
+  @IsOptional() @IsString() accessToken?: string;  // access_token from popup flow (APK/WebView)
   @IsOptional() @IsString() referralCode?: string;
 }

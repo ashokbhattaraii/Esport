@@ -1,8 +1,8 @@
 "use client";
 
-import { GoogleLogin } from "@react-oauth/google";
+import { useGoogleLogin } from "@react-oauth/google";
 import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { api, auth } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { InlineLoading } from "@/components/ui";
@@ -22,9 +22,9 @@ export function GoogleAuthPanel({
   const [loading, setLoading] = useState(false);
   const [referralCode, setReferralCode] = useState("");
 
-  async function signIn(credential?: string) {
-    if (!credential) {
-      setErr("Google sign-in did not return a credential");
+  async function signIn(payload: { credential?: string; accessToken?: string }) {
+    if (!payload.credential && !payload.accessToken) {
+      setErr("Google sign-in did not return a token");
       return;
     }
     setErr(null);
@@ -43,7 +43,7 @@ export function GoogleAuthPanel({
       const res = await api<any>("/auth/google", {
         method: "POST",
         body: JSON.stringify({
-          credential,
+          ...payload,
           referralCode: showReferral ? normalizedReferral || undefined : undefined,
         }),
       });
@@ -77,16 +77,14 @@ export function GoogleAuthPanel({
     }
   }
 
-  const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID
+  // Popup-based login — works in Capacitor WebView (no iframe)
+  const googleLogin = useGoogleLogin({
+    onSuccess: (tokenResponse) => signIn({ accessToken: tokenResponse.access_token }),
+    onError: () => setErr("Google sign-in failed or was cancelled"),
+    flow: "implicit",
+  });
 
-  useEffect(() => {
-    // Retry check in case env was injected at build step; harmless on web
-    if (clientId) return
-    const id = setTimeout(() => {
-      // no-op; process.env is static but keep for APK resilience
-    }, 800)
-    return () => clearTimeout(id)
-  }, [clientId])
+  const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
   return (
     <div className="card space-y-4">
@@ -110,21 +108,32 @@ export function GoogleAuthPanel({
             onChange={(e) => setReferralCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))}
           />
           <p className="mt-2 text-xs text-amber-100/80">
-            Paste a friend&apos;s 6-character code now to get Rs 10. This only works during first signup. No multiple accounts.
+            Paste a friend&apos;s 6-character code now to get Rs 10. This only works during first signup.
           </p>
         </div>
       )}
-      {process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ? (
-        <div className="relative overflow-hidden rounded-md bg-white">
-          <GoogleLogin
-            width="100%"
-            theme="filled_black"
-            text="continue_with"
-            onSuccess={(res) => signIn(res.credential)}
-            onError={() => setErr("Google sign-in failed")}
-          />
+      {clientId ? (
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => !loading && googleLogin()}
+            disabled={loading}
+            className="flex w-full items-center justify-center gap-3 rounded-md bg-white px-4 py-3 text-sm font-semibold text-gray-800 shadow transition hover:bg-gray-50 active:scale-95 disabled:opacity-60"
+            style={{ minHeight: 44 }}
+          >
+            {/* Google "G" logo */}
+            <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
+              <g fill="none" fillRule="evenodd">
+                <path d="M17.64 9.205c0-.639-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
+                <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" fill="#34A853"/>
+                <path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+                <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
+              </g>
+            </svg>
+            {loading ? "Signing in..." : "Continue with Google"}
+          </button>
           {loading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/70">
+            <div className="absolute inset-0 flex items-center justify-center rounded-md bg-black/50">
               <InlineLoading label="Signing you in..." />
             </div>
           )}
