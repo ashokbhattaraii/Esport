@@ -102,7 +102,7 @@ export function GoogleAuthPanel({
   const startNativeGoogleLogin = () => {
     if (!clientId || typeof window === "undefined") return;
 
-    const redirectUri = `${window.location.origin}/login/`;
+    const redirectUri = window.location.origin;
     const oauthUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
     oauthUrl.searchParams.set("client_id", clientId);
     oauthUrl.searchParams.set("redirect_uri", redirectUri);
