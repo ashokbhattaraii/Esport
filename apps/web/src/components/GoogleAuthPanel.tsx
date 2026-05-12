@@ -8,6 +8,12 @@ import { useAuth } from "@/lib/auth-context";
 import { InlineLoading } from "@/components/ui";
 import { useIsNativeApp } from "@/hooks/useIsNativeApp";
 
+function isAndroidWebView(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  return ua.includes("wv") || (ua.includes("Android") && ua.includes("Version/"));
+}
+
 export function GoogleAuthPanel({
   title = "Continue with Google",
   next = "/dashboard",
@@ -102,8 +108,13 @@ export function GoogleAuthPanel({
   const startNativeGoogleLogin = () => {
     if (!clientId || typeof window === "undefined") return;
 
-    const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || window.location.origin).replace(/\/$/, "");
-    const redirectUri = `${baseUrl}/login/`;
+    // Redirect URI must EXACTLY match what's in Google Console.
+    // Use NEXT_PUBLIC_APP_URL if available (set during build for native),
+    // otherwise fall back to the current origin.
+    const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "");
+    const origin = appUrl || window.location.origin.replace(/\/$/, "");
+    const redirectUri = `${origin}/login/`;
+
     const oauthUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
     oauthUrl.searchParams.set("client_id", clientId);
     oauthUrl.searchParams.set("redirect_uri", redirectUri);
@@ -147,7 +158,9 @@ export function GoogleAuthPanel({
             type="button"
             onClick={() => {
               if (loading) return;
-              if (isNative) {
+              // Always use redirect flow on Android WebView or native
+              // Popup flow breaks in WebViews (redirect_uri_mismatch)
+              if (isNative || isAndroidWebView()) {
                 startNativeGoogleLogin();
                 return;
               }
