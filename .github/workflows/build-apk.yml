@@ -68,6 +68,15 @@ jobs:
       - name: Build web assets
         run: pnpm --filter @fireslot/web build
 
+      - name: Ensure Android platform exists
+        run: |
+          if [ ! -d apps/web/android ]; then
+            echo "Android platform not found, adding it..."
+            pnpm --filter @fireslot/web exec cap add android
+          else
+            echo "Android platform already present"
+          fi
+
       - name: Sync Capacitor
         run: pnpm --filter @fireslot/web exec cap sync android
 
