@@ -99,14 +99,25 @@ jobs:
           echo "sha256=$CHECKSUM" >> $GITHUB_OUTPUT
           echo "APK SHA256: $CHECKSUM"
 
-      - name: Update API database with latest version
+      - name: Register release in API database
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+          CI_API_KEY: ${{ secrets.CI_API_KEY }}
         run: |
-          echo "Version update would be applied here"
-          echo "Version: ${{ steps.version.outputs.version_name }}"
-          echo "SHA256: ${{ steps.checksum.outputs.sha256 }}"
-          # Note: Actual database update would require API endpoint or DB credentials
+          APK_URL="https://github.com/${{ github.repository }}/releases/download/v${{ steps.version.outputs.version_name }}/fireslot-nepal-${{ steps.version.outputs.version_name }}.apk"
+          API_BASE="${NEXT_PUBLIC_API_URL:-https://esport-api-steel.vercel.app/api}"
+          echo "Registering release v${{ steps.version.outputs.version_name }} at ${API_BASE}/app/ci/register-release"
+          HTTP_STATUS=$(curl -sS -o /tmp/ci_release_response.json -w "%{http_code}" \
+            -X POST "${API_BASE}/app/ci/register-release" \
+            -H "Content-Type: application/json" \
+            -H "x-ci-api-key: ${CI_API_KEY}" \
+            -d "{\"version\":\"${{ steps.version.outputs.version_name }}\",\"apkUrl\":\"${APK_URL}\",\"sha256\":\"${{ steps.checksum.outputs.sha256 }}\"}")
+          cat /tmp/ci_release_response.json || true
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
+            echo "✅ Release registered in database (HTTP $HTTP_STATUS)"
+          else
+            echo "⚠️  Could not register release in DB (HTTP $HTTP_STATUS) — APK still available on GitHub Releases"
+          fi
 
       - name: Upload APK as artifact
         uses: actions/upload-artifact@v4

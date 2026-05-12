@@ -3,10 +3,12 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   Param,
   Post,
   Put,
   Req,
+  UnauthorizedException,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -36,6 +38,28 @@ export class PublicAppReleasesController {
   @Get("config")
   config(@Req() req: any) {
     return this.svc.getPublicConfig(req);
+  }
+
+  @Post("ci/register-release")
+  async registerCiRelease(
+    @Headers("x-ci-api-key") ciKey: string | undefined,
+    @Body()
+    body: {
+      version: string;
+      apkUrl: string;
+      sha256?: string;
+      releaseNotes?: string;
+      fileSizeBytes?: number;
+    },
+  ) {
+    const expected = process.env.CI_API_KEY;
+    if (!expected || !ciKey || ciKey !== expected) {
+      throw new UnauthorizedException("Invalid CI API key");
+    }
+    if (!body.version || !body.apkUrl) {
+      throw new BadRequestException("version and apkUrl are required");
+    }
+    return this.svc.registerCiRelease(body);
   }
 }
 

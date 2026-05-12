@@ -415,6 +415,34 @@ export class AppReleasesService {
     return { ok: true };
   }
 
+  async registerCiRelease(data: {
+    version: string;
+    apkUrl: string;
+    sha256?: string;
+    releaseNotes?: string;
+    fileSizeBytes?: number;
+  }) {
+    const version = this.normalizeVersion(data.version);
+    const created = await this.prisma.$transaction(async (tx: any) => {
+      await tx.appRelease.updateMany({ where: { isLatest: true }, data: { isLatest: false } });
+      return tx.appRelease.create({
+        data: {
+          version,
+          releaseNotes: data.releaseNotes ?? `CI build ${version}`,
+          filename: data.apkUrl,
+          isLatest: true,
+          buildStatus: "BUILT",
+          testStatus: "PASSED",
+          sha256: data.sha256,
+          fileSizeBytes: data.fileSizeBytes,
+          builtAt: new Date(),
+          publishedAt: new Date(),
+        },
+      });
+    });
+    return { ok: true, id: created.id, version: created.version, downloadUrl: this.publicDownloadUrl(created.filename) };
+  }
+
   private async buildChecks(release: any, req?: RequestLike): Promise<ReleaseCheck[]> {
     const checks: ReleaseCheck[] = [];
     const localPath = this.localDownloadPath(release.filename);
