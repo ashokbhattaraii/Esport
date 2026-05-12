@@ -14,6 +14,7 @@ function isAndroidWebView(): boolean {
   return ua.includes("wv") || (ua.includes("Android") && ua.includes("Version/"));
 }
 
+
 export function GoogleAuthPanel({
   title = "Continue with Google",
   next = "/dashboard",
@@ -84,18 +85,19 @@ export function GoogleAuthPanel({
     }
   }
 
+  // Handle OAuth redirect — token comes back in URL hash fragment
   useEffect(() => {
-    if (!isNative || typeof window === "undefined") return;
+    if (typeof window === "undefined") return;
+    if (!window.location.hash.includes("access_token")) return;
 
-    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-    const accessToken = hashParams.get("access_token");
-    if (!accessToken) return;
+    const params = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const token = params.get("access_token");
+    if (!token) return;
 
     const cleanUrl = `${window.location.pathname}${window.location.search}`;
     window.history.replaceState({}, document.title, cleanUrl);
-
-    void signIn({ accessToken });
-  }, [isNative]);
+    void signIn({ accessToken: token });
+  }, []);
 
   // Popup-based login — works in Capacitor WebView (no iframe)
   const googleLogin = useGoogleLogin({
@@ -108,9 +110,6 @@ export function GoogleAuthPanel({
   const startNativeGoogleLogin = () => {
     if (!clientId || typeof window === "undefined") return;
 
-    // Redirect URI must EXACTLY match what's in Google Console.
-    // Use NEXT_PUBLIC_APP_URL if available (set during build for native),
-    // otherwise fall back to the current origin.
     const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "");
     const origin = appUrl || window.location.origin.replace(/\/$/, "");
     const redirectUri = `${origin}/login/`;
@@ -158,8 +157,6 @@ export function GoogleAuthPanel({
             type="button"
             onClick={() => {
               if (loading) return;
-              // Always use redirect flow on Android WebView or native
-              // Popup flow breaks in WebViews (redirect_uri_mismatch)
               if (isNative || isAndroidWebView()) {
                 startNativeGoogleLogin();
                 return;
