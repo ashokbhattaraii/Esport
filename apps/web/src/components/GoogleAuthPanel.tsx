@@ -2,10 +2,11 @@
 
 import { useGoogleLogin } from "@react-oauth/google";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api, auth } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { InlineLoading } from "@/components/ui";
+import { useIsNativeApp } from "@/hooks/useIsNativeApp";
 
 export function GoogleAuthPanel({
   title = "Continue with Google",
@@ -18,6 +19,7 @@ export function GoogleAuthPanel({
 }) {
   const router = useRouter();
   const { refresh } = useAuth();
+  const isNative = useIsNativeApp();
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [referralCode, setReferralCode] = useState("");
@@ -40,15 +42,14 @@ export function GoogleAuthPanel({
         return;
       }
 
-      const res = await api<any>("/auth/google", {
+      const res: any = await api("/auth/google", {
         method: "POST",
         body: JSON.stringify({
           ...payload,
           referralCode: showReferral ? normalizedReferral || undefined : undefined,
         }),
       });
-      const nextToken =
-        res?.token ?? res?.accessToken ?? res?.jwt ?? res?.data?.token;
+      const nextToken = res?.token ?? res?.accessToken ?? res?.jwt ?? res?.data?.token;
       if (!nextToken) {
         throw new Error("Google sign-in succeeded but no auth token was returned");
       }
@@ -77,6 +78,19 @@ export function GoogleAuthPanel({
     }
   }
 
+  useEffect(() => {
+    if (!isNative || typeof window === "undefined") return;
+
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const accessToken = hashParams.get("access_token");
+    if (!accessToken) return;
+
+    const cleanUrl = `${window.location.pathname}${window.location.search}`;
+    window.history.replaceState({}, document.title, cleanUrl);
+
+    void signIn({ accessToken });
+  }, [isNative]);
+
   // Popup-based login — works in Capacitor WebView (no iframe)
   const googleLogin = useGoogleLogin({
     onSuccess: (tokenResponse) => signIn({ accessToken: tokenResponse.access_token }),
@@ -85,6 +99,20 @@ export function GoogleAuthPanel({
   });
 
   const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+  const startNativeGoogleLogin = () => {
+    if (!clientId || typeof window === "undefined") return;
+
+    const redirectUri = `${window.location.origin}/login/`;
+    const oauthUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+    oauthUrl.searchParams.set("client_id", clientId);
+    oauthUrl.searchParams.set("redirect_uri", redirectUri);
+    oauthUrl.searchParams.set("response_type", "token");
+    oauthUrl.searchParams.set("scope", "openid email profile");
+    oauthUrl.searchParams.set("prompt", "select_account");
+    oauthUrl.searchParams.set("include_granted_scopes", "true");
+
+    window.location.assign(oauthUrl.toString());
+  };
 
   return (
     <div className="card space-y-4">
@@ -116,7 +144,14 @@ export function GoogleAuthPanel({
         <div className="relative">
           <button
             type="button"
-            onClick={() => !loading && googleLogin()}
+            onClick={() => {
+              if (loading) return;
+              if (isNative) {
+                startNativeGoogleLogin();
+                return;
+              }
+              googleLogin();
+            }}
             disabled={loading}
             className="flex w-full items-center justify-center gap-3 rounded-md bg-white px-4 py-3 text-sm font-semibold text-gray-800 shadow transition hover:bg-gray-50 active:scale-95 disabled:opacity-60"
             style={{ minHeight: 44 }}
