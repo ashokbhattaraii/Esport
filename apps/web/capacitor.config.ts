@@ -1,15 +1,18 @@
 import { CapacitorConfig } from '@capacitor/cli'
 
+const serverUrl = process.env.CAPACITOR_SERVER_URL || 'https://fireslot.vercel.app'
+const serverHost = new URL(serverUrl).hostname
+
 const config: CapacitorConfig = {
   appId: 'com.fireslot.nepal',
   appName: 'FireSlot Nepal',
   webDir: 'capacitor-shell',
   server: {
-    url: 'https://esport-web-rho.vercel.app',
+    url: serverUrl,
     cleartext: false,
     androidScheme: 'https',
-    allowNavigation: ['esport-web-rho.vercel.app','esport-api-steel.vercel.app','accounts.google.com','*.googleapis.com'],
-    hostname: 'esport-web-rho.vercel.app',
+    allowNavigation: [serverHost, '*.fireslot.vercel.app', 'esport-api-steel.vercel.app', 'accounts.google.com', '*.googleapis.com'],
+    hostname: serverHost,
   },
   plugins: {
     SplashScreen: { launchShowDuration: 0, backgroundColor: '#0B0B14', showSpinner: false },
