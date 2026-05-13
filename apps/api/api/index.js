@@ -373,10 +373,16 @@ async function loadFastLatestRelease() {
     },
   });
   if (!r) return null;
+  const cleanFilename = String(r.filename || '').replace(/^\/+/, '');
+  const downloadUrl = cleanFilename.startsWith('http')
+    ? cleanFilename
+    : cleanFilename.startsWith('downloads/')
+      ? `/${cleanFilename}`
+      : `/downloads/${cleanFilename}`;
   return {
     version: r.version,
     releaseNotes: r.releaseNotes,
-    downloadUrl: r.filename.startsWith('http') ? r.filename : `/downloads/${r.filename}`,
+    downloadUrl,
     fileSizeBytes: r.fileSizeBytes,
     sha256: r.sha256,
     publishedAt: r.publishedAt,
@@ -532,6 +538,7 @@ function serveDownload(req, res) {
     res.end(JSON.stringify({ message: 'Invalid download path' }));
     return true;
   }
+  filename = filename.replace(/^downloads\//, "");
 
   if (!/^[A-Za-z0-9._-]+$/.test(filename) || filename.includes('..')) {
     res.statusCode = 400;

@@ -652,7 +652,9 @@ export class AppReleasesService {
   }
 
   private publicDownloadUrl(filename: string) {
-    return filename.startsWith("http") ? filename : `/downloads/${filename}`;
+    if (filename.startsWith("http")) return filename;
+    const clean = filename.replace(/^\/+/, "");
+    return clean.startsWith("downloads/") ? `/${clean}` : `/downloads/${clean}`;
   }
 
   private nativeLoadMode() {
