@@ -59,6 +59,7 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user) throw new UnauthorizedException("Invalid credentials");
     if (user.isBanned) throw new UnauthorizedException("Account banned");
+    if (user.isLocked) throw new UnauthorizedException("Account locked");
     if (!user.passwordHash) {
       throw new UnauthorizedException("This account uses Google sign-in");
     }
@@ -157,6 +158,7 @@ export class AuthService {
     }
 
     if (user.isBanned) throw new UnauthorizedException("Account banned");
+    if (user.isLocked) throw new UnauthorizedException("Account locked");
     await this.prisma.wallet.upsert({
       where: { userId: user.id },
       update: {},
@@ -229,6 +231,8 @@ export class AuthService {
         avatarUrl: true,
         role: true,
         isBanned: true,
+        isLocked: true,
+        sessionVersion: true,
         createdAt: true,
         profile: true,
         wallet: true,
@@ -255,8 +259,12 @@ export class AuthService {
     role: Role | string,
     extra?: { name?: string | null; avatarUrl?: string | null },
   ) {
+    const session = await this.prisma.user.findUnique({
+      where: { id: sub },
+      select: { sessionVersion: true },
+    });
     const token = await this.jwt.signAsync(
-      { sub, email, role },
+      { sub, email, role, sessionVersion: session?.sessionVersion ?? 0 },
       { secret: jwtSecret() },
     );
     return { token, user: { id: sub, email, role, ...extra } };

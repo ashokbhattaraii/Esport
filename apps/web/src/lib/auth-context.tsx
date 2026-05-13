@@ -10,6 +10,8 @@ type User = {
   role: "PLAYER" | "ADMIN" | "FINANCE" | "SUPER_ADMIN";
   roleRef?: { id: string; name: string } | null;
   isBanned?: boolean;
+  isLocked?: boolean;
+  sessionVersion?: number;
   createdAt?: string;
   referralCode?: string | null;
   profile?: any;

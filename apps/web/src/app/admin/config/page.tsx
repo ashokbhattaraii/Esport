@@ -235,6 +235,7 @@ export default function ConfigPage() {
                     onSave={() => saveSys(config.key)}
                     saving={savingSysKey === config.key}
                     changed={(sysDrafts[config.key] ?? "") !== config.value}
+                    type={config.type}
                     mono
                   />
                 ))}
@@ -262,6 +263,7 @@ export default function ConfigPage() {
                     onSave={() => saveSys(config.key)}
                     saving={savingSysKey === config.key}
                     changed={(sysDrafts[config.key] ?? "") !== config.value}
+                    type={config.type}
                     mono
                   />
                 ))}
@@ -295,6 +297,7 @@ export default function ConfigPage() {
                     onSave={() => saveSys(config.key)}
                     saving={savingSysKey === config.key}
                     changed={(sysDrafts[config.key] ?? "") !== config.value}
+                    type={config.type}
                     mono
                   />
                 ))}
@@ -330,9 +333,9 @@ export default function ConfigPage() {
   );
 }
 
-function ConfigField({ label, description, value, onChange, onSave, saving, changed, multiline, mono }: {
+function ConfigField({ label, description, value, onChange, onSave, saving, changed, multiline, mono, type }: {
   label: string; description?: string; value: string; onChange: (v: string) => void;
-  onSave: () => void; saving: boolean; changed: boolean; multiline?: boolean; mono?: boolean;
+  onSave: () => void; saving: boolean; changed: boolean; multiline?: boolean; mono?: boolean; type?: string;
 }) {
   return (
     <div>
@@ -347,7 +350,12 @@ function ConfigField({ label, description, value, onChange, onSave, saving, chan
           </button>
         )}
       </div>
-      {multiline ? (
+      {type === "BOOLEAN" ? (
+        <select className="fs-input" value={value === "true" ? "true" : "false"} onChange={(e) => onChange(e.target.value)}>
+          <option value="false">Disabled</option>
+          <option value="true">Enabled</option>
+        </select>
+      ) : multiline ? (
         <textarea className="fs-input" style={{ height: 80, paddingTop: 12, resize: "vertical" }} value={value} onChange={(e) => onChange(e.target.value)} />
       ) : (
         <input className="fs-input" value={value} onChange={(e) => onChange(e.target.value)} />

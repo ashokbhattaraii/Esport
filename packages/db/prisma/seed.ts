@@ -440,7 +440,7 @@ async function seedRolesAndSuperAdmin() {
       permissions: [
         ...["read", "write", "approve", "delete"].map((action) => ({ resource: "tournaments", action })),
         ...["read", "approve"].map((action) => ({ resource: "payments", action })),
-        ...["read", "ban"].map((action) => ({ resource: "users", action })),
+        ...["read", "write", "ban"].map((action) => ({ resource: "users", action })),
         ...["read", "approve"].map((action) => ({ resource: "withdrawals", action })),
         ...["read", "approve"].map((action) => ({ resource: "results", action })),
         ...["read", "write"].map((action) => ({ resource: "config", action })),
@@ -477,6 +477,7 @@ async function seedRolesAndSuperAdmin() {
       permissions: [
         { resource: "payments", action: "read" },
         { resource: "payments", action: "approve" },
+        { resource: "payments", action: "adjust" },
         { resource: "withdrawals", action: "read" },
         { resource: "withdrawals", action: "approve" },
         { resource: "support", action: "read" },

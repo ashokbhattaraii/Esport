@@ -329,6 +329,15 @@ export default function ChallengeDetailPage() {
       {showRulesModal && (
         <Modal onClose={() => setShowRulesModal(false)}>
           <h3 className="font-display text-base text-white mb-2">Match Rules</h3>
+          <div className="mb-3 grid grid-cols-2 gap-2">
+            <Box label="You pay" value={`Rs ${c.entryFee}`} />
+            <Box label="Winner gets" value={`Rs ${c.prizeToWinner}`} />
+            <Box label="Total stake" value={`Rs ${Number(c.entryFee ?? 0) * 2}`} />
+            <Box label="Platform fee" value={`Rs ${c.platformFee ?? 0}`} />
+          </div>
+          <div className="mb-3 rounded-md border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-[11px] text-amber-100">
+            Joining deducts your entry fee immediately. If the creator does not share room details before the deadline, the system refunds the entry fee automatically.
+          </div>
           <pre className="max-h-60 overflow-auto whitespace-pre-wrap rounded-md bg-black/40 p-3 text-xs text-white/80">
             {c.rulesText}
           </pre>

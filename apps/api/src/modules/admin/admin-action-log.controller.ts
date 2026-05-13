@@ -18,6 +18,8 @@ export class AdminActionLogController {
     @CurrentUser() u: any,
     @Query("adminId") adminId?: string,
     @Query("resource") resource?: string,
+    @Query("resourceId") resourceId?: string,
+    @Query("action") action?: string,
     @Query("from") from?: string,
     @Query("to") to?: string,
     @Query("page") page = "1",
@@ -30,7 +32,7 @@ export class AdminActionLogController {
     if (me?.roleRef?.name !== "SUPER_ADMIN")
       throw new ForbiddenException("SUPER_ADMIN only");
     return this.svc.getLogs(
-      { adminId, resource, from, to },
+      { adminId, resource, resourceId, action, from, to },
       parseInt(page, 10),
       parseInt(limit, 10),
     );

@@ -1,25 +1,35 @@
 import {
+  Body,
   Controller,
   Get,
   Inject,
   Module,
   Param,
   Post,
-  NotFoundException,
+  Put,
+  Req,
   UseGuards,
 } from "@nestjs/common";
 import { JwtAuthGuard } from "../../common/guards/jwt.guard";
-import { Roles, RolesGuard } from "../../common/guards/roles.guard";
-import { PrismaClient, Role } from "@fireslot/db";
+import { PrismaClient } from "@fireslot/db";
 import { PRISMA } from "../../prisma/prisma.module";
-import { ProfileService } from "../profile/profile.service";
+import { PermissionsGuard, RequirePermission } from "../../common/guards/permissions.guard";
+import { CurrentUser } from "../../common/decorators/current-user.decorator";
+import {
+  AdminUpdateUserDto,
+  AdminUsersService,
+  BalanceAdjustmentDto,
+} from "./admin-users.service";
 
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(Role.ADMIN)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller("admin")
 export class AdminController {
-  constructor(@Inject(PRISMA) private prisma: PrismaClient, private profiles: ProfileService) {}
+  constructor(
+    @Inject(PRISMA) private prisma: PrismaClient,
+    private adminUsers: AdminUsersService,
+  ) {}
 
+  @RequirePermission("reports", "read")
   @Get("stats")
   async stats() {
     const [
@@ -103,86 +113,69 @@ export class AdminController {
     };
   }
 
+  @RequirePermission("users", "read")
   @Get("users")
   users() {
-    return this.prisma.user.findMany({
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        avatarUrl: true,
-        role: true,
-        roleId: true,
-        roleRef: { select: { id: true, name: true, isSystem: true } },
-        isBanned: true,
-        createdAt: true,
-        profile: true,
-        wallet: true,
-        _count: { select: { permissionOverrides: true } },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+    return this.adminUsers.listUsers();
   }
 
+  @RequirePermission("users", "read")
+  @Get("users/:id")
+  userDetail(@CurrentUser() u: any, @Param("id") id: string) {
+    return this.adminUsers.getProfile(u.sub, id);
+  }
+
+  @RequirePermission("users", "write")
+  @Put("users/:id")
+  updateUser(
+    @CurrentUser() u: any,
+    @Param("id") id: string,
+    @Body() body: AdminUpdateUserDto,
+    @Req() req: any,
+  ) {
+    return this.adminUsers.updateProfile(u.sub, id, body, req.ip);
+  }
+
+  @RequirePermission("users", "ban")
   @Post("users/:id/ban")
-  async ban(@Param("id") id: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id },
-      select: { id: true, isBanned: true, profile: { select: { freeFireUid: true, isBlacklisted: true, blacklistReason: true } } },
-    });
-    if (!user) throw new NotFoundException("User not found");
-
-    if (user.profile?.freeFireUid) {
-      await this.profiles.blacklistFreeFireUid({
-        freeFireUid: user.profile.freeFireUid,
-        userId: id,
-        reason: user.profile.blacklistReason ?? "Account banned",
-      });
-    }
-
-    return this.prisma.user.update({
-      where: { id },
-      data: {
-        isBanned: true,
-        profile: user.profile
-          ? {
-              update: {
-                isBlacklisted: true,
-                blacklistReason: user.profile.blacklistReason ?? "Account banned",
-              },
-            }
-          : undefined,
-      },
-    });
+  async ban(@CurrentUser() u: any, @Param("id") id: string, @Req() req: any) {
+    return this.adminUsers.setSuspended(u.sub, id, true, req.ip);
   }
 
+  @RequirePermission("users", "ban")
   @Post("users/:id/unban")
-  async unban(@Param("id") id: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id },
-      select: { profile: { select: { freeFireUid: true } } },
-    });
-
-    if (user?.profile?.freeFireUid) {
-      await this.profiles.removeFreeFireUidBlacklist(user.profile.freeFireUid);
-    }
-
-    return this.prisma.user.update({
-      where: { id },
-      data: {
-        isBanned: false,
-        profile: user?.profile
-          ? {
-              update: {
-                isBlacklisted: false,
-                blacklistReason: null,
-              },
-            }
-          : undefined,
-      },
-    });
+  async unban(@CurrentUser() u: any, @Param("id") id: string, @Req() req: any) {
+    return this.adminUsers.setSuspended(u.sub, id, false, req.ip);
   }
 
+  @RequirePermission("users", "lock")
+  @Post("users/:id/lock")
+  lock(@CurrentUser() u: any, @Param("id") id: string, @Req() req: any) {
+    return this.adminUsers.setLocked(u.sub, id, true, req.ip);
+  }
+
+  @RequirePermission("users", "lock")
+  @Post("users/:id/unlock")
+  unlock(@CurrentUser() u: any, @Param("id") id: string, @Req() req: any) {
+    return this.adminUsers.setLocked(u.sub, id, false, req.ip);
+  }
+
+  @RequirePermission("users", "session")
+  @Post("users/:id/reset-sessions")
+  resetSessions(@CurrentUser() u: any, @Param("id") id: string, @Req() req: any) {
+    return this.adminUsers.resetSessions(u.sub, id, req.ip);
+  }
+
+  @RequirePermission("payments", "adjust")
+  @Post("users/:id/balance-adjustments")
+  adjustBalance(
+    @CurrentUser() u: any,
+    @Param("id") id: string,
+    @Body() body: BalanceAdjustmentDto,
+    @Req() req: any,
+  ) {
+    return this.adminUsers.adjustBalance(u.sub, id, body, req.ip);
+  }
 }
 
 import { SystemConfigService } from "./system-config.service";
@@ -206,7 +199,6 @@ import { AdminNavController } from "./admin-nav.controller";
 import { FinancialRiskService } from "../finance/financial-risk.service";
 import { ReportService } from "../finance/report.service";
 import { FinanceController } from "../finance/finance.controller";
-import { PermissionsGuard } from "../../common/guards/permissions.guard";
 import { FeatureFlagGuard } from "../../common/guards/feature-flag.guard";
 import { StorageModule } from "../../common/storage/storage.module";
 import { ProfileModule } from "../profile/profile.module";
@@ -238,6 +230,7 @@ import { memoryStorage } from "multer";
     FeatureFlagService,
     PermissionsGuard,
     FeatureFlagGuard,
+    AdminUsersService,
     FinancialRiskService,
     ReportService,
   ],

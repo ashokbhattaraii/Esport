@@ -128,6 +128,7 @@ export class WalletService {
     status: WithdrawalStatus,
     note?: string,
   ) {
+    const comment = this.requireComment(note, "note");
     return this.prisma.$transaction(async (tx: any) => {
       const w = await tx.withdrawalRequest.findUnique({ where: { id } });
       if (!w) throw new NotFoundException();
@@ -136,33 +137,13 @@ export class WalletService {
       if (status === "APPROVED") {
         const check = await this.risk.checkWithdrawalRisk(w.userId, w.amountNpr);
         if (check.blockedReason) throw new BadRequestException(check.blockedReason);
-        const wallet = await tx.wallet.findUnique({ where: { userId: w.userId } });
-        if (!wallet) throw new NotFoundException("Wallet not found");
-        if (wallet.balanceNpr < w.amountNpr) {
-          throw new BadRequestException(
-            `User has insufficient wallet balance. Short by NPR ${w.amountNpr - wallet.balanceNpr}`,
-          );
-        }
         await tx.withdrawalReview.create({
           data: {
             withdrawalId: id,
             reviewedBy: adminId,
             riskSnapshot: profile as any,
-            reviewNote: note,
+            reviewNote: comment,
             decision: "APPROVED",
-          },
-        });
-        await tx.wallet.update({
-          where: { userId: w.userId },
-          data: { balanceNpr: { decrement: w.amountNpr } },
-        });
-        await tx.walletTransaction.create({
-          data: {
-            walletId: wallet.id,
-            type: "DEBIT",
-            reason: "WITHDRAWAL",
-            amountNpr: w.amountNpr,
-            note: `Withdrawal approved by ${adminId}`,
           },
         });
       } else if (status === "REJECTED") {
@@ -171,7 +152,7 @@ export class WalletService {
             withdrawalId: id,
             reviewedBy: adminId,
             riskSnapshot: profile as any,
-            reviewNote: note,
+            reviewNote: comment,
             decision: "REJECTED",
           },
         });
@@ -189,14 +170,14 @@ export class WalletService {
               type: "CREDIT",
               reason: "REFUND",
               amountNpr: w.amountNpr,
-              note: `Withdrawal rejected refund`,
+              note: `Withdrawal rejected: ${comment}`,
             },
           });
         }
       }
       const updated = await tx.withdrawalRequest.update({
         where: { id },
-        data: { status, note, reviewedAt: new Date() },
+        data: { status, note: comment, reviewedAt: new Date() },
       });
       await tx.adminActionLog.create({
         data: {
@@ -204,11 +185,31 @@ export class WalletService {
           action: `WITHDRAWAL_${status}`,
           resource: "withdrawal",
           resourceId: id,
-          newValue: note ? { status, note } : { status },
+          newValue: { status, note: comment },
+        },
+      });
+      await tx.notification.create({
+        data: {
+          userId: w.userId,
+          type: "WALLET",
+          title: status === "APPROVED" ? "Withdrawal approved" : "Withdrawal rejected",
+          body:
+            status === "APPROVED"
+              ? `Your withdrawal of NPR ${w.amountNpr} has been approved. Reason: ${comment}`
+              : `Your withdrawal of NPR ${w.amountNpr} was rejected and refunded. Reason: ${comment}`,
         },
       });
       this.realtime.emitToUser(w.userId, "wallet_updated", {});
       return updated;
     });
+  }
+
+  private requireComment(value: string | undefined, field: string) {
+    const comment = value?.trim();
+    if (!comment) throw new BadRequestException(`${field} is required`);
+    if (comment.length < 10) {
+      throw new BadRequestException(`${field} must be at least 10 characters`);
+    }
+    return comment;
   }
 }

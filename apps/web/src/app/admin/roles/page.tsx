@@ -14,7 +14,7 @@ interface Role {
 }
 
 const RESOURCES = ["tournaments", "payments", "users", "withdrawals", "results", "config", "support", "challenges", "referrals", "roles", "logs", "bot", "banners", "apk", "*"];
-const ACTIONS = ["read", "write", "approve", "delete", "ban", "toggle", "*"];
+const ACTIONS = ["read", "write", "approve", "adjust", "delete", "ban", "lock", "session", "toggle", "*"];
 
 export default function RolesPage() {
   const [roles, setRoles] = useState<Role[]>([]);

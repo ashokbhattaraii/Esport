@@ -70,8 +70,12 @@ export class PaymentsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN, Role.FINANCE, Role.SUPER_ADMIN)
   @Post(":id/approve")
-  approve(@CurrentUser() u: any, @Param("id") id: string) {
-    return this.svc.approve(u.sub, id);
+  approve(
+    @CurrentUser() u: any,
+    @Param("id") id: string,
+    @Body() body: { reviewNote?: string },
+  ) {
+    return this.svc.approve(u.sub, id, body?.reviewNote);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -80,8 +84,8 @@ export class PaymentsController {
   reject(
     @CurrentUser() u: any,
     @Param("id") id: string,
-    @Body() body: { note?: string },
+    @Body() body: { note?: string; reason?: string },
   ) {
-    return this.svc.reject(u.sub, id, body?.note);
+    return this.svc.reject(u.sub, id, body?.reason ?? body?.note);
   }
 }

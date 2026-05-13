@@ -19,6 +19,11 @@ interface Log {
 export default function LogsPage() {
   const [data, setData] = useState<{ items: Log[]; total: number } | null>(null);
   const [resource, setResource] = useState("");
+  const [adminId, setAdminId] = useState("");
+  const [resourceId, setResourceId] = useState("");
+  const [action, setAction] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const [page, setPage] = useState(1);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -29,24 +34,38 @@ export default function LogsPage() {
     try {
       const q = new URLSearchParams({ page: String(page), limit: "50" });
       if (resource) q.set("resource", resource);
+      if (adminId.trim()) q.set("adminId", adminId.trim());
+      if (resourceId.trim()) q.set("resourceId", resourceId.trim());
+      if (action.trim()) q.set("action", action.trim());
+      if (from) q.set("from", from);
+      if (to) q.set("to", to);
       const r = await api<{ items: Log[]; total: number }>(`/admin/logs?${q}`);
       setData(r);
     } catch (e: any) { setErr(e.message); }
     finally { setLoading(false); }
   }
-  useEffect(() => { load(); }, [page, resource]);
+  useEffect(() => { load(); }, [page, resource, adminId, resourceId, action, from, to]);
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <h1 className="font-display text-2xl">Audit Logs</h1>
+      </div>
+      <div className="card grid gap-3 md:grid-cols-3 lg:grid-cols-6">
         <select className="input w-40" value={resource} onChange={(e) => { setResource(e.target.value); setPage(1); }}>
           <option value="">All resources</option>
           <option value="config">config</option>
           <option value="role">role</option>
           <option value="user">user</option>
+          <option value="payment">payment</option>
+          <option value="withdrawal">withdrawal</option>
           <option value="free_daily_window">free_daily_window</option>
         </select>
+        <input className="input" placeholder="Actor ID" value={adminId} onChange={(e) => { setAdminId(e.target.value); setPage(1); }} />
+        <input className="input" placeholder="Target/resource ID" value={resourceId} onChange={(e) => { setResourceId(e.target.value); setPage(1); }} />
+        <input className="input" placeholder="Action contains" value={action} onChange={(e) => { setAction(e.target.value); setPage(1); }} />
+        <input className="input" type="date" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1); }} />
+        <input className="input" type="date" value={to} onChange={(e) => { setTo(e.target.value); setPage(1); }} />
       </div>
       {err && <p className="text-red-400 text-sm">{err}</p>}
       {loading ? (

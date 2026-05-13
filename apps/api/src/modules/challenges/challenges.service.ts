@@ -405,6 +405,39 @@ export class ChallengesService {
       throw new BadRequestException("Insufficient wallet balance");
 
     const updated = await this.prisma.$transaction(async (tx: any) => {
+      const claimed = await tx.challenge.updateMany({
+        where: {
+          id: challengeId,
+          opponentId: null,
+          status: "OPEN",
+          ...(c.isPrivate ? { inviteCode } : {}),
+        },
+        data: {
+          opponentId: userId,
+          status: "MATCHED",
+          matchedAt: new Date(),
+          roomDeadline: new Date(Date.now() + 10 * 60 * 1000),
+        },
+      });
+      if (claimed.count !== 1) {
+        throw new BadRequestException("Challenge already taken");
+      }
+
+      const debited = await tx.wallet.updateMany({
+        where: { id: wallet.id, balanceNpr: { gte: c.entryFee } },
+        data: { balanceNpr: { decrement: c.entryFee } },
+      });
+      if (debited.count !== 1) {
+        throw new BadRequestException("Insufficient wallet balance");
+      }
+
+      const matched = await tx.challenge.findUnique({
+        where: { id: challengeId },
+        select: { matchedAt: true, roomDeadline: true },
+      });
+      const matchedAt = matched?.matchedAt ?? new Date();
+      const roomDeadline = matched?.roomDeadline ?? new Date(matchedAt.getTime() + 10 * 60 * 1000);
+
       await tx.botRollback.create({
         data: {
           jobName: "MANUAL_CHALLENGE",
@@ -416,10 +449,6 @@ export class ChallengesService {
           afterState: { userId, refundAmount: c.entryFee, balance: wallet.balanceNpr - c.entryFee },
         },
       });
-      await tx.wallet.update({
-        where: { id: wallet.id },
-        data: { balanceNpr: { decrement: c.entryFee } },
-      });
       await tx.walletTransaction.create({
         data: {
           walletId: wallet.id,
@@ -429,12 +458,7 @@ export class ChallengesService {
           note: `Challenge ${c.challengeNumber} join`,
         },
       });
-      const matchedAt = new Date();
-      const roomDeadline = new Date(matchedAt.getTime() + 10 * 60 * 1000);
-      const updated = await tx.challenge.update({
-        where: { id: challengeId },
-        data: { opponentId: userId, status: "MATCHED", matchedAt, roomDeadline },
-      });
+      const updated = await tx.challenge.findUniqueOrThrow({ where: { id: challengeId } });
 
       // Notify creator: opponent found, share room within 10 min
       await tx.notification.create({
@@ -451,7 +475,7 @@ export class ChallengesService {
           userId,
           type: "CHALLENGE",
           title: `Matched! ${c.challengeNumber}`,
-          body: "Waiting for room details from creator (10 min deadline).",
+          body: `NPR ${c.entryFee} entry fee deducted. Waiting for room details from creator. Prize: NPR ${c.prizeToWinner}. Platform fee: NPR ${c.platformFee}.`,
         },
       });
 

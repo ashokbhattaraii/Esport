@@ -339,6 +339,8 @@ model User {
   avatarUrl     String?
   role          Role     @default(PLAYER)
   isBanned      Boolean  @default(false)
+  isLocked      Boolean  @default(false)
+  sessionVersion Int     @default(0)
   lastLoginAt   DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -354,6 +356,8 @@ model User {
   notifications Notification[]
   results       MatchResult[] @relation("ResultSubmitter")
   adminActions  AdminActionLog[]
+  balanceAdjustmentsReceived BalanceAdjustment[] @relation("BalanceAdjustmentTarget")
+  balanceAdjustmentsMade     BalanceAdjustment[] @relation("BalanceAdjustmentActor")
   teams         TeamMember[]
   teamsOwned    Team[] @relation("TeamCaptain")
   tournamentsCreated Tournament[] @relation("TournamentCreator")
@@ -784,6 +788,26 @@ model WalletTransaction {
   wallet    Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
 
   @@index([walletId, createdAt])
+}
+
+model BalanceAdjustment {
+  id              String   @id @default(cuid())
+  actorId         String
+  targetUserId    String
+  walletTxId      String?
+  actionType      String
+  amountNpr       Int
+  previousBalance Int
+  newBalance      Int
+  comment         String
+  createdAt       DateTime @default(now())
+
+  actor      User @relation("BalanceAdjustmentActor", fields: [actorId], references: [id])
+  targetUser User @relation("BalanceAdjustmentTarget", fields: [targetUserId], references: [id], onDelete: Cascade)
+
+  @@index([actorId, createdAt])
+  @@index([targetUserId, createdAt])
+  @@index([actionType, createdAt])
 }
 
 model WithdrawalRequest {

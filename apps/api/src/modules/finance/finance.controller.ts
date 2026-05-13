@@ -49,6 +49,7 @@ export class FinanceController {
   @RequirePermission("withdrawals", "approve")
   @Post("withdrawals/:id/approve")
   async approveWithdrawal(@Param("id") id: string, @Body() body: { reviewNote?: string }, @CurrentUser() user: any, @Req() req: any) {
+    const reviewNote = this.requireComment(body.reviewNote, "reviewNote");
     const withdrawal = await this.prisma.withdrawalRequest.findUnique({ where: { id }, include: { user: true } });
     if (!withdrawal) throw new NotFoundException("Withdrawal not found");
     if (withdrawal.status !== "PENDING") throw new BadRequestException("Already processed");
@@ -62,10 +63,6 @@ export class FinanceController {
       }
     }
     const wallet = await this.prisma.wallet.findUnique({ where: { userId: withdrawal.userId } });
-    if (!wallet) throw new NotFoundException("Wallet not found");
-    if (wallet.balanceNpr < withdrawal.amountNpr) {
-      throw new BadRequestException(`User has insufficient wallet balance. Short by NPR ${withdrawal.amountNpr - wallet.balanceNpr}`);
-    }
 
     const updated = await this.prisma.$transaction(async (tx) => {
       const review = await tx.withdrawalReview.create({
@@ -73,24 +70,20 @@ export class FinanceController {
           withdrawalId: id,
           reviewedBy: user.sub,
           riskSnapshot: check.profile as any,
-          reviewNote: body.reviewNote,
+          reviewNote,
           decision: "APPROVED",
           ipAddress: req.ip,
         },
       });
       const next = await tx.withdrawalRequest.update({
         where: { id },
-        data: { status: WithdrawalStatus.APPROVED, reviewedAt: new Date(), note: body.reviewNote },
-      });
-      await tx.wallet.update({ where: { userId: withdrawal.userId }, data: { balanceNpr: { decrement: withdrawal.amountNpr } } });
-      await tx.walletTransaction.create({
-        data: { walletId: wallet.id, type: "DEBIT", reason: "WITHDRAWAL", amountNpr: withdrawal.amountNpr, note: `Withdrawal approved by ${user.sub}` },
+        data: { status: WithdrawalStatus.APPROVED, reviewedAt: new Date(), note: reviewNote },
       });
       await tx.adminActionLog.create({
-        data: { adminId: user.sub, action: check.blockedReason && force ? "FORCE_APPROVE_WITHDRAWAL" : "APPROVE_WITHDRAWAL", resource: "withdrawal", resourceId: id, newValue: { status: "APPROVED", amountNpr: withdrawal.amountNpr, reviewId: review.id, override: force ? true : false }, oldValue: check.blockedReason ? { blockedReason: check.blockedReason } : undefined },
+        data: { adminId: user.sub, action: check.blockedReason && force ? "FORCE_APPROVE_WITHDRAWAL" : "APPROVE_WITHDRAWAL", resource: "withdrawal", resourceId: id, newValue: { status: "APPROVED", amountNpr: withdrawal.amountNpr, reviewId: review.id, override: force ? true : false, comment: reviewNote }, oldValue: check.blockedReason ? { blockedReason: check.blockedReason } : undefined },
       });
       await tx.notification.create({
-        data: { userId: withdrawal.userId, type: "WALLET", title: "Withdrawal approved", body: `Your withdrawal of NPR ${withdrawal.amountNpr} has been approved.` },
+        data: { userId: withdrawal.userId, type: "WALLET", title: "Withdrawal approved", body: `Your withdrawal of NPR ${withdrawal.amountNpr} has been approved. Current balance: NPR ${wallet?.balanceNpr ?? 0}. Reason: ${reviewNote}` },
       });
       return next;
     });
@@ -102,27 +95,30 @@ export class FinanceController {
   @RequirePermission("withdrawals", "approve")
   @Post("withdrawals/:id/reject")
   async rejectWithdrawal(@Param("id") id: string, @Body() body: { reason?: string }, @CurrentUser() user: any, @Req() req: any) {
+    const reason = this.requireComment(body.reason, "reason");
     const withdrawal = await this.prisma.withdrawalRequest.findUnique({ where: { id }, include: { user: true } });
     if (!withdrawal) throw new NotFoundException("Withdrawal not found");
     if (withdrawal.status !== "PENDING") throw new BadRequestException("Already processed");
     const profile = await this.risk.buildRiskProfile(withdrawal.userId);
     await this.prisma.$transaction(async (tx) => {
       await tx.withdrawalReview.create({
-        data: { withdrawalId: id, reviewedBy: user.sub, riskSnapshot: profile as any, reviewNote: body.reason, decision: "REJECTED", ipAddress: req.ip },
+        data: { withdrawalId: id, reviewedBy: user.sub, riskSnapshot: profile as any, reviewNote: reason, decision: "REJECTED", ipAddress: req.ip },
       });
-      await tx.withdrawalRequest.update({ where: { id }, data: { status: WithdrawalStatus.REJECTED, reviewedAt: new Date(), note: body.reason } });
+      await tx.withdrawalRequest.update({ where: { id }, data: { status: WithdrawalStatus.REJECTED, reviewedAt: new Date(), note: reason } });
       const wallet = await tx.wallet.findUnique({ where: { userId: withdrawal.userId } });
+      let newBalance: number | null = null;
       if (wallet) {
-        await tx.wallet.update({ where: { userId: withdrawal.userId }, data: { balanceNpr: { increment: withdrawal.amountNpr } } });
+        const updatedWallet = await tx.wallet.update({ where: { userId: withdrawal.userId }, data: { balanceNpr: { increment: withdrawal.amountNpr } } });
+        newBalance = updatedWallet.balanceNpr;
         await tx.walletTransaction.create({
-          data: { walletId: wallet.id, type: "CREDIT", reason: "REFUND", amountNpr: withdrawal.amountNpr, note: `Withdrawal rejected: ${body.reason ?? "No reason provided"}` },
+          data: { walletId: wallet.id, type: "CREDIT", reason: "REFUND", amountNpr: withdrawal.amountNpr, note: `Withdrawal rejected: ${reason}` },
         });
       }
       await tx.adminActionLog.create({
-        data: { adminId: user.sub, action: "REJECT_WITHDRAWAL", resource: "withdrawal", resourceId: id, newValue: { status: "REJECTED", reason: body.reason ?? null } },
+        data: { adminId: user.sub, action: "REJECT_WITHDRAWAL", resource: "withdrawal", resourceId: id, newValue: { status: "REJECTED", reason } },
       });
       await tx.notification.create({
-        data: { userId: withdrawal.userId, type: "WALLET", title: "Withdrawal rejected", body: body.reason ?? "Your withdrawal was rejected. Please contact support." },
+        data: { userId: withdrawal.userId, type: "WALLET", title: "Withdrawal rejected", body: `Your withdrawal of NPR ${withdrawal.amountNpr} was rejected and refunded. ${newBalance == null ? "" : `New balance: NPR ${newBalance}. `}Reason: ${reason}` },
       });
     });
     return { ok: true };
@@ -194,6 +190,7 @@ export class FinanceController {
   @RequirePermission("payments", "approve")
   @Post("payments/:id/approve")
   async approvePayment(@Param("id") id: string, @Body() body: { reviewNote?: string }, @CurrentUser() user: any, @Req() req: any) {
+    const reviewNote = this.requireComment(body.reviewNote, "reviewNote");
     const payment = await this.prisma.payment.findUnique({ where: { id }, include: { user: true, tournament: true } });
     if (!payment) throw new NotFoundException("Payment not found");
     if (payment.status !== "PENDING") throw new BadRequestException("Already processed");
@@ -207,8 +204,9 @@ export class FinanceController {
       }
     }
     await this.prisma.$transaction(async (tx) => {
+      let resultingBalance: number | null = null;
       await tx.depositReview.create({
-        data: { paymentId: id, reviewedBy: user.sub, riskSnapshot: check.profile as any, reviewNote: body.reviewNote, decision: "APPROVED", ipAddress: req.ip },
+        data: { paymentId: id, reviewedBy: user.sub, riskSnapshot: check.profile as any, reviewNote, decision: "APPROVED", ipAddress: req.ip },
       });
       await tx.payment.update({ where: { id }, data: { status: PaymentStatus.APPROVED, reviewedById: user.sub, reviewedAt: new Date() } });
       if (payment.tournamentId) {
@@ -223,16 +221,24 @@ export class FinanceController {
           update: { balanceNpr: { increment: payment.amountNpr } },
           create: { userId: payment.userId, balanceNpr: payment.amountNpr },
         });
+        resultingBalance = wallet.balanceNpr;
         await tx.walletTransaction.create({
-          data: { walletId: wallet.id, type: "CREDIT", reason: "ADJUSTMENT", amountNpr: payment.amountNpr, note: `Wallet deposit approved via ${payment.method}` },
+          data: { walletId: wallet.id, type: "CREDIT", reason: "ADJUSTMENT", amountNpr: payment.amountNpr, note: reviewNote },
         });
         await this.rewardReferrerForFirstDeposit(tx, payment.userId, id);
       }
       await tx.notification.create({
-        data: { userId: payment.userId, type: "PAYMENT", title: payment.tournamentId ? "Payment approved" : "Deposit approved", body: payment.tournamentId ? "Your payment has been approved. Room details are now visible." : `Your wallet deposit of NPR ${payment.amountNpr} has been approved.` },
+        data: {
+          userId: payment.userId,
+          type: "PAYMENT",
+          title: payment.tournamentId ? "Payment approved" : "Deposit approved",
+          body: payment.tournamentId
+            ? `Your payment of NPR ${payment.amountNpr} has been approved. Room details are now visible. Reason: ${reviewNote}`
+            : `Your wallet deposit of NPR ${payment.amountNpr} has been approved. New balance: NPR ${resultingBalance ?? payment.amountNpr}. Reason: ${reviewNote}`,
+        },
       });
       await tx.adminActionLog.create({
-        data: { adminId: user.sub, action: check.blockedReason && force ? "FORCE_APPROVE_PAYMENT" : "APPROVE_PAYMENT", resource: "payment", resourceId: id, newValue: { status: "APPROVED", amountNpr: payment.amountNpr, override: force ? true : false }, oldValue: check.blockedReason ? { blockedReason: check.blockedReason } : undefined },
+        data: { adminId: user.sub, action: check.blockedReason && force ? "FORCE_APPROVE_PAYMENT" : "APPROVE_PAYMENT", resource: "payment", resourceId: id, newValue: { status: "APPROVED", amountNpr: payment.amountNpr, override: force ? true : false, comment: reviewNote, resultingBalance }, oldValue: check.blockedReason ? { blockedReason: check.blockedReason } : undefined },
       });
     });
     return { ok: true };
@@ -302,20 +308,21 @@ export class FinanceController {
   @RequirePermission("payments", "approve")
   @Post("payments/:id/reject")
   async rejectPayment(@Param("id") id: string, @Body() body: { reason?: string }, @CurrentUser() user: any, @Req() req: any) {
+    const reason = this.requireComment(body.reason, "reason");
     const payment = await this.prisma.payment.findUnique({ where: { id }, include: { user: true } });
     if (!payment) throw new NotFoundException("Payment not found");
     if (payment.status !== "PENDING") throw new BadRequestException("Already processed");
     const profile = await this.risk.buildRiskProfile(payment.userId);
     await this.prisma.$transaction(async (tx) => {
       await tx.depositReview.create({
-        data: { paymentId: id, reviewedBy: user.sub, riskSnapshot: profile as any, reviewNote: body.reason, decision: "REJECTED", ipAddress: req.ip },
+        data: { paymentId: id, reviewedBy: user.sub, riskSnapshot: profile as any, reviewNote: reason, decision: "REJECTED", ipAddress: req.ip },
       });
       await tx.payment.update({ where: { id }, data: { status: PaymentStatus.REJECTED, reviewedById: user.sub, reviewedAt: new Date() } });
       await tx.adminActionLog.create({
-        data: { adminId: user.sub, action: "REJECT_PAYMENT", resource: "payment", resourceId: id, newValue: { status: "REJECTED", reason: body.reason ?? null } },
+        data: { adminId: user.sub, action: "REJECT_PAYMENT", resource: "payment", resourceId: id, newValue: { status: "REJECTED", reason } },
       });
       await tx.notification.create({
-        data: { userId: payment.userId, type: "PAYMENT", title: "Payment rejected", body: body.reason ?? "Your payment was rejected. Please contact support." },
+        data: { userId: payment.userId, type: "PAYMENT", title: "Payment rejected", body: `Your payment of NPR ${payment.amountNpr} was rejected. Reason: ${reason}` },
       });
     });
     return { ok: true };
@@ -374,5 +381,14 @@ export class FinanceController {
   @Delete("finance/blacklist/:userId")
   removeBlacklist(@Param("userId") userId: string, @CurrentUser() user: any) {
     return this.risk.removeBlacklist(userId, user.sub);
+  }
+
+  private requireComment(value: string | undefined, field: string) {
+    const comment = value?.trim();
+    if (!comment) throw new BadRequestException(`${field} is required`);
+    if (comment.length < 10) {
+      throw new BadRequestException(`${field} must be at least 10 characters`);
+    }
+    return comment;
   }
 }

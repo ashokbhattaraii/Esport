@@ -29,13 +29,22 @@ export class AdminActionLogService {
   }
 
   async getLogs(
-    filters: { adminId?: string; resource?: string; from?: string; to?: string },
+    filters: {
+      adminId?: string;
+      resource?: string;
+      resourceId?: string;
+      action?: string;
+      from?: string;
+      to?: string;
+    },
     page = 1,
     limit = 50,
   ) {
     const where: any = {};
     if (filters.adminId) where.adminId = filters.adminId;
     if (filters.resource) where.resource = filters.resource;
+    if (filters.resourceId) where.resourceId = filters.resourceId;
+    if (filters.action) where.action = { contains: filters.action, mode: "insensitive" };
     if (filters.from || filters.to) {
       where.createdAt = {};
       if (filters.from) where.createdAt.gte = new Date(filters.from);

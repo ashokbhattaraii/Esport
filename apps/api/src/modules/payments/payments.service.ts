@@ -100,7 +100,8 @@ export class PaymentsService {
     });
   }
 
-  async approve(adminId: string, paymentId: string) {
+  async approve(adminId: string, paymentId: string, reviewNote?: string) {
+    const comment = this.requireComment(reviewNote, "reviewNote");
     let tournamentId: string | null = null;
     const result = await this.prisma.$transaction(async (tx: any) => {
       const p = await tx.payment.findUnique({ where: { id: paymentId } });
@@ -116,11 +117,12 @@ export class PaymentsService {
           paymentId,
           reviewedBy: adminId,
           riskSnapshot: check.profile as any,
-          reviewNote: null,
+          reviewNote: comment,
           decision: "APPROVED",
         },
       });
 
+      let resultingBalance: number | null = null;
       await tx.payment.update({
         where: { id: paymentId },
         data: {
@@ -151,13 +153,14 @@ export class PaymentsService {
           update: { balanceNpr: { increment: p.amountNpr } },
           create: { userId: p.userId, balanceNpr: p.amountNpr },
         });
+        resultingBalance = wallet.balanceNpr;
         await tx.walletTransaction.create({
           data: {
             walletId: wallet.id,
             type: "CREDIT",
             reason: "ADJUSTMENT",
             amountNpr: p.amountNpr,
-            note: `Wallet deposit approved via ${p.method}`,
+            note: comment,
           },
         });
         await this.referrals.rewardReferrerForFirstDeposit(tx, p.userId, p.id);
@@ -173,8 +176,8 @@ export class PaymentsService {
               : "Deposit approved",
           body:
             p.tournamentId
-              ? "Your payment has been approved. Room details are now visible."
-              : `Your wallet deposit of NPR ${p.amountNpr} has been approved.`,
+              ? `Your payment of NPR ${p.amountNpr} has been approved. Room details are now visible. Reason: ${comment}`
+              : `Your wallet deposit of NPR ${p.amountNpr} has been approved. New balance: NPR ${resultingBalance ?? p.amountNpr}. Reason: ${comment}`,
         },
       });
       await tx.adminActionLog.create({
@@ -183,6 +186,7 @@ export class PaymentsService {
           action: "APPROVE_PAYMENT",
           resource: "payment",
           resourceId: paymentId,
+          newValue: { comment, amountNpr: p.amountNpr, resultingBalance },
         },
       });
       return { ok: true };
@@ -192,6 +196,7 @@ export class PaymentsService {
   }
 
   async reject(adminId: string, paymentId: string, note?: string) {
+    const comment = this.requireComment(note, "reason");
     const p = await this.prisma.payment.findUnique({
       where: { id: paymentId },
     });
@@ -202,7 +207,7 @@ export class PaymentsService {
         paymentId,
         reviewedBy: adminId,
         riskSnapshot: profile as any,
-        reviewNote: note,
+        reviewNote: comment,
         decision: "REJECTED",
       },
     });
@@ -219,7 +224,7 @@ export class PaymentsService {
         userId: p.userId,
         type: "PAYMENT",
         title: "Payment rejected",
-        body: note ?? "Your payment was rejected. Please contact support.",
+        body: `Your payment of NPR ${p.amountNpr} was rejected. Reason: ${comment}`,
       },
     });
     await this.prisma.adminActionLog.create({
@@ -228,9 +233,18 @@ export class PaymentsService {
         action: "REJECT_PAYMENT",
         resource: "payment",
         resourceId: paymentId,
-        newValue: note ? { note } : undefined,
+        newValue: { reason: comment },
       },
     });
     return { ok: true };
+  }
+
+  private requireComment(value: string | undefined, field: string) {
+    const comment = value?.trim();
+    if (!comment) throw new BadRequestException(`${field} is required`);
+    if (comment.length < 10) {
+      throw new BadRequestException(`${field} must be at least 10 characters`);
+    }
+    return comment;
   }
 }
