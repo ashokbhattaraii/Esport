@@ -3,10 +3,12 @@
 import { useGoogleLogin } from "@react-oauth/google";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { api, auth } from "@/lib/api";
+import { api, auth, API_BASE } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { InlineLoading } from "@/components/ui";
 import { useIsNativeApp } from "@/hooks/useIsNativeApp";
+
+const LOGIN_LOG_KEY = "fireslot_login_logs";
 
 function isAndroidWebView(): boolean {
   if (typeof navigator === "undefined") return false;
@@ -14,6 +16,38 @@ function isAndroidWebView(): boolean {
   return ua.includes("wv") || (ua.includes("Android") && ua.includes("Version/"));
 }
 
+function loginLog(event: string, details: Record<string, unknown> = {}) {
+  if (typeof window === "undefined") return;
+  const entry = {
+    event,
+    details,
+    at: new Date().toISOString(),
+    native: isAndroidWebView(),
+    href: window.location.href,
+  };
+  try {
+    const current = JSON.parse(localStorage.getItem(LOGIN_LOG_KEY) || "[]");
+    localStorage.setItem(LOGIN_LOG_KEY, JSON.stringify([entry, ...current].slice(0, 25)));
+  } catch {
+    localStorage.setItem(LOGIN_LOG_KEY, JSON.stringify([entry]));
+  }
+  fetch(`${API_BASE}/app/client-log`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(entry),
+    keepalive: true,
+  }).catch(() => {});
+}
+
+function userFriendlyGoogleError(error: string) {
+  if (error.includes("redirect_uri_mismatch")) {
+    return "Google sign-in is blocked because the APK redirect URL is not allowed in Google Console. Update the OAuth redirect URI and try again.";
+  }
+  if (error.startsWith("Invalid `") || error.includes("PrismaClient")) {
+    return "Sign-in service is updating. Please try again in a moment.";
+  }
+  return error;
+}
 
 export function GoogleAuthPanel({
   title = "Continue with Google",
@@ -79,7 +113,9 @@ export function GoogleAuthPanel({
               : next;
       router.push(roleLanding);
     } catch (e: any) {
-      setErr(e.message ?? "Google sign-in failed");
+      const message = userFriendlyGoogleError(e.message ?? "Google sign-in failed");
+      loginLog("google_api_error", { message });
+      setErr(message);
     } finally {
       setLoading(false);
     }
@@ -88,6 +124,21 @@ export function GoogleAuthPanel({
   // Handle OAuth redirect — token comes back in URL hash fragment
   useEffect(() => {
     if (typeof window === "undefined") return;
+    const current = new URL(window.location.href);
+    const oauthError =
+      current.searchParams.get("error") ||
+      new URLSearchParams(window.location.hash.replace(/^#/, "")).get("error");
+    if (oauthError) {
+      const description =
+        current.searchParams.get("error_description") ||
+        new URLSearchParams(window.location.hash.replace(/^#/, "")).get("error_description") ||
+        oauthError;
+      const cleanUrl = `${window.location.pathname}`;
+      window.history.replaceState({}, document.title, cleanUrl);
+      loginLog("google_redirect_error", { error: oauthError, description });
+      setErr(userFriendlyGoogleError(description));
+      return;
+    }
     if (!window.location.hash.includes("access_token")) return;
 
     const params = new URLSearchParams(window.location.hash.replace(/^#/, ""));
@@ -96,6 +147,7 @@ export function GoogleAuthPanel({
 
     const cleanUrl = `${window.location.pathname}${window.location.search}`;
     window.history.replaceState({}, document.title, cleanUrl);
+    loginLog("google_redirect_token_received");
     void signIn({ accessToken: token });
   }, []);
 
@@ -110,9 +162,10 @@ export function GoogleAuthPanel({
   const startNativeGoogleLogin = () => {
     if (!clientId || typeof window === "undefined") return;
 
+    const configuredRedirect = (process.env.NEXT_PUBLIC_GOOGLE_REDIRECT_URI || "").trim();
     const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "");
     const origin = appUrl || window.location.origin.replace(/\/$/, "");
-    const redirectUri = `${origin}/login/`;
+    const redirectUri = configuredRedirect || `${origin}/login`;
 
     const oauthUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
     oauthUrl.searchParams.set("client_id", clientId);
@@ -121,20 +174,20 @@ export function GoogleAuthPanel({
     oauthUrl.searchParams.set("scope", "openid email profile");
     oauthUrl.searchParams.set("prompt", "select_account");
     oauthUrl.searchParams.set("include_granted_scopes", "true");
+    oauthUrl.searchParams.set("state", crypto.randomUUID?.() ?? String(Date.now()));
 
+    loginLog("google_native_start", { redirectUri, origin });
     window.location.assign(oauthUrl.toString());
   };
 
   return (
-    <div className="card space-y-4">
-      <div>
-        <p className="label">Google Account Required</p>
-        <h1 className="font-display text-2xl neon-text">{title}</h1>
-        <p className="mt-2 text-sm text-white/60">
-          Your Google account creates your FireSlot account automatically and
-          keeps sign-in passwordless.
-        </p>
-      </div>
+    <div className="rounded-xl border border-border bg-surface p-4 shadow-xl space-y-4">
+      {title && (
+        <div>
+          <p className="label">Google Account Required</p>
+          <h1 className="font-display text-2xl neon-text">{title}</h1>
+        </div>
+      )}
       {showReferral && (
         <div className="rounded-lg border border-amber-400/30 bg-amber-400/10 p-3">
           <label className="label">Referral code (6 letters/digits)</label>
@@ -190,8 +243,11 @@ export function GoogleAuthPanel({
           <div className="text-xs text-white/60">If this persists, contact the app maintainer.</div>
         </div>
       )}
-      {loading && <InlineLoading label="Finishing sign-in..." />}
-      {err && <p className="text-sm text-red-400">{err}</p>}
+      {err && (
+        <div className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs leading-relaxed text-red-200">
+          {err}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { Controller, Get, Inject, Param, Put, Post, Body, UseGuards, Req, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Controller, Get, Inject, Param, Put, Post, Body, UseGuards, Req, UploadedFile, UseInterceptors, Logger } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AppConfigService } from './app-config.service';
 import { PRISMA } from '../../prisma/prisma.module';
@@ -10,6 +10,8 @@ import { StorageService } from '../../common/storage/storage.service';
 
 @Controller()
 export class AppConfigController {
+  private readonly logger = new Logger("ClientLog");
+
   constructor(
     private svc: AppConfigService,
     @Inject(PRISMA) private prisma: PrismaClient,
@@ -18,7 +20,93 @@ export class AppConfigController {
 
   @Get('app/config')
   async publicConfig() {
-    return this.svc.getPublic();
+    const appConfig = await this.svc.getPublic();
+    const systemRows = await this.prisma.systemConfig.findMany({
+      where: {
+        key: {
+          in: [
+            "APP_MAINTENANCE_ENABLED",
+            "MAINTENANCE_MODE",
+            "APP_MAINTENANCE_MESSAGE",
+            "APP_FORCE_UPDATE_ENABLED",
+            "APP_MIN_ANDROID_VERSION",
+            "APP_LATEST_VERSION",
+            "APP_DOWNLOAD_ENABLED",
+            "APP_SUPPORT_URL",
+            "APP_ANNOUNCEMENT_ACTIVE",
+            "APP_ANNOUNCEMENT_TEXT",
+            "APP_ANNOUNCEMENT_COLOR",
+          ],
+        },
+      },
+    });
+    const system = Object.fromEntries(systemRows.map((row) => [row.key, row.value]));
+    const latest = await this.prisma.appRelease.findFirst({
+      where: { isLatest: true },
+      orderBy: { createdAt: "desc" },
+    });
+    const latestVersion = latest?.version ?? system.APP_LATEST_VERSION ?? "1.0.0";
+    const downloadUrl = latest?.filename
+      ? latest.filename.startsWith("http")
+        ? latest.filename
+        : latest.filename.startsWith("/")
+          ? latest.filename
+          : `/${latest.filename}`
+      : null;
+
+    return {
+      ...appConfig,
+      ...system,
+      maintenance: {
+        enabled:
+          this.configFlag(system.APP_MAINTENANCE_ENABLED) ||
+          this.configFlag(system.MAINTENANCE_MODE),
+        message:
+          system.APP_MAINTENANCE_MESSAGE ??
+          "FireSlot Nepal is updating. Please try again soon.",
+      },
+      announcement: {
+        active: this.configFlag(system.APP_ANNOUNCEMENT_ACTIVE),
+        text: system.APP_ANNOUNCEMENT_TEXT ?? "",
+        color: system.APP_ANNOUNCEMENT_COLOR ?? "#E53935",
+      },
+      update: {
+        force: this.configFlag(system.APP_FORCE_UPDATE_ENABLED),
+        minAndroidVersion: system.APP_MIN_ANDROID_VERSION ?? "1.0.0",
+        latestVersion,
+        downloadEnabled: system.APP_DOWNLOAD_ENABLED === undefined
+          ? true
+          : this.configFlag(system.APP_DOWNLOAD_ENABLED),
+        downloadUrl,
+      },
+      urls: {
+        api: process.env.NEXT_PUBLIC_API_URL ?? process.env.PUBLIC_API_URL ?? null,
+        publicWeb: process.env.NEXT_PUBLIC_APP_URL ?? process.env.PUBLIC_WEB_URL ?? null,
+        support: system.APP_SUPPORT_URL ?? "/support",
+      },
+      native: { loadMode: process.env.NATIVE_LOAD_MODE === "bundled" ? "bundled" : "remote" },
+    };
+  }
+
+  @Post('app/client-log')
+  clientLog(@Body() body: any, @Req() req: any) {
+    const safe = {
+      event: String(body?.event ?? "unknown").slice(0, 80),
+      at: String(body?.at ?? new Date().toISOString()).slice(0, 40),
+      href: String(body?.href ?? "").slice(0, 300),
+      native: Boolean(body?.native),
+      details: JSON.stringify(body?.details ?? {}).slice(0, 1000),
+      ip: req.ip,
+      ua: String(req.headers["user-agent"] ?? "").slice(0, 220),
+    };
+    this.logger.warn(JSON.stringify(safe));
+    return { ok: true };
+  }
+
+  private configFlag(value: unknown) {
+    if (typeof value === "boolean") return value;
+    if (typeof value !== "string") return false;
+    return value.toLowerCase() === "true";
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

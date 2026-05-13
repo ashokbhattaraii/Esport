@@ -6,7 +6,6 @@ import { config } from '@/lib/config'
 import { Flame } from 'lucide-react'
 
 export default function LoginPage() {
-  const [clientId, setClientId] = useState(config.googleClientId)
   const [ready, setReady] = useState(!!config.googleClientId)
 
   useEffect(() => {
@@ -14,7 +13,7 @@ export default function LoginPage() {
     let tries = 0
     const check = () => {
       const id = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? ''
-      if (id) { setClientId(id); setReady(true); return }
+      if (id) { setReady(true); return }
       if (++tries < 5) setTimeout(check, 600)
       else setReady(true)
     }

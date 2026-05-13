@@ -376,51 +376,17 @@ export default function ChallengeDetailPage() {
           {/* Step 2: If WIN, show proof fields */}
           {resultOutcome === "WIN" && (
             <div className="space-y-3 border-t border-white/10 pt-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[11px] font-medium text-white/60">Kills</label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    value={result.kills}
-                    onChange={(e) => {
-                      const digits = e.target.value.replace(/\D/g, "");
-                      setResult({ ...result, kills: digits ? Number(digits) : 0 });
-                    }}
-                    className="input mt-1"
-                  />
-                </div>
-                <div>
-                  <label className="text-[11px] font-medium text-white/60">Headshots</label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    value={result.headshots}
-                    onChange={(e) => {
-                      const digits = e.target.value.replace(/\D/g, "");
-                      setResult({ ...result, headshots: digits ? Number(digits) : 0 });
-                    }}
-                    className="input mt-1"
-                  />
-                </div>
-              </div>
-              <label className="flex items-center gap-2 text-sm text-white/80">
-                <input type="checkbox" checked={result.gotBooyah} onChange={(e) => setResult({ ...result, gotBooyah: e.target.checked })} />
-                Got Booyah?
-              </label>
               <div>
                 <label className="text-[11px] font-medium text-white/60">
-                  Screenshot {c.screenshotRequired && <span className="text-red-400">*required</span>}
+                  Game history screenshot {c.screenshotRequired && <span className="text-red-400">*required</span>}
                 </label>
-                <input className="input mt-1" placeholder="Paste screenshot URL" value={result.screenshotUrl} onChange={(e) => setResult({ ...result, screenshotUrl: e.target.value })} />
+                <input className="input mt-1" placeholder="Paste game history screenshot URL" value={result.screenshotUrl} onChange={(e) => setResult({ ...result, screenshotUrl: e.target.value })} />
               </div>
               <div>
                 <label className="text-[11px] font-medium text-white/60">
-                  POV Recording {c.povRequired && <span className="text-red-400">*required</span>}
+                  Match proof {c.povRequired && <span className="text-red-400">*required</span>}
                 </label>
-                <input className="input mt-1" placeholder="Paste POV URL" value={result.povUrl} onChange={(e) => setResult({ ...result, povUrl: e.target.value })} />
+                <input className="input mt-1" placeholder="Paste proof URL" value={result.povUrl} onChange={(e) => setResult({ ...result, povUrl: e.target.value })} />
               </div>
             </div>
           )}

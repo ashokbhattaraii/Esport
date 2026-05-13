@@ -5,6 +5,7 @@ import { Download, RefreshCw, ShieldAlert } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { api, FILE_BASE } from "@/lib/api";
 import { useIsNativeApp } from "@/hooks/useIsNativeApp";
+import { AnnouncementBanner } from "./AnnouncementBanner";
 
 interface PublicAppConfig {
   maintenance: {
@@ -37,6 +38,9 @@ type RawPublicAppConfig = Partial<PublicAppConfig> & {
   MAINTENANCE_MODE?: string;
   APP_MAINTENANCE_ENABLED?: string;
   APP_MAINTENANCE_MESSAGE?: string;
+  APP_ANNOUNCEMENT_ACTIVE?: string;
+  APP_ANNOUNCEMENT_TEXT?: string;
+  APP_ANNOUNCEMENT_COLOR?: string;
   APP_FORCE_UPDATE_ENABLED?: string;
   APP_MIN_ANDROID_VERSION?: string;
   APP_LATEST_VERSION?: string;
@@ -116,6 +120,12 @@ export function AppConfigGate({ children }: { children: React.ReactNode }) {
 
   return (
     <>
+      {config?.announcement?.active && (
+        <AnnouncementBanner
+          text={config.announcement.text}
+          color={config.announcement.color}
+        />
+      )}
       {children}
       {isNative && error && (
         <div className="fixed inset-x-3 bottom-20 z-50 mx-auto max-w-md rounded-lg border border-neon-orange/40 bg-bg/95 p-3 text-xs text-white shadow-xl">
@@ -207,7 +217,11 @@ function normalizePublicConfig(data: RawPublicAppConfig): PublicAppConfig {
         data.APP_MAINTENANCE_MESSAGE ??
         "FireSlot Nepal is updating. Please try again soon.",
     },
-    announcement: data.announcement,
+    announcement: data.announcement ?? {
+      active: configFlag(data.APP_ANNOUNCEMENT_ACTIVE),
+      text: data.APP_ANNOUNCEMENT_TEXT ?? "",
+      color: data.APP_ANNOUNCEMENT_COLOR ?? "#E53935",
+    },
     update: {
       force: Boolean(data.update?.force) || configFlag(data.APP_FORCE_UPDATE_ENABLED),
       minAndroidVersion: data.update?.minAndroidVersion ?? data.APP_MIN_ANDROID_VERSION ?? "1.0.0",
