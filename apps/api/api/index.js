@@ -390,6 +390,21 @@ async function loadFastLatestRelease() {
   };
 }
 
+function normalizeDownloadPath(value) {
+  if (!value) return null;
+  const clean = String(value).trim().replace(/^\/+/, '').replace(/^(downloads\/)+/, '');
+  return clean ? `/downloads/${clean}` : null;
+}
+
+function absoluteDownloadUrl(downloadUrl, apiUrl) {
+  if (!downloadUrl) return null;
+  if (/^https?:\/\//i.test(downloadUrl)) return downloadUrl;
+  const pathOnly = normalizeDownloadPath(downloadUrl);
+  if (!pathOnly) return null;
+  const apiBase = cleanUrl(apiUrl)?.replace(/\/api$/, '');
+  return apiBase ? `${apiBase}${pathOnly}` : pathOnly;
+}
+
 function cleanUrl(value) {
   return String(value ?? '').trim().replace(/\/+$/, '') || null;
 }
@@ -461,6 +476,7 @@ async function loadFastAppConfig(req) {
   const configuredWeb = cleanUrl(get('APP_PUBLIC_WEB_URL')) || cleanUrl(process.env.NEXT_PUBLIC_APP_URL);
   const inferredWeb = inferWebUrl(req);
   const publicWeb = configuredWeb && !isLocalUrl(configuredWeb) ? configuredWeb : inferredWeb || configuredWeb;
+  const downloadUrl = absoluteDownloadUrl(latest?.downloadUrl, api);
   return {
     maintenance: {
       enabled: bool('APP_MAINTENANCE_ENABLED') || bool('MAINTENANCE_MODE'),
@@ -476,7 +492,7 @@ async function loadFastAppConfig(req) {
       minAndroidVersion: get('APP_MIN_ANDROID_VERSION'),
       latestVersion: latest?.version ?? get('APP_LATEST_VERSION'),
       downloadEnabled: bool('APP_DOWNLOAD_ENABLED'),
-      downloadUrl: latest?.downloadUrl ?? null,
+      downloadUrl,
     },
     urls: {
       api,
@@ -538,7 +554,7 @@ function serveDownload(req, res) {
     res.end(JSON.stringify({ message: 'Invalid download path' }));
     return true;
   }
-  filename = filename.replace(/^downloads\//, "");
+  filename = filename.replace(/^(downloads\/)+/, "");
 
   if (!/^[A-Za-z0-9._-]+$/.test(filename) || filename.includes('..')) {
     res.statusCode = 400;

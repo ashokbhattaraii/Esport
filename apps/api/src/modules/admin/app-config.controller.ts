@@ -19,7 +19,7 @@ export class AppConfigController {
   ) {}
 
   @Get('app/config')
-  async publicConfig() {
+  async publicConfig(@Req() req: any) {
     const appConfig = await this.svc.getPublic();
     const systemRows = await this.prisma.systemConfig.findMany({
       where: {
@@ -46,13 +46,7 @@ export class AppConfigController {
       orderBy: { createdAt: "desc" },
     });
     const latestVersion = latest?.version ?? system.APP_LATEST_VERSION ?? "1.0.0";
-    const downloadUrl = latest?.filename
-      ? latest.filename.startsWith("http")
-        ? latest.filename
-        : latest.filename.startsWith("/")
-          ? latest.filename
-          : `/${latest.filename}`
-      : null;
+    const downloadUrl = latest?.filename ? this.publicDownloadUrl(latest.filename, req) : null;
 
     return {
       ...appConfig,
@@ -107,6 +101,36 @@ export class AppConfigController {
     if (typeof value === "boolean") return value;
     if (typeof value !== "string") return false;
     return value.toLowerCase() === "true";
+  }
+
+  private publicDownloadUrl(filename: string, req: any) {
+    if (/^https?:\/\//i.test(filename)) return filename;
+    const clean = filename.trim().replace(/^\/+/, "").replace(/^(downloads\/)+/, "");
+    if (!clean) return null;
+    const path = `/downloads/${clean}`;
+    const configured =
+      process.env.NEXT_PUBLIC_API_URL ??
+      process.env.PUBLIC_API_URL ??
+      null;
+    const base = this.apiBase(configured) ?? this.requestBase(req);
+    return base ? `${base}${path}` : path;
+  }
+
+  private apiBase(value?: string | null) {
+    const clean = value?.trim().replace(/\/+$/, "");
+    if (!clean) return null;
+    return clean.replace(/\/api$/, "");
+  }
+
+  private requestBase(req: any) {
+    const host = String(req?.headers?.["x-forwarded-host"] ?? req?.headers?.host ?? "")
+      .split(",")[0]
+      .trim();
+    if (!host) return null;
+    const proto = String(req?.headers?.["x-forwarded-proto"] ?? req?.protocol ?? "https")
+      .split(",")[0]
+      .trim();
+    return `${proto}://${host}`;
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

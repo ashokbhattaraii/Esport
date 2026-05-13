@@ -72,7 +72,7 @@ export async function checkForUpdates(
 
     const data = await response.json();
     const latestVersion = data.update?.latestVersion || currentVersion;
-    const downloadUrl = data.update?.downloadUrl || null;
+    const downloadUrl = normalizeDownloadUrl(data.update?.downloadUrl || null, apiUrl);
     const forceUpdate = data.update?.force || false;
     const releaseNotes = data.releaseNotes || null;
 
@@ -116,6 +116,14 @@ export async function downloadAndInstallAPK(
     console.error("Error downloading APK:", error);
     throw error;
   }
+}
+
+function normalizeDownloadUrl(downloadUrl: string | null, apiUrl: string): string | null {
+  if (!downloadUrl) return null;
+  if (/^https?:\/\//i.test(downloadUrl)) return downloadUrl;
+  const apiBase = apiUrl.replace(/\/+$/, "").replace(/\/api$/, "");
+  const cleanPath = downloadUrl.replace(/^\/+/, "").replace(/^(downloads\/)+/, "");
+  return `${apiBase}/downloads/${cleanPath}`;
 }
 
 /**
